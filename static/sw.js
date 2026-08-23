@@ -2,7 +2,7 @@
 // YURT SOSYAL PWA SERVICE WORKER
 // ==========================================
 
-const CACHE_NAME = 'yurt-sosyal-v2.2-messaging-fix';
+const CACHE_NAME = 'yurt-sosyal-v2.3-messaging-align-fix';
 const STATIC_ASSETS = [
     '/',
     '/static/css/style.css',
