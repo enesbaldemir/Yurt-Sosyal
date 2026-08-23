@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}{{ conversation.name if conversation.type == 'group' else other.full_name }} — Mesajlar{% endblock %}
 {% block extra_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/messages.css') }}?v=2">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/messages.css') }}?v=5">
 {% endblock %}
 {% block content %}
 
@@ -311,6 +311,22 @@ if (window.innerWidth <= 860) {
     document.body.classList.add('thread-open-mobile');
     document.getElementById('threadPage').classList.add('mobile-fullscreen');
 }
+
+// ---------- Gerçek görünür yükseklik (klavye açılınca mesaj yazma alanının
+// ekran dışına taşmasını önler; özellikle PWA/standalone modda dvh birimi
+// bazı cihazlarda klavyeyle birlikte güncellenmiyor) ----------
+function setAppVh() {
+    const vp = window.visualViewport;
+    const h = vp ? vp.height : window.innerHeight;
+    document.documentElement.style.setProperty('--app-vh', (h / 100) + 'px');
+}
+setAppVh();
+if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', setAppVh);
+    window.visualViewport.addEventListener('scroll', setAppVh);
+}
+window.addEventListener('resize', setAppVh);
+window.addEventListener('orientationchange', setAppVh);
 
 // ---------- Socket okundu bilgisi ----------
 if (typeof socket !== 'undefined') {

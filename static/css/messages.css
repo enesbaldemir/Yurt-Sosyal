@@ -332,9 +332,20 @@
     padding: 16px;
     display: flex;
     flex-direction: column;
-    align-items: flex-start;
+    align-items: stretch;
     gap: 2px;
     background: var(--bg);
+}
+
+/* Mesaj satırlarının gerçek kapsayıcısı; .thread-messages'in doğrudan
+   çocuğu bu div olduğu için hizalama (align-self: flex-end/flex-start)
+   satırlara değil buraya uygulanmalı, aksi halde tüm baloncuklar
+   (gönderen fark etmeksizin) her zaman sola yaslanır. */
+#messagesContainer {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    width: 100%;
 }
 
 .load-older-btn {
@@ -371,13 +382,14 @@
     margin: 2px 0;
     max-width: 74%;
     width: fit-content;
-    align-self: flex-start;
+    align-self: flex-end;
+    flex-direction: row-reverse;
     position: relative;
 }
 
 .msg-row.mine {
-    align-self: flex-end;
-    flex-direction: row-reverse;
+    align-self: flex-start;
+    flex-direction: row;
 }
 
 .msg-bubble-wrap {
@@ -386,11 +398,11 @@
     max-width: 100%;
     display: flex;
     flex-direction: column;
-    align-items: flex-start;
+    align-items: flex-end;
 }
 
 .msg-row.mine .msg-bubble-wrap {
-    align-items: flex-end;
+    align-items: flex-start;
 }
 
 .msg-bubble {
@@ -405,7 +417,6 @@
     font-size: 0.88rem;
     line-height: 1.4;
     word-wrap: break-word;
-    white-space: pre-wrap;
     position: relative;
 }
 
@@ -438,11 +449,11 @@
 }
 
 .msg-row:not(.mine) .msg-bubble {
-    border-bottom-left-radius: 4px;
+    border-bottom-right-radius: 4px;
 }
 
 .msg-row.mine .msg-bubble {
-    border-bottom-right-radius: 4px;
+    border-bottom-left-radius: 4px;
 }
 
 .msg-reply-preview {
@@ -479,11 +490,11 @@
     font-size: 0.68rem;
     color: var(--text-faint);
     margin: 3px 3px 0;
-    justify-content: flex-end;
+    justify-content: flex-start;
 }
 
 .msg-row:not(.mine) .msg-meta-row {
-    justify-content: flex-start;
+    justify-content: flex-end;
 }
 
 .msg-edited-tag {
@@ -1031,6 +1042,11 @@
     .thread-page {
         height: 100vh;
         height: 100dvh;
+        height: calc(var(--app-vh, 1vh) * 100);
+        /* Masaüstü kuralındaki min-height:520px burada devreder; klavye
+           açıldığında gerçek görünür yükseklik bundan az olursa mesaj
+           yazma alanını ekran dışına iter. */
+        min-height: 0;
     }
 
     .thread-page.mobile-fullscreen {
