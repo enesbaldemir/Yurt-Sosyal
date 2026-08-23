@@ -1,0 +1,860 @@
+{% extends "base.html" %}
+{% block title %}{{ conversation.name if conversation.type == 'group' else other.full_name }} — Mesajlar{% endblock %}
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/messages.css') }}?v=2">
+{% endblock %}
+{% block content %}
+
+<div class="msg-card">
+<div class="thread-page" id="threadPage"
+     data-conversation-id="{{ conversation.id }}"
+     data-conversation-type="{{ conversation.type }}"
+     data-has-more="{{ has_more|tojson }}"
+     data-my-role="{{ my_role }}">
+
+    <div class="thread-header">
+        <a href="{{ url_for('messages_list') }}" class="thread-back-btn"><i class="bi bi-arrow-left"></i></a>
+
+        {% if conversation.type == 'group' %}
+        <a href="javascript:void(0)" class="thread-header-info" onclick="openGroupInfo()">
+            {% if conversation.photo %}
+                <img class="conv-avatar" src="{{ url_for('static', filename='uploads/groups/' ~ conversation.photo) }}" alt="">
+            {% else %}
+                <div class="conv-avatar"><i class="bi bi-people-fill"></i></div>
+            {% endif %}
+            <div class="thread-header-texts">
+                <div class="thread-header-title">{{ conversation.name }}</div>
+                <div class="thread-header-sub">{{ members|length }} üye</div>
+            </div>
+        </a>
+        {% else %}
+        <a href="{{ url_for('profile', username=other.username) if other else '#' }}" class="thread-header-info">
+            {% if other and other.profile_photo %}
+                <img class="conv-avatar" src="{{ url_for('static', filename='uploads/profiles/' ~ other.profile_photo) }}" alt="">
+            {% else %}
+                <div class="conv-avatar">{{ (other.full_name[:1]|upper) if other else '?' }}</div>
+            {% endif %}
+            <div class="thread-header-texts">
+                <div class="thread-header-title">{{ other.full_name if other else 'Silinmiş kullanıcı' }}</div>
+                <div class="thread-header-sub" id="typingOrSub">@{{ other.username if other else '' }}</div>
+            </div>
+        </a>
+        {% endif %}
+
+        <div class="thread-header-actions">
+            <button class="icon-btn" type="button" title="Mesajlarda ara" onclick="toggleInThreadSearch()"><i class="bi bi-search"></i></button>
+            <button class="icon-btn" type="button" title="Diğer" onclick="openThreadMenu(event)"><i class="bi bi-three-dots-vertical"></i></button>
+        </div>
+    </div>
+
+    <div class="conv-search" id="inThreadSearchBar" style="display:none; padding:8px 16px; border-bottom:1px solid var(--border);">
+        <input type="text" id="inThreadSearchInput" placeholder="Bu sohbette ara...">
+    </div>
+
+    {% if pinned %}
+    <div class="pinned-bar" id="pinnedBar" onclick="scrollToMessage({{ pinned.message_id }})">
+        <i class="bi bi-pin-angle-fill"></i>
+        <span class="pinned-bar-text"><strong>{{ pinned.sender_name }}:</strong> {{ pinned.content }}</span>
+    </div>
+    {% endif %}
+
+    {% if is_blocking_me %}
+    <div class="blocked-notice"><i class="bi bi-slash-circle"></i> Bu kullanıcı sizinle mesajlaşmayı kapatmış.</div>
+    {% endif %}
+
+    <div class="thread-messages" id="threadMessages">
+        {% if has_more %}
+        <button class="load-older-btn" id="loadOlderBtn" type="button" onclick="loadOlderMessages()">Daha eski mesajları yükle</button>
+        {% endif %}
+        <div id="messagesContainer">
+            {% for m in messages %}
+                {% include "_message_row.html" %}
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="typing-indicator" id="typingIndicator"></div>
+
+    {% if is_blocked_by_me %}
+    <div class="blocked-notice">
+        Bu kullanıcıyı engellediniz.
+        <button class="btn btn-soft btn-sm ms-2" onclick="toggleBlock()">Engeli Kaldır</button>
+    </div>
+    {% elif is_blocking_me %}
+    <div class="blocked-notice">Mesaj gönderemezsiniz.</div>
+    {% else %}
+    <div class="thread-composer">
+        <div class="reply-bar" id="replyBar">
+            <div class="reply-bar-body">
+                <span class="reply-bar-name" id="replyBarName"></span>
+                <span class="reply-bar-text" id="replyBarText"></span>
+            </div>
+            <button class="reply-bar-close" type="button" onclick="cancelReply()"><i class="bi bi-x-lg"></i></button>
+        </div>
+        <div class="composer-row">
+            <div style="position:relative;">
+                <button class="composer-icon-btn" type="button" title="Emoji" onclick="toggleEmojiPicker(event)"><i class="bi bi-emoji-smile"></i></button>
+                <div id="emojiPicker" style="display:none; position:absolute; bottom:44px; left:0; background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:8px; box-shadow:var(--shadow-lg); width:220px; flex-wrap:wrap; gap:2px; z-index:60;"></div>
+            </div>
+            <button class="composer-icon-btn" type="button" title="Dosya / görsel ekle" onclick="document.getElementById('imageInput').click()"><i class="bi bi-paperclip"></i></button>
+            <input type="file" id="imageInput" accept="image/*" style="display:none;">
+            <div class="composer-input-wrap">
+                <textarea class="composer-textarea" id="messageInput" placeholder="Mesaj yaz..." rows="1" maxlength="4000"></textarea>
+            </div>
+            <button class="composer-send-btn" id="sendBtn" type="button"><i class="bi bi-send-fill"></i></button>
+        </div>
+        <div class="image-preview-bar" id="imagePreviewBar">
+            <div class="image-preview-thumb-wrap">
+                <img id="imagePreviewThumb" src="" alt="">
+                <button type="button" class="image-preview-remove" onclick="clearImagePreview()"><i class="bi bi-x-lg"></i></button>
+            </div>
+            <span class="text-muted small">Görsel gönderilecek — mesaj kutusuna yazdığınız metin açıklama olarak eklenir.</span>
+        </div>
+    </div>
+    {% endif %}
+</div>
+</div>
+
+<!-- Mesaj ⋯ menüsü (desktop) -->
+<div class="ctx-menu-backdrop" id="msgMenuBackdrop" onclick="closeMsgMenu()"></div>
+<div class="ctx-menu" id="msgMenu"></div>
+
+<!-- Mesaj aksiyon sayfası (mobil, uzun basma) -->
+<div class="action-sheet-backdrop" id="msgSheetBackdrop">
+    <div class="action-sheet">
+        <div class="action-sheet-preview" id="msgSheetPreview"></div>
+        <div id="msgSheetActions"></div>
+    </div>
+</div>
+
+<!-- Thread genel menü (mute/archive/delete/block/report) -->
+<div class="ctx-menu-backdrop" id="threadMenuBackdrop" onclick="closeThreadMenu()"></div>
+<div class="ctx-menu" id="threadMenu">
+    <button class="ctx-menu-item" type="button" onclick="threadAction('mute')"><i class="bi bi-bell-slash"></i> {{ 'Bildirimleri aç' if is_muted else 'Bildirimleri sessize al' }}</button>
+    <button class="ctx-menu-item" type="button" onclick="threadAction('archive')"><i class="bi bi-archive"></i> Sohbeti arşivle</button>
+    <button class="ctx-menu-item danger" type="button" onclick="threadAction('delete')"><i class="bi bi-trash3"></i> Sohbeti sil</button>
+    {% if conversation.type == 'dm' %}
+    <button class="ctx-menu-item danger" type="button" onclick="toggleBlock()"><i class="bi bi-slash-circle"></i> {{ 'Engeli kaldır' if is_blocked_by_me else 'Engelle' }}</button>
+    <button class="ctx-menu-item danger" type="button" onclick="reportConversation()"><i class="bi bi-flag"></i> Raporla</button>
+    {% else %}
+    <button class="ctx-menu-item" type="button" onclick="openGroupInfo()"><i class="bi bi-info-circle"></i> Grup bilgisi</button>
+    <button class="ctx-menu-item danger" type="button" onclick="confirmLeaveGroup()"><i class="bi bi-box-arrow-right"></i> Gruptan ayrıl</button>
+    {% endif %}
+</div>
+
+{% if conversation.type == 'group' %}
+<!-- Grup bilgi paneli -->
+<div class="group-info-backdrop" id="groupInfoBackdrop" onclick="closeGroupInfo()"></div>
+<div class="group-info-panel" id="groupInfoPanel">
+    <div class="group-info-head">
+        <button class="icon-btn me-2" onclick="closeGroupInfo()"><i class="bi bi-arrow-left"></i></button>
+        <strong>Grup Bilgisi</strong>
+    </div>
+    <div class="group-info-photo-wrap">
+        {% if conversation.photo %}
+            <img class="group-info-photo" src="{{ url_for('static', filename='uploads/groups/' ~ conversation.photo) }}" alt="">
+        {% else %}
+            <div class="group-info-photo"><i class="bi bi-people-fill"></i></div>
+        {% endif %}
+        <div class="group-info-name">{{ conversation.name }}</div>
+        <div class="group-info-sub">{{ members|length }} üye</div>
+    </div>
+    {% if conversation.description %}
+    <div class="group-info-desc mb-3">{{ conversation.description }}</div>
+    {% endif %}
+
+    {% if my_role == 'admin' %}
+    <div class="group-info-section">
+        <button class="btn btn-soft btn-sm w-100" data-bs-toggle="modal" data-bs-target="#editGroupModal"><i class="bi bi-pencil me-1"></i> Grubu düzenle</button>
+    </div>
+    {% endif %}
+
+    <div class="group-info-section">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+            <span class="group-info-section-title mb-0">Üyeler — {{ members|length }}</span>
+            {% if my_role == 'admin' %}
+            <button class="btn btn-soft btn-sm py-1 px-2" style="font-size:.74rem;" data-bs-toggle="modal" data-bs-target="#addMembersModal"><i class="bi bi-person-plus"></i> Ekle</button>
+            {% endif %}
+        </div>
+        {% for mem in members %}
+        <div class="group-member-row">
+            {% if mem.profile_photo %}
+                <img class="avatar" src="{{ url_for('static', filename='uploads/profiles/' ~ mem.profile_photo) }}" alt="">
+            {% else %}
+                <div class="avatar">{{ mem.full_name[:1]|upper }}</div>
+            {% endif %}
+            <div class="group-member-info">
+                <div class="group-member-name">{{ mem.full_name }}{% if mem.id == session.user_id %} (Sen){% endif %}</div>
+                <div class="group-member-role">{{ 'Yönetici' if mem.role == 'admin' else '@' ~ mem.username }}</div>
+            </div>
+            {% if my_role == 'admin' and mem.id != session.user_id %}
+            <button class="icon-btn" onclick="openMemberMenu(event, {{ mem.id }}, {{ (mem.role=='admin')|tojson }}, '{{ mem.full_name|e }}')"><i class="bi bi-three-dots"></i></button>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+
+    <div class="group-info-section">
+        <button class="group-danger-link" type="button" onclick="confirmLeaveGroup()"><i class="bi bi-box-arrow-right"></i> Gruptan ayrıl</button>
+    </div>
+</div>
+
+<!-- Üye ⋯ menüsü -->
+<div class="ctx-menu-backdrop" id="memberMenuBackdrop" onclick="closeMemberMenu()"></div>
+<div class="ctx-menu" id="memberMenu"></div>
+
+<!-- Grubu düzenle modalı -->
+<div class="modal fade" id="editGroupModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form id="editGroupForm" enctype="multipart/form-data">
+                <div class="modal-header"><h6 class="modal-title">Grubu Düzenle</h6><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                <div class="modal-body">
+                    <label class="group-photo-picker mb-3" for="editGroupPhotoInput" id="editGroupPhotoPreview">
+                        {% if conversation.photo %}<img src="{{ url_for('static', filename='uploads/groups/' ~ conversation.photo) }}">{% else %}<i class="bi bi-camera"></i>{% endif %}
+                    </label>
+                    <input type="file" id="editGroupPhotoInput" name="photo" accept="image/*" style="display:none;">
+                    <div class="mb-3">
+                        <label class="form-label small">Grup adı</label>
+                        <input type="text" class="form-control" name="name" value="{{ conversation.name }}" maxlength="80" required>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small">Açıklama</label>
+                        <textarea class="form-control" name="description" rows="2" maxlength="300">{{ conversation.description or '' }}</textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-soft" data-bs-dismiss="modal">Vazgeç</button>
+                    <button type="submit" class="btn btn-primary">Kaydet</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Üye ekle modalı -->
+<div class="modal fade" id="addMembersModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header"><h6 class="modal-title">Üye Ekle</h6><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body">
+                <input type="text" class="form-control mb-2" id="addMemberSearch" placeholder="Ara...">
+                <div id="addMemberList" style="max-height:320px; overflow-y:auto;"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-soft" data-bs-dismiss="modal">Vazgeç</button>
+                <button type="button" class="btn btn-primary" id="addMembersSubmitBtn">Ekle</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<div class="modal fade" id="threadConfirmModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-body p-4 text-center">
+                <p class="mb-4" id="threadConfirmText">Emin misiniz?</p>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-soft flex-fill" data-bs-dismiss="modal">Vazgeç</button>
+                    <button class="btn btn-danger flex-fill" id="threadConfirmOkBtn">Onayla</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="editMessageModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header"><h6 class="modal-title">Mesajı Düzenle</h6><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body">
+                <textarea class="form-control" id="editMessageTextarea" rows="3" maxlength="4000"></textarea>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-soft" data-bs-dismiss="modal">Vazgeç</button>
+                <button type="button" class="btn btn-primary" id="editMessageSaveBtn">Kaydet</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Görsel lightbox -->
+<div class="lightbox-backdrop" id="lightboxBackdrop" onclick="closeLightbox()">
+    <img id="lightboxImg" src="" alt="">
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const CONV_ID = {{ conversation.id }};
+const MY_ID = {{ session.user_id }};
+const CONV_TYPE = "{{ conversation.type }}";
+let replyingTo = null;
+let editingMessageId = null;
+let oldestLoadedId = {{ messages[0].id if messages else 0 }};
+let hasMoreOlder = {{ has_more|tojson }};
+let typingTimeout = null;
+let othersTyping = {};
+
+function showToast(msg) {
+    const t = document.createElement('div');
+    t.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:100px;z-index:9999;padding:10px 18px;border-radius:14px;background:var(--surface);color:var(--text);border:1px solid var(--border);box-shadow:0 12px 30px rgba(0,0,0,.15);font-size:.84rem;';
+    t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 2500);
+}
+
+// ---------- Mobil tam ekran ----------
+if (window.innerWidth <= 860) {
+    document.body.classList.add('thread-open-mobile');
+    document.getElementById('threadPage').classList.add('mobile-fullscreen');
+}
+
+// ---------- Socket okundu bilgisi ----------
+if (typeof socket !== 'undefined') {
+    socket.emit('mark_read', { conversation_id: CONV_ID });
+}
+
+// ---------- Kaydırma ----------
+const msgContainer = document.getElementById('threadMessages');
+function scrollToBottom(smooth) {
+    msgContainer.scrollTo({ top: msgContainer.scrollHeight, behavior: smooth ? 'smooth' : 'auto' });
+}
+scrollToBottom(false);
+
+function scrollToMessage(id) {
+    const el = document.getElementById('msg-' + id);
+    if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.style.transition = 'background 0.3s';
+        el.style.background = 'rgba(120,120,120,.18)';
+        setTimeout(() => el.style.background = '', 900);
+    } else {
+        showToast('Mesaj yukarıda bulunamadı, daha eski mesajları yükleyin.');
+    }
+}
+
+// ---------- Composer ----------
+const input = document.getElementById('messageInput');
+const sendBtn = document.getElementById('sendBtn');
+if (input) {
+    input.addEventListener('input', function() {
+        this.style.height = 'auto';
+        this.style.height = Math.min(this.scrollHeight, 130) + 'px';
+        sendBtn.classList.toggle('enabled', this.value.trim().length > 0 || !!pendingImageFile);
+        if (typeof socket !== 'undefined') {
+            socket.emit('typing', { conversation_id: CONV_ID, is_typing: this.value.trim().length > 0 });
+            clearTimeout(typingTimeout);
+            typingTimeout = setTimeout(() => socket.emit('typing', { conversation_id: CONV_ID, is_typing: false }), 1800);
+        }
+    });
+    input.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage();
+        }
+    });
+    sendBtn.addEventListener('click', sendMessage);
+}
+
+let sending = false;
+let pendingImageFile = null;
+
+const imageInput = document.getElementById('imageInput');
+if (imageInput) {
+    imageInput.addEventListener('change', function() {
+        const file = this.files && this.files[0];
+        if (!file) return;
+        if (file.size > 8 * 1024 * 1024) {
+            showToast('Görsel çok büyük (maksimum 8 MB).');
+            this.value = '';
+            return;
+        }
+        pendingImageFile = file;
+        const reader = new FileReader();
+        reader.onload = e => {
+            document.getElementById('imagePreviewThumb').src = e.target.result;
+            document.getElementById('imagePreviewBar').classList.add('active');
+        };
+        reader.readAsDataURL(file);
+        sendBtn.classList.add('enabled');
+    });
+}
+function clearImagePreview() {
+    pendingImageFile = null;
+    imageInput.value = '';
+    document.getElementById('imagePreviewBar').classList.remove('active');
+    if (!input.value.trim()) sendBtn.classList.remove('enabled');
+}
+
+function sendMessage() {
+    if (pendingImageFile) { sendImageMessage(); return; }
+    const text = input.value.trim();
+    if (!text || sending) return;
+    sending = true;
+    sendBtn.classList.remove('enabled');
+    const payload = { conversation_id: CONV_ID, content: text, reply_to_id: replyingTo ? replyingTo.id : null };
+    input.value = '';
+    input.style.height = 'auto';
+    cancelReply();
+
+    if (typeof socket !== 'undefined' && socket.connected) {
+        socket.emit('send_message', payload);
+        setTimeout(() => { sending = false; }, 250);
+    } else {
+        const fd = new FormData();
+        fd.append('content', payload.content);
+        if (payload.reply_to_id) fd.append('reply_to_id', payload.reply_to_id);
+        fetch(`/messages/conversation/${CONV_ID}/send`, { method: 'POST', body: fd })
+            .then(r => r.json())
+            .then(data => {
+                sending = false;
+                if (data.error) { showToast(data.error); return; }
+                appendMessage(data.message);
+            })
+            .catch(() => { sending = false; showToast('Mesaj gönderilemedi. İnternet bağlantınızı kontrol edin.'); });
+    }
+}
+
+function sendImageMessage() {
+    if (sending || !pendingImageFile) return;
+    sending = true;
+    sendBtn.classList.remove('enabled');
+    const fd = new FormData();
+    fd.append('image', pendingImageFile);
+    if (input.value.trim()) fd.append('content', input.value.trim());
+    if (replyingTo) fd.append('reply_to_id', replyingTo.id);
+
+    const file = pendingImageFile;
+    clearImagePreview();
+    input.value = '';
+    input.style.height = 'auto';
+    cancelReply();
+
+    fetch(`/messages/conversation/${CONV_ID}/send-image`, { method: 'POST', body: fd })
+        .then(r => r.json())
+        .then(data => {
+            sending = false;
+            if (data.error) { showToast(data.error); return; }
+            appendMessage(data.message);
+        })
+        .catch(() => { sending = false; showToast('Görsel gönderilemedi. İnternet bağlantınızı kontrol edin.'); });
+}
+
+function openLightbox(src) {
+    document.getElementById('lightboxImg').src = src;
+    document.getElementById('lightboxBackdrop').classList.add('open');
+}
+function closeLightbox() {
+    document.getElementById('lightboxBackdrop').classList.remove('open');
+}
+
+function cancelReply() {
+    replyingTo = null;
+    document.getElementById('replyBar').classList.remove('active');
+}
+function setReply(id, name, text) {
+    replyingTo = { id, name, text };
+    document.getElementById('replyBarName').textContent = name;
+    document.getElementById('replyBarText').textContent = text;
+    document.getElementById('replyBar').classList.add('active');
+    input.focus();
+}
+
+// ---------- Emoji ----------
+const EMOJIS = ['😀','😂','😍','😊','😉','🙂','😢','😭','😡','👍','👎','🙏','🎉','🔥','❤️','💪','🤝','😴','🤔','😅','🥳','😎','👏','🙌','✅','❌','⏰','📌','🏠','🧺'];
+function toggleEmojiPicker(e) {
+    e.stopPropagation();
+    const picker = document.getElementById('emojiPicker');
+    if (picker.style.display === 'none' || !picker.style.display) {
+        picker.innerHTML = EMOJIS.map(em => `<span style="cursor:pointer;font-size:1.3rem;padding:3px;display:inline-block;" onclick="insertEmoji('${em}')">${em}</span>`).join('');
+        picker.style.display = 'flex';
+    } else {
+        picker.style.display = 'none';
+    }
+}
+function insertEmoji(em) {
+    input.value += em;
+    input.dispatchEvent(new Event('input'));
+}
+document.addEventListener('click', () => { const p = document.getElementById('emojiPicker'); if (p) p.style.display = 'none'; });
+
+// ---------- Mesaj render (append) ----------
+function appendMessage(m) {
+    const div = document.createElement('div');
+    div.innerHTML = renderMessageRow(m);
+    document.getElementById('messagesContainer').appendChild(div.firstElementChild);
+    scrollToBottom(true);
+}
+
+function renderMessageRow(m) {
+    const mineClass = m.is_mine ? 'mine' : '';
+    let bubbleInner = '';
+    if (m.reply_to) {
+        bubbleInner += `<div class="msg-reply-preview" onclick="scrollToMessage(${m.reply_to.id})"><span class="msg-reply-sender">${escapeHtml(m.reply_to.sender_name)}</span>${escapeHtml(m.reply_to.content)}</div>`;
+    }
+    if (m.deleted) {
+        bubbleInner += `<span>Bu mesaj silindi.</span>`;
+    } else {
+        if (m.image) {
+            bubbleInner += `<img class="msg-image" src="/static/uploads/messages/${m.image}" onclick="openLightbox('/static/uploads/messages/${m.image}')" alt="Görsel">`;
+        }
+        if (m.content) {
+            bubbleInner += `<div class="${m.image ? 'msg-caption' : ''}">${escapeHtml(m.content).replace(/\n{3,}/g, '\n\n').replace(/\n/g, '<br>')}</div>`;
+        }
+    }
+    const editedTag = (m.edited && !m.deleted) ? ' <span class="msg-edited-tag">(düzenlendi)</span>' : '';
+    const avatarHtml = (CONV_TYPE === 'group' && !m.is_mine)
+        ? (m.sender_photo ? `<img class="msg-avatar" src="/static/uploads/profiles/${m.sender_photo}">` : `<div class="msg-avatar" style="display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700;">${escapeHtml((m.sender_name||'?')[0].toUpperCase())}</div>`)
+        : '';
+    const senderName = (CONV_TYPE === 'group' && !m.is_mine) ? `<div class="msg-sender-name">${escapeHtml(m.sender_name)}</div>` : '';
+    const actionsBtn = m.deleted ? '' : `<button class="msg-actions-btn" onclick="openMsgMenu(event, ${m.id})"><i class="bi bi-three-dots"></i></button>`;
+    const bubbleClass = (m.image && !m.content && !m.deleted) ? 'msg-bubble has-image' : 'msg-bubble';
+    return `<div class="msg-row ${mineClass}" id="msg-${m.id}" data-msg-id="${m.id}" data-sender-id="${m.sender_id}" data-content="${escapeHtml(m.content || '')}" data-sender-name="${escapeHtml(m.sender_name)}"
+                 ontouchstart="msgTouchStart(event, ${m.id})" ontouchend="msgTouchEnd(event)" ontouchmove="msgTouchEnd(event)">
+        ${avatarHtml}
+        <div class="msg-bubble-wrap">
+            ${senderName}
+            <div class="${bubbleClass} ${m.deleted ? 'msg-deleted' : ''}">${bubbleInner}</div>
+            <div class="msg-meta-row">
+                <span>${m.created_at}</span>${editedTag}
+            </div>
+        </div>
+        ${actionsBtn}
+    </div>`;
+}
+function escapeHtml(s) {
+    return (s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// ---------- Uzun basma (mobil) ----------
+let touchTimer = null;
+function msgTouchStart(e, id) {
+    touchTimer = setTimeout(() => openMsgSheet(id), 480);
+}
+function msgTouchEnd(e) { clearTimeout(touchTimer); }
+
+// ---------- Mesaj ⋯ menüsü (desktop) ----------
+function buildMsgActions(id) {
+    const row = document.getElementById('msg-' + id);
+    const isMine = row.dataset.senderId == MY_ID;
+    const isAdmin = CONV_TYPE === 'group' && {{ (my_role == 'admin')|tojson }};
+    const items = [];
+    items.push({ label: 'Yanıtla', icon: 'bi-reply', act: 'reply' });
+    items.push({ label: 'Kopyala', icon: 'bi-clipboard', act: 'copy' });
+    if (isMine) items.push({ label: 'Düzenle', icon: 'bi-pencil', act: 'edit' });
+    if (isMine || isAdmin) items.push({ label: 'Herkesten sil', icon: 'bi-trash3', act: 'delete_everyone', danger: true });
+    items.push({ label: 'Benden sil', icon: 'bi-trash', act: 'delete_me', danger: true });
+    if (!isMine) items.push({ label: 'Raporla', icon: 'bi-flag', act: 'report', danger: true });
+    return items;
+}
+
+function openMsgMenu(e, id) {
+    e.stopPropagation();
+    const items = buildMsgActions(id);
+    const menu = document.getElementById('msgMenu');
+    menu.innerHTML = items.map(it => `<button class="ctx-menu-item ${it.danger ? 'danger' : ''}" onclick="handleMsgAction('${it.act}', ${id})"><i class="bi ${it.icon}"></i> ${it.label}</button>`).join('');
+    const rect = e.target.closest('button').getBoundingClientRect();
+    let top = rect.bottom + 4, left = rect.left - 150;
+    top = Math.min(top, window.innerHeight - items.length * 42 - 20);
+    left = Math.max(8, Math.min(left, window.innerWidth - 210));
+    menu.style.top = top + 'px';
+    menu.style.left = left + 'px';
+    menu.classList.add('open');
+    document.getElementById('msgMenuBackdrop').classList.add('open');
+}
+function closeMsgMenu() {
+    document.getElementById('msgMenu').classList.remove('open');
+    document.getElementById('msgMenuBackdrop').classList.remove('open');
+}
+
+function openMsgSheet(id) {
+    const items = buildMsgActions(id);
+    const row = document.getElementById('msg-' + id);
+    document.getElementById('msgSheetPreview').textContent = row.dataset.content || 'Bu mesaj silindi.';
+    document.getElementById('msgSheetActions').innerHTML = items.map(it =>
+        `<button class="ctx-menu-item ${it.danger ? 'danger' : ''}" onclick="closeMsgSheet(); handleMsgAction('${it.act}', ${id})"><i class="bi ${it.icon}"></i> ${it.label}</button>`
+    ).join('') + `<button class="ctx-menu-item" onclick="closeMsgSheet()"><i class="bi bi-x-lg"></i> İptal</button>`;
+    document.getElementById('msgSheetBackdrop').classList.add('open');
+}
+function closeMsgSheet() { document.getElementById('msgSheetBackdrop').classList.remove('open'); }
+document.getElementById('msgSheetBackdrop').addEventListener('click', function(e) { if (e.target === this) closeMsgSheet(); });
+
+function handleMsgAction(act, id) {
+    closeMsgMenu();
+    const row = document.getElementById('msg-' + id);
+    if (act === 'reply') {
+        setReply(id, row.dataset.senderName, row.dataset.content.slice(0, 120));
+    } else if (act === 'copy') {
+        navigator.clipboard.writeText(row.dataset.content).then(() => showToast('Kopyalandı.'));
+    } else if (act === 'edit') {
+        editingMessageId = id;
+        document.getElementById('editMessageTextarea').value = row.dataset.content;
+        new bootstrap.Modal(document.getElementById('editMessageModal')).show();
+    } else if (act === 'delete_everyone') {
+        threadConfirm('Bu mesajı herkesten silmek istediğinize emin misiniz?', () => {
+            fetch(`/messages/message/${id}/delete-for-everyone`, { method: 'POST' })
+                .then(r => r.json()).then(d => { if (d.error) showToast(d.error); });
+        });
+    } else if (act === 'delete_me') {
+        threadConfirm('Bu mesajı kendi görünümünüzden silmek istediğinize emin misiniz?', () => {
+            fetch(`/messages/message/${id}/delete-for-me`, { method: 'POST' })
+                .then(r => r.json()).then(d => { if (!d.error) row.remove(); else showToast(d.error); });
+        });
+    } else if (act === 'report') {
+        fetch(`/messages/conversation/${CONV_ID}/report`, { method: 'POST', headers: {'Content-Type':'application/x-www-form-urlencoded'}, body: `message_id=${id}&reason=` })
+            .then(() => showToast('Mesaj raporlandı.'));
+    }
+}
+
+let threadConfirmCb = null;
+function threadConfirm(text, cb) {
+    document.getElementById('threadConfirmText').textContent = text;
+    threadConfirmCb = cb;
+    new bootstrap.Modal(document.getElementById('threadConfirmModal')).show();
+}
+document.getElementById('threadConfirmOkBtn').addEventListener('click', function() {
+    bootstrap.Modal.getInstance(document.getElementById('threadConfirmModal')).hide();
+    if (threadConfirmCb) threadConfirmCb();
+});
+
+document.getElementById('editMessageSaveBtn').addEventListener('click', function() {
+    const content = document.getElementById('editMessageTextarea').value.trim();
+    if (!content || !editingMessageId) return;
+    fetch(`/messages/message/${editingMessageId}/edit`, { method: 'POST', headers: {'Content-Type':'application/x-www-form-urlencoded'}, body: `content=${encodeURIComponent(content)}` })
+        .then(r => r.json()).then(d => {
+            if (d.error) { showToast(d.error); return; }
+            bootstrap.Modal.getInstance(document.getElementById('editMessageModal')).hide();
+        });
+});
+
+// ---------- Thread genel menü ----------
+function openThreadMenu(e) {
+    e.stopPropagation();
+    const menu = document.getElementById('threadMenu');
+    const rect = e.target.closest('button').getBoundingClientRect();
+    menu.style.top = (rect.bottom + 4) + 'px';
+    menu.style.left = Math.max(8, rect.left - 170) + 'px';
+    menu.classList.add('open');
+    document.getElementById('threadMenuBackdrop').classList.add('open');
+}
+function closeThreadMenu() {
+    document.getElementById('threadMenu').classList.remove('open');
+    document.getElementById('threadMenuBackdrop').classList.remove('open');
+}
+function threadAction(act) {
+    closeThreadMenu();
+    if (act === 'delete') {
+        threadConfirm('Bu sohbeti silmek istediğinize emin misiniz?', () => {
+            fetch(`/messages/conversation/${CONV_ID}/delete`, { method: 'POST' }).then(() => window.location.href = "{{ url_for('messages_list') }}");
+        });
+        return;
+    }
+    fetch(`/messages/conversation/${CONV_ID}/${act}`, { method: 'POST' }).then(() => window.location.reload());
+}
+function toggleBlock() {
+    closeThreadMenu();
+    threadConfirm('{{ "Engeli kaldırmak" if is_blocked_by_me else "Bu kullanıcıyı engellemek" }} istediğinize emin misiniz?', () => {
+        fetch(`/messages/conversation/${CONV_ID}/block`, { method: 'POST' }).then(() => window.location.reload());
+    });
+}
+function reportConversation() {
+    closeThreadMenu();
+    fetch(`/messages/conversation/${CONV_ID}/report`, { method: 'POST', headers: {'Content-Type':'application/x-www-form-urlencoded'}, body: 'reason=' })
+        .then(() => showToast('Kullanıcı raporlandı.'));
+}
+function confirmLeaveGroup() {
+    closeThreadMenu(); closeGroupInfo();
+    threadConfirm('Bu gruptan ayrılmak istediğinize emin misiniz?', () => {
+        fetch(`/messages/group/${CONV_ID}/leave`, { method: 'POST' }).then(r => r.json()).then(d => window.location.href = d.redirect || "{{ url_for('messages_list') }}");
+    });
+}
+
+// ---------- Grup bilgi paneli ----------
+function openGroupInfo() {
+    document.getElementById('groupInfoBackdrop').classList.add('open');
+    document.getElementById('groupInfoPanel').classList.add('open');
+}
+function closeGroupInfo() {
+    document.getElementById('groupInfoBackdrop').classList.remove('open');
+    document.getElementById('groupInfoPanel').classList.remove('open');
+}
+
+function openMemberMenu(e, memberId, isAdmin, name) {
+    e.stopPropagation();
+    const menu = document.getElementById('memberMenu');
+    const items = [];
+    items.push({ label: isAdmin ? 'Yöneticilikten çıkar' : 'Yönetici yap', icon: 'bi-shield', act: 'role' });
+    items.push({ label: 'Gruptan çıkar', icon: 'bi-person-dash', act: 'remove', danger: true });
+    menu.innerHTML = items.map(it => `<button class="ctx-menu-item ${it.danger?'danger':''}" onclick="handleMemberAction('${it.act}', ${memberId}, ${isAdmin}, '${name.replace(/'/g,"\\'")}')"><i class="bi ${it.icon}"></i> ${it.label}</button>`).join('');
+    const rect = e.target.closest('button').getBoundingClientRect();
+    menu.style.top = (rect.bottom + 4) + 'px';
+    menu.style.left = Math.max(8, rect.left - 160) + 'px';
+    menu.classList.add('open');
+    document.getElementById('memberMenuBackdrop').classList.add('open');
+}
+function closeMemberMenu() {
+    document.getElementById('memberMenu').classList.remove('open');
+    document.getElementById('memberMenuBackdrop').classList.remove('open');
+}
+function handleMemberAction(act, memberId, isAdmin, name) {
+    closeMemberMenu();
+    if (act === 'role') {
+        fetch(`/messages/group/${CONV_ID}/set-role/${memberId}`, { method: 'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body: `role=${isAdmin ? 'member' : 'admin'}` })
+            .then(r => r.json()).then(d => { if (d.error) { showToast(d.error); } else { window.location.reload(); } });
+    } else if (act === 'remove') {
+        threadConfirm(`${name} adlı üyeyi gruptan çıkarmak istediğinize emin misiniz?`, () => {
+            fetch(`/messages/group/${CONV_ID}/remove-member/${memberId}`, { method: 'POST' })
+                .then(r => r.json()).then(d => { if (d.error) showToast(d.error); else window.location.reload(); });
+        });
+    }
+}
+
+{% if conversation.type == 'group' %}
+document.getElementById('editGroupPhotoInput').addEventListener('change', function() {
+    if (this.files && this.files[0]) {
+        const reader = new FileReader();
+        reader.onload = e => document.getElementById('editGroupPhotoPreview').innerHTML = `<img src="${e.target.result}">`;
+        reader.readAsDataURL(this.files[0]);
+    }
+});
+document.getElementById('editGroupForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    fetch(`/messages/group/${CONV_ID}/update`, { method: 'POST', body: new FormData(this) })
+        .then(r => r.json()).then(d => { if (d.error) showToast(d.error); else window.location.reload(); });
+});
+
+let addMemberSelected = new Set();
+document.getElementById('addMembersModal').addEventListener('show.bs.modal', function() {
+    fetch('/messages/search-users').then(r => r.json()).then(d => renderAddMemberList(d.users));
+});
+document.getElementById('addMemberSearch').addEventListener('input', function() {
+    fetch('/messages/search-users?q=' + encodeURIComponent(this.value)).then(r => r.json()).then(d => renderAddMemberList(d.users));
+});
+function renderAddMemberList(users) {
+    const existingIds = new Set([{{ members|map(attribute='id')|join(',') }}]);
+    const list = document.getElementById('addMemberList');
+    list.innerHTML = users.filter(u => !existingIds.has(u.id)).map(u => `
+        <div class="member-pick-row ${addMemberSelected.has(u.id) ? 'selected' : ''}" onclick="toggleAddMember(${u.id}, this)">
+            <div class="member-pick-check"><i class="bi bi-check-lg"></i></div>
+            ${u.profile_photo ? `<img class="avatar" src="/static/uploads/profiles/${u.profile_photo}">` : `<div class="avatar">${u.full_name[0].toUpperCase()}</div>`}
+            <div><div style="font-weight:600;font-size:.86rem;">${u.full_name}</div><div style="font-size:.74rem;color:var(--text-muted);">@${u.username}</div></div>
+        </div>`).join('') || '<div class="text-muted small p-2">Eklenecek kullanıcı bulunamadı.</div>';
+}
+function toggleAddMember(id, el) {
+    if (addMemberSelected.has(id)) { addMemberSelected.delete(id); el.classList.remove('selected'); }
+    else { addMemberSelected.add(id); el.classList.add('selected'); }
+}
+document.getElementById('addMembersSubmitBtn').addEventListener('click', function() {
+    if (addMemberSelected.size === 0) { showToast('Lütfen en az bir üye seçin.'); return; }
+    const fd = new FormData();
+    addMemberSelected.forEach(id => fd.append('member_ids', id));
+    fetch(`/messages/group/${CONV_ID}/add-members`, { method: 'POST', body: fd })
+        .then(r => r.json()).then(d => { if (d.error) showToast(d.error); else window.location.reload(); });
+});
+{% endif %}
+
+// ---------- Sohbet içi arama (client-side) ----------
+function toggleInThreadSearch() {
+    const bar = document.getElementById('inThreadSearchBar');
+    bar.style.display = bar.style.display === 'none' ? 'block' : 'none';
+    if (bar.style.display === 'block') document.getElementById('inThreadSearchInput').focus();
+}
+document.getElementById('inThreadSearchInput')?.addEventListener('input', function() {
+    const q = this.value.trim().toLowerCase();
+    document.querySelectorAll('.msg-row').forEach(row => {
+        const content = (row.dataset.content || '').toLowerCase();
+        row.style.display = (!q || content.includes(q)) ? 'flex' : 'none';
+    });
+});
+
+// ---------- Eski mesajları yükle ----------
+function loadOlderMessages() {
+    const btn = document.getElementById('loadOlderBtn');
+    btn.textContent = 'Yükleniyor...';
+    fetch(`/messages/${CONV_ID}/older?before_id=${oldestLoadedId}`)
+        .then(r => r.json())
+        .then(d => {
+            const container = document.getElementById('messagesContainer');
+            const prevHeight = msgContainer.scrollHeight;
+            let html = '';
+            d.messages.forEach(m => html += renderMessageRow(m));
+            container.insertAdjacentHTML('afterbegin', html);
+            if (d.messages.length) oldestLoadedId = d.messages[0].id;
+            msgContainer.scrollTop = msgContainer.scrollHeight - prevHeight;
+            if (!d.has_more) btn.remove(); else btn.textContent = 'Daha eski mesajları yükle';
+        });
+}
+
+// ---------- Socket olayları ----------
+if (typeof socket !== 'undefined') {
+    socket.on('new_message', function(m) {
+        if (m.conversation_id !== CONV_ID) return;
+        appendMessage(m);
+        socket.emit('mark_read', { conversation_id: CONV_ID });
+    });
+    socket.on('message_edited', function(d) {
+        if (d.conversation_id !== CONV_ID) return;
+        const row = document.getElementById('msg-' + d.message_id);
+        if (!row) return;
+        row.dataset.content = d.content;
+        const bubble = row.querySelector('.msg-bubble');
+        const replyHtml = row.querySelector('.msg-reply-preview')?.outerHTML || '';
+        bubble.innerHTML = replyHtml + escapeHtml(d.content).replace(/\n{3,}/g, '\n\n').replace(/\n/g, '<br>');
+        const meta = row.querySelector('.msg-meta-row');
+        if (!meta.querySelector('.msg-edited-tag')) meta.insertAdjacentHTML('beforeend', ' <span class="msg-edited-tag">(düzenlendi)</span>');
+    });
+    socket.on('message_deleted', function(d) {
+        if (d.conversation_id !== CONV_ID) return;
+        const row = document.getElementById('msg-' + d.message_id);
+        if (!row) return;
+        row.querySelector('.msg-bubble').outerHTML = '<div class="msg-bubble msg-deleted">Bu mesaj silindi.</div>';
+        row.querySelector('.msg-actions-btn')?.remove();
+    });
+    socket.on('user_typing', function(d) {
+        if (d.conversation_id !== CONV_ID) return;
+        const el = document.getElementById('typingIndicator');
+        if (d.is_typing) {
+            othersTyping[d.user_id] = d.user_name;
+        } else {
+            delete othersTyping[d.user_id];
+        }
+        const names = Object.values(othersTyping);
+        el.textContent = names.length ? (names.join(', ') + (names.length > 1 ? ' yazıyorlar...' : ' yazıyor...')) : '';
+    });
+    socket.on('messages_read', function(d) {
+        if (d.conversation_id !== CONV_ID) return;
+        document.querySelectorAll('.msg-row.mine').forEach(row => {
+            if (parseInt(row.dataset.msgId) <= d.up_to) {
+                let ticks = row.querySelector('.msg-ticks');
+                const meta = row.querySelector('.msg-meta-row');
+                if (!ticks && meta) {
+                    meta.insertAdjacentHTML('beforeend', ' <i class="bi bi-check2-all msg-ticks read"></i>');
+                } else if (ticks) {
+                    ticks.classList.add('read');
+                }
+            }
+        });
+    });
+    socket.on('group_updated', function(d) {
+        if (d.conversation_id === CONV_ID) window.location.reload();
+    });
+    socket.on('removed_from_group', function(d) {
+        if (d.conversation_id === CONV_ID) {
+            showToast('Bu gruptan çıkarıldınız.');
+            setTimeout(() => window.location.href = "{{ url_for('messages_list') }}", 1200);
+        }
+    });
+}
+
+// İlk yüklemede mine olan mesajlara tek tik ekle (varsayılan "gönderildi" durumu)
+document.querySelectorAll('.msg-row.mine').forEach(row => {
+    const meta = row.querySelector('.msg-meta-row');
+    if (meta && !meta.querySelector('.msg-ticks')) {
+        meta.insertAdjacentHTML('beforeend', ' <i class="bi bi-check2 msg-ticks"></i>');
+    }
+});
+</script>
+{% endblock %}

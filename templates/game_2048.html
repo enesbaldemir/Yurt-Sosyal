@@ -1,0 +1,147 @@
+{% extends 'base.html' %}
+{% block title %}2048 — Oyunlar{% endblock %}
+{% block content %}
+
+<div class="d-flex align-items-center justify-content-between mb-4">
+    <div class="d-flex align-items-center gap-2">
+        <a href="{{ url_for('games_hub') }}" class="icon-btn" title="Oyunlara Dön">
+            <i class="bi bi-arrow-left"></i>
+        </a>
+        <div>
+            <span class="kicker">Mantık Bulmacası</span>
+            <h4 class="fw-bold mb-0">2048</h4>
+        </div>
+    </div>
+    <span class="badge-tag badge-gold fs-6" id="game-2048-score">Skor: 0</span>
+</div>
+
+<div class="card card-pad text-center">
+    <p class="text-muted small mb-4">Klavye ok tuşlarını kullanarak aynı sayıları birleştirin ve 2048'e ulaşın.</p>
+    
+    <div id="board" class="b2048 mx-auto mb-4" style="width: min(90vw, 360px); aspect-ratio: 1/1; display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; padding: 12px; border-radius: var(--radius-md); background-color: var(--surface-2); border: 1px solid var(--border);"></div>
+
+    <!-- Mobil Yön Tuşları -->
+    <div class="d-md-none mt-2 mb-3 d-grid" style="grid-template-columns: repeat(3, 52px); grid-template-rows: repeat(2, 52px); gap: 6px; justify-content: center;">
+        <div></div>
+        <button type="button" class="btn btn-secondary p-0" onclick="move('U')"><i class="bi bi-chevron-up"></i></button>
+        <div></div>
+        <button type="button" class="btn btn-secondary p-0" onclick="move('L')"><i class="bi bi-chevron-left"></i></button>
+        <button type="button" class="btn btn-secondary p-0" onclick="move('D')"><i class="bi bi-chevron-down"></i></button>
+        <button type="button" class="btn btn-secondary p-0" onclick="move('R')"><i class="bi bi-chevron-right"></i></button>
+    </div>
+
+    <div>
+        <button class="btn btn-secondary btn-sm" onclick="location.reload()">
+            <i class="bi bi-arrow-clockwise me-1"></i> Yeni Oyun
+        </button>
+    </div>
+</div>
+
+{% include 'partials/_game_leaderboard.html' %}
+
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.tile {
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-sm);
+    background-color: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--border);
+    font-size: 1.4rem;
+    font-weight: 700;
+    font-family: var(--font-display);
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let a = Array(16).fill(0), score = 0;
+
+function add() {
+    let z = [];
+    a.forEach((v, i) => { if (!v) z.push(i); });
+    if (z.length) {
+        a[z[Math.floor(Math.random() * z.length)]] = Math.random() < 0.9 ? 2 : 4;
+    }
+}
+
+function draw() {
+    const b = document.getElementById('board');
+    b.innerHTML = '';
+    a.forEach(v => {
+        let d = document.createElement('div');
+        d.className = 'tile';
+        d.textContent = v || '';
+        if (v > 0) {
+            d.style.backgroundColor = v >= 128 ? 'var(--gold-subtle)' : 'var(--surface)';
+            if (v >= 128) d.style.borderColor = 'var(--gold)';
+        }
+        b.appendChild(d);
+    });
+    const scoreEl = document.getElementById('game-2048-score');
+    if (scoreEl) scoreEl.textContent = 'Skor: ' + score;
+}
+
+function line(x) {
+    let q = x.filter(Boolean);
+    for (let i = 0; i < q.length - 1; i++) {
+        if (q[i] === q[i + 1]) {
+            q[i] *= 2;
+            score += q[i];
+            q[i + 1] = 0;
+        }
+    }
+    return q.filter(Boolean).concat(Array(4 - q.filter(Boolean).length).fill(0));
+}
+
+function move(dir) {
+    let old = a.join();
+    if (dir === 'L' || dir === 'R') {
+        for (let r = 0; r < 4; r++) {
+            let q = a.slice(r * 4, r * 4 + 4);
+            if (dir === 'R') q.reverse();
+            q = line(q);
+            if (dir === 'R') q.reverse();
+            for (let c = 0; c < 4; c++) a[r * 4 + c] = q[c];
+        }
+    } else {
+        for (let c = 0; c < 4; c++) {
+            let q = [a[c], a[c + 4], a[c + 8], a[c + 12]];
+            if (dir === 'D') q.reverse();
+            q = line(q);
+            if (dir === 'D') q.reverse();
+            q.forEach((v, r) => a[c + r * 4] = v);
+        }
+    }
+    if (a.join() !== old) add();
+    draw();
+}
+
+add();
+add();
+draw();
+
+window.addEventListener('beforeunload', () => {
+    fetch('{{ url_for("submit_game_score", game_key="2048") }}', {
+        method: 'POST',
+        keepalive: true,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ score: score })
+    });
+});
+
+window.addEventListener('keydown', (e) => {
+    const map = { ArrowLeft: 'L', ArrowRight: 'R', ArrowUp: 'U', ArrowDown: 'D' };
+    if (map[e.key]) {
+        e.preventDefault();
+        move(map[e.key]);
+    }
+});
+</script>
+{% endblock %}

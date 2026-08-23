@@ -1,0 +1,200 @@
+{% extends "base.html" %}
+{% block title %}Yılan Oyunu — Oyunlar{% endblock %}
+{% block content %}
+
+<div class="d-flex align-items-center justify-content-between mb-4">
+    <div class="d-flex align-items-center gap-2">
+        <a href="{{ url_for('games_hub') }}" class="icon-btn" title="Oyunlara Dön">
+            <i class="bi bi-arrow-left"></i>
+        </a>
+        <div>
+            <span class="kicker">Klasik Arcade</span>
+            <h4 class="fw-bold mb-0">Yılan</h4>
+        </div>
+    </div>
+    <span class="badge-tag badge-gold fs-6" id="snake-score-label">Skor: 0</span>
+</div>
+
+<div class="card card-pad text-center">
+    <div class="snake-wrap" style="position:relative; max-width:340px; margin:0 auto; aspect-ratio:1/1;">
+        <canvas id="snake-canvas" width="300" height="300" style="width:100%;height:100%;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-md);display:block;"></canvas>
+        <div id="snake-overlay" style="position:absolute;inset:0;background:rgba(14,14,13,0.88);border-radius:var(--radius-md);display:flex;align-items:center;justify-content:center;color:#fff;padding:20px;">
+            <div>
+                <h5 class="fw-bold mb-1" id="snake-overlay-title">Yılan Oyunu</h5>
+                <p class="small text-muted mb-3" id="snake-overlay-msg" style="color:rgba(255,255,255,0.7) !important;">Klavye ok tuşları veya kaydırarak yönlendirin. Elmaları toplayın!</p>
+                <button type="button" class="btn btn-primary btn-sm" id="snake-start-btn">Oyunu Başlat</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mobil Yön Tuşları -->
+    <div class="d-md-none mt-3 d-grid" style="grid-template-columns: repeat(3, 52px); grid-template-rows: repeat(2, 52px); gap: 6px; justify-content: center;">
+        <div></div>
+        <button type="button" class="btn btn-secondary p-0 snake-btn" data-dir="up"><i class="bi bi-chevron-up"></i></button>
+        <div></div>
+        <button type="button" class="btn btn-secondary p-0 snake-btn" data-dir="left"><i class="bi bi-chevron-left"></i></button>
+        <button type="button" class="btn btn-secondary p-0 snake-btn" data-dir="down"><i class="bi bi-chevron-down"></i></button>
+        <button type="button" class="btn btn-secondary p-0 snake-btn" data-dir="right"><i class="bi bi-chevron-right"></i></button>
+    </div>
+</div>
+
+{% include 'partials/_game_leaderboard.html' %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const CURRENT_USER_ID = {{ session.user_id }};
+const canvas = document.getElementById('snake-canvas');
+const ctx = canvas.getContext('2d');
+const GRID = 15;
+const CELL = canvas.width / GRID;
+
+let snake, direction, nextDirection, food, score, loopId, running = false;
+
+function resetGame() {
+    snake = [{ x: 7, y: 7 }, { x: 6, y: 7 }, { x: 5, y: 7 }];
+    direction = 'right';
+    nextDirection = 'right';
+    score = 0;
+    placeFood();
+    document.getElementById('snake-score-label').textContent = 'Skor: 0';
+}
+
+function placeFood() {
+    let pos;
+    do {
+        pos = { x: Math.floor(Math.random() * GRID), y: Math.floor(Math.random() * GRID) };
+    } while (snake.some(s => s.x === pos.x && s.y === pos.y));
+    food = pos;
+}
+
+function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    // Yem
+    ctx.fillStyle = '#c5a869';
+    ctx.fillRect(food.x * CELL + 2, food.y * CELL + 2, CELL - 4, CELL - 4);
+    // Yılan
+    snake.forEach((seg, i) => {
+        ctx.fillStyle = i === 0 ? '#171717' : 'rgba(23,23,23,0.6)';
+        if (document.documentElement.getAttribute('data-bs-theme') === 'dark') {
+            ctx.fillStyle = i === 0 ? '#f3f3ef' : 'rgba(243,243,239,0.6)';
+        }
+        ctx.fillRect(seg.x * CELL + 1, seg.y * CELL + 1, CELL - 2, CELL - 2);
+    });
+}
+
+function step() {
+    direction = nextDirection;
+    const head = { ...snake[0] };
+    if (direction === 'up') head.y--;
+    if (direction === 'down') head.y++;
+    if (direction === 'left') head.x--;
+    if (direction === 'right') head.x++;
+
+    if (head.x < 0 || head.x >= GRID || head.y < 0 || head.y >= GRID ||
+        snake.some(s => s.x === head.x && s.y === head.y)) {
+        endGame();
+        return;
+    }
+
+    snake.unshift(head);
+    if (head.x === food.x && head.y === food.y) {
+        score += 10;
+        document.getElementById('snake-score-label').textContent = 'Skor: ' + score;
+        placeFood();
+    } else {
+        snake.pop();
+    }
+    draw();
+}
+
+function startGame() {
+    resetGame();
+    draw();
+    document.getElementById('snake-overlay').style.display = 'none';
+    running = true;
+    clearInterval(loopId);
+    loopId = setInterval(step, 130);
+}
+
+function endGame() {
+    running = false;
+    clearInterval(loopId);
+    document.getElementById('snake-overlay-title').textContent = 'Oyun Bitti!';
+    document.getElementById('snake-overlay-msg').textContent = `Toplam Skor: ${score} puan`;
+    document.getElementById('snake-start-btn').textContent = 'Tekrar Oyna';
+    document.getElementById('snake-overlay').style.display = 'flex';
+    if (score > 0) submitScore(score);
+}
+
+document.getElementById('snake-start-btn').addEventListener('click', startGame);
+
+const dirMap = { up: 'down', down: 'up', left: 'right', right: 'left' };
+function trySetDirection(newDir) {
+    if (!running) return;
+    if (dirMap[newDir] === direction) return;
+    nextDirection = newDir;
+}
+
+document.addEventListener('keydown', (e) => {
+    const map = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right' };
+    if (map[e.key]) { e.preventDefault(); trySetDirection(map[e.key]); }
+});
+
+document.querySelectorAll('.snake-btn').forEach(btn => {
+    btn.addEventListener('click', () => trySetDirection(btn.dataset.dir));
+});
+
+let touchStartX = 0, touchStartY = 0;
+canvas.addEventListener('touchstart', (e) => {
+    touchStartX = e.touches[0].clientX;
+    touchStartY = e.touches[0].clientY;
+}, { passive: true });
+canvas.addEventListener('touchend', (e) => {
+    const dx = e.changedTouches[0].clientX - touchStartX;
+    const dy = e.changedTouches[0].clientY - touchStartY;
+    if (Math.abs(dx) > Math.abs(dy)) {
+        trySetDirection(dx > 0 ? 'right' : 'left');
+    } else {
+        trySetDirection(dy > 0 ? 'down' : 'up');
+    }
+}, { passive: true });
+
+async function submitScore(score) {
+    try {
+        const res = await fetch('{{ url_for("submit_game_score", game_key="snake") }}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ score })
+        });
+        const data = await res.json();
+        if (data.ok) renderLeaderboard(data.leaderboard);
+    } catch (e) {}
+}
+
+function renderLeaderboard(list) {
+    const box2 = document.getElementById('game-leaderboard-list');
+    if (!box2) return;
+    if (!list.length) {
+        box2.innerHTML = '<p class="small text-muted mb-0">Henüz skor yapılmadı.</p>';
+        return;
+    }
+    box2.innerHTML = list.map((p, i) => `
+        <div class="leaderboard-row ${p.user_id === CURRENT_USER_ID ? 'me' : ''}">
+            <div class="d-flex align-items-center gap-2">
+                <span class="leaderboard-rank">#${i + 1}</span>
+                ${p.profile_photo
+                    ? `<img src="/static/uploads/profiles/${p.profile_photo}" class="leaderboard-avatar">`
+                    : `<span class="leaderboard-avatar leaderboard-avatar-fallback">${p.full_name[0].toUpperCase()}</span>`}
+                <span>${p.full_name}</span>
+            </div>
+            <strong>${p.best_score}</strong>
+        </div>
+    `).join('');
+}
+
+resetGame();
+draw();
+</script>
+{% endblock %}

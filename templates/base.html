@@ -1,0 +1,1043 @@
+{% import '_icons.html' as icons %}
+<!DOCTYPE html>
+<html lang="tr" data-bs-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#F6F6F3">
+    <title>{% block title %}YURT — Sosyal Yaşam Platformu{% endblock %}</title>
+
+    <!-- PWA & Mobile Web App Meta -->
+    <link rel="manifest" href="/manifest.json">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="YurtSosyal">
+    <meta name="application-name" content="YurtSosyal">
+    <meta name="format-detection" content="telephone=no">
+    <link rel="apple-touch-icon" sizes="180x180" href="/static/img/icons/icon-180.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="/static/img/icons/icon-192.png">
+
+    <script>
+        // Sayfa boyanmadan ÖNCE kayıtlı tema tercihini uygula (yanıp sönmeyi önler)
+        (function () {
+            try {
+                var saved = localStorage.getItem('yurt-theme');
+                var theme = saved || 'light';
+                document.documentElement.setAttribute('data-bs-theme', theme);
+                var meta = document.querySelector('meta[name="theme-color"]');
+                if (meta) meta.setAttribute('content', theme === 'dark' ? '#0E0E0D' : '#F6F6F3');
+            } catch (e) {}
+        })();
+    </script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=Instrument+Serif:ital@0;1&family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='20260819-auto-attendance-ios-push-event-fix') }}">
+    {% block extra_css %}{% endblock %}
+</head>
+<body class="{{ '' if session.get('user_id') else 'no-chrome' }}">
+    <!-- PWA Install Banner -->
+    <div id="pwa-install-banner" class="pwa-banner" style="display: none;">
+        <div class="pwa-banner-icon">
+            <i class="bi bi-phone-vibrate"></i>
+        </div>
+        <div class="pwa-banner-text">
+            <strong>Yurt Sosyal Uygulamasını Yükle</strong>
+            <span>Tam ekran deneyim, hızlı erişim ve anlık bildirimler için ana ekranına ekle!</span>
+        </div>
+        <div class="pwa-banner-actions">
+            <button type="button" class="btn btn-warning btn-sm fw-bold px-3" id="pwa-install-btn">
+                <i class="bi bi-download me-1"></i> Yükle
+            </button>
+            <button type="button" class="btn-close btn-close-white p-2" id="pwa-dismiss-btn" aria-label="Kapat"></button>
+        </div>
+    </div>
+
+    {% if session.get('user_id') %}
+    <!-- ===================== ÜST BAR ===================== -->
+    <header class="topbar">
+        <div class="topbar-inner">
+            <div class="d-flex align-items-center gap-3">
+                <a class="brand" href="{{ url_for('dashboard') }}">
+                    <span style="letter-spacing: -0.04em; font-weight: 800;">YURT.</span>
+                    <span class="brand-badge">Platform</span>
+                </a>
+            </div>
+
+            <div class="topbar-search position-relative" id="topbarSearchContainer">
+                <i class="bi bi-search"></i>
+                <input type="text" placeholder="Kişi, etkinlik veya yemek ara..." id="global-search-input" autocomplete="off">
+                <button type="button" class="btn-close d-md-none position-absolute top-50 end-0 translate-middle-y me-2 p-1" id="mobileSearchClose" style="display:none; font-size:0.65rem;" aria-label="Kapat"></button>
+                <div id="global-search-dropdown" class="global-search-results card shadow-lg" style="display: none;"></div>
+            </div>
+
+            <div class="topbar-actions">
+                <button class="icon-btn d-md-none" id="mobile-search-toggle-btn" title="Arama Yap">
+                    <i class="bi bi-search"></i>
+                </button>
+                <button class="icon-btn" id="theme-toggle-btn" title="Aydınlık / Karanlık Tema">
+                    <i class="bi bi-sun" id="theme-icon"></i>
+                </button>
+
+                <div class="dropdown">
+                    <button class="icon-btn" type="button" data-bs-toggle="dropdown" aria-expanded="false" data-bs-auto-close="true">
+                        <i class="bi bi-bell"></i>
+                        <span id="notif-badge" class="badge-dot" style="display:none;">0</span>
+                    </button>
+                    <div class="dropdown-menu dropdown-menu-end notification-dropdown p-0">
+                        <div class="p-3 border-bottom d-flex justify-content-between align-items-center" style="border-color: var(--border) !important;">
+                            <span class="fw-bold small text-uppercase" style="letter-spacing: 0.05em;">Bildirimler</span>
+                            <a href="{{ url_for('mark_all_read') }}" class="small text-muted text-decoration-none">Tümünü Oku</a>
+                        </div>
+                        <div id="notification-list" style="max-height: 320px; overflow-y: auto;">
+                            <div class="p-3 text-center text-muted"><small>Yükleniyor...</small></div>
+                        </div>
+                        <div class="p-2 border-top" style="border-color: var(--border) !important;">
+                            <button type="button" id="enable-push-btn" class="btn btn-soft btn-sm w-100 mb-2" style="font-size:.78rem;"><i class="bi bi-phone-vibrate me-1"></i> Telefon Bildirimlerini Aç</button>
+                            <a href="{{ url_for('notifications') }}" class="text-decoration-none small fw-semibold d-block text-center">Tüm Bildirimleri Gör →</a>
+                        </div>
+                    </div>
+                </div>
+
+                <a href="{{ url_for('messages_list') }}" class="icon-btn position-relative" title="Mesajlar">
+                    <i class="bi bi-chat-left-text"></i>
+                    {% if unread_dm_count %}
+                    <span class="badge-dot">{{ unread_dm_count if unread_dm_count < 10 else '9+' }}</span>
+                    {% endif %}
+                </a>
+
+                <div class="d-none d-md-flex align-items-center ms-1">
+                    <a href="{{ url_for('profile', username=session.username) }}" class="avatar" style="width:34px;height:34px;font-size:0.75rem;" title="Profilim">
+                        {% if current_user and current_user.profile_photo %}
+                        <img src="{{ url_for('static', filename='uploads/profiles/' + current_user.profile_photo) }}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">
+                        {% else %}
+                        {{ session.username[0]|upper }}
+                        {% endif %}
+                    </a>
+                </div>
+
+                <button class="icon-btn d-lg-none" id="drawer-open-btn" aria-label="Menü">
+                    <i class="bi bi-list"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- ===================== MOBİL SİDE DRAWER ===================== -->
+    <div class="drawer-backdrop" id="drawer-backdrop"></div>
+    <nav class="drawer" id="side-drawer">
+        <div class="d-flex align-items-center justify-content-between mb-3 pb-3 border-bottom" style="border-color: var(--border) !important;">
+            <div class="d-flex align-items-center gap-3">
+                <div class="avatar" style="width:44px;height:44px;font-size:1rem;">
+                    {% if current_user and current_user.profile_photo %}
+                    <img src="{{ url_for('static', filename='uploads/profiles/' + current_user.profile_photo) }}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">
+                    {% else %}
+                    {{ session.username[0]|upper }}
+                    {% endif %}
+                </div>
+                <div>
+                    <div class="fw-bold small">{{ current_user.full_name if current_user else session.username }}</div>
+                    <div class="text-muted" style="font-size:0.75rem;">@{{ session.username }}</div>
+                </div>
+            </div>
+            <button class="icon-btn border-0" id="drawer-close-btn"><i class="bi bi-x-lg"></i></button>
+        </div>
+
+        <div class="p-3 border-bottom" style="border-color: var(--border) !important; background: linear-gradient(135deg, rgba(245, 158, 11, 0.12), rgba(59, 130, 246, 0.08));">
+            <button type="button" class="btn btn-warning btn-sm w-100 fw-bold d-flex align-items-center justify-content-center gap-2 trigger-pwa-modal" style="box-shadow: 0 2px 8px rgba(245,158,11,0.25);">
+                <i class="bi bi-phone"></i> Uygulamayı Telefona Yükle
+            </button>
+        </div>
+
+        <div class="sidebar-section-title mt-2">Navigasyon</div>
+        <a class="drawer-link {{ 'active' if request.endpoint == 'dashboard' }}" href="{{ url_for('dashboard') }}"><i class="bi bi-house"></i> Ana Sayfa</a>
+        <a class="drawer-link {{ 'active' if request.endpoint in ['feed','create_post'] }}" href="{{ url_for('feed') }}"><i class="bi bi-grid-3x3"></i> Sosyal Akış</a>
+        <a class="drawer-link {{ 'active' if request.endpoint in ['events','create_event','event_detail'] }}" href="{{ url_for('events') }}"><i class="bi bi-calendar3"></i> Etkinlikler</a>
+        <a class="drawer-link {{ 'active' if request.endpoint in ['menu_page','rate_menu'] }}" href="{{ url_for('menu_page') }}"><i class="bi bi-cup-hot"></i> Yemekhane</a>
+        <a class="drawer-link {{ 'active' if request.endpoint in ['games_hub','game_play'] }}" href="{{ url_for('games_hub') }}"><i class="bi bi-joystick"></i> Oyun Merkezi</a>
+        <a class="drawer-link {{ 'active' if request.endpoint in ['quiz_list','quiz_detail','quiz_play','quiz_host_screen','quiz_join','quiz_create'] }}" href="{{ url_for('quiz_list') }}"><i class="bi bi-patch-question"></i> Yarışmalar</a>
+        <a class="drawer-link {{ 'active' if request.endpoint == 'leaderboard_page' }}" href="{{ url_for('leaderboard_page') }}"><i class="bi bi-trophy"></i> Yurt Sıralaması</a>
+        <a class="drawer-link {{ 'active' if request.endpoint == 'announcements_page' }}" href="{{ url_for('announcements_page') }}"><i class="bi bi-megaphone"></i> Duyurular</a>
+        <a class="drawer-link {{ 'active' if request.endpoint in ['attendance_list','attendance_detail'] }}" href="{{ url_for('attendance_list') }}"><i class="bi bi-clipboard-check"></i> Yoklama</a>
+        <a class="drawer-link {{ 'active' if request.endpoint == 'maintenance_page' }}" href="{{ url_for('maintenance_page') }}"><i class="bi bi-tools"></i> Arıza / Talep</a>
+        <a class="drawer-link {{ 'active' if request.endpoint == 'laundry_page' }}" href="{{ url_for('laundry_page') }}">{{ icons.washing_machine_icon(18) }} Çamaşırhane</a>
+        <a class="drawer-link {{ 'active' if request.endpoint == 'roommate_matching' }}" href="{{ url_for('roommate_matching') }}"><i class="bi bi-people"></i> Oda Arkadaşı</a>
+        <a class="drawer-link {{ 'active' if request.endpoint == 'market_page' }}" href="{{ url_for('market_page') }}"><i class="bi bi-bag"></i> Yurt Pazarı</a>
+        <a class="drawer-link {{ 'active' if request.endpoint == 'chat' }}" href="{{ url_for('chat') }}"><i class="bi bi-chat-dots"></i> Genel Sohbet</a>
+        <a class="drawer-link {{ 'active' if request.endpoint in ['messages_list','messages_thread'] }}" href="{{ url_for('messages_list') }}"><i class="bi bi-chat-left-text"></i> Mesajlar</a>
+
+        <div class="sidebar-section-title mt-3">Hesap</div>
+        <a class="drawer-link" href="{{ url_for('profile', username=session.username) }}"><i class="bi bi-person"></i> Profilim</a>
+        <a class="drawer-link" href="{{ url_for('edit_profile') }}"><i class="bi bi-gear"></i> Ayarlar</a>
+        {% if session.get('is_admin') %}
+        <a class="drawer-link" href="{{ url_for('admin_panel') }}"><i class="bi bi-shield-check"></i> Admin Paneli</a>
+        {% endif %}
+        <a class="drawer-link danger mt-2" href="{{ url_for('logout') }}"><i class="bi bi-box-arrow-right"></i> Çıkış Yap</a>
+    </nav>
+
+    <!-- ===================== MOBİL ALT NAVİGASYON ===================== -->
+    <nav class="bottom-nav">
+        <a href="{{ url_for('dashboard') }}" class="{{ 'active' if request.endpoint == 'dashboard' }}" title="Ana Sayfa">
+            <i class="bi bi-house"></i>
+        </a>
+        <a href="{{ url_for('feed') }}" class="{{ 'active' if request.endpoint == 'feed' }}" title="Akış">
+            <i class="bi bi-grid-3x3"></i>
+        </a>
+        <a href="{{ url_for('create_post') }}" class="nav-add" title="Paylaş">
+            <i class="bi bi-plus-lg"></i>
+        </a>
+        <a href="{{ url_for('messages_list') }}" class="{{ 'active' if request.endpoint in ['messages_list','messages_thread'] }} position-relative" title="Mesajlar">
+            <i class="bi bi-chat-left-text"></i>
+            {% if unread_dm_count %}
+            <span class="nav-badge">{{ unread_dm_count if unread_dm_count < 10 else '9+' }}</span>
+            {% endif %}
+        </a>
+        <a href="{{ url_for('profile', username=session.username) }}" class="{{ 'active' if request.endpoint == 'profile' }}" title="Profil">
+            <i class="bi bi-person"></i>
+        </a>
+    </nav>
+    {% endif %}
+
+    {% if not session.get('user_id') %}
+    <button class="icon-btn" id="theme-toggle-btn-guest" title="Aydınlık / Karanlık Tema"
+            style="position:fixed; top:14px; right:14px; z-index:1000;">
+        <i class="bi bi-sun" id="theme-icon-guest"></i>
+    </button>
+    {% endif %}
+
+    <!-- ===================== MAIN APPLICATION SHELL ===================== -->
+    {% if session.get('user_id') %}
+    <div class="app-shell {% block shell_class %}{% endblock %}">
+        <!-- SOL MASAÜSTÜ SİDEBAR -->
+        <aside class="desktop-sidebar">
+            <div class="sidebar-section-title">Ana Menü</div>
+            <ul class="sidebar-nav-list">
+                <li><a class="sidebar-link {{ 'active' if request.endpoint == 'dashboard' }}" href="{{ url_for('dashboard') }}"><i class="bi bi-house"></i> Ana Sayfa</a></li>
+                <li><a class="sidebar-link {{ 'active' if request.endpoint in ['feed','create_post'] }}" href="{{ url_for('feed') }}"><i class="bi bi-grid-3x3"></i> Sosyal Akış</a></li>
+                <li><a class="sidebar-link {{ 'active' if request.endpoint in ['events','create_event','event_detail'] }}" href="{{ url_for('events') }}"><i class="bi bi-calendar3"></i> Etkinlikler</a></li>
+                <li><a class="sidebar-link {{ 'active' if request.endpoint in ['menu_page','rate_menu'] }}" href="{{ url_for('menu_page') }}"><i class="bi bi-cup-hot"></i> Yemekhane</a></li>
+            </ul>
+
+            <div class="sidebar-section-title">Aktivite & Sosyal</div>
+            <ul class="sidebar-nav-list">
+                <li><a class="sidebar-link {{ 'active' if request.endpoint in ['games_hub','game_play'] }}" href="{{ url_for('games_hub') }}"><i class="bi bi-joystick"></i> Oyun Merkezi</a></li>
+                <li><a class="sidebar-link {{ 'active' if request.endpoint in ['quiz_list','quiz_detail','quiz_play','quiz_host_screen','quiz_join','quiz_create'] }}" href="{{ url_for('quiz_list') }}"><i class="bi bi-patch-question"></i> Yarışmalar</a></li>
+                <li><a class="sidebar-link {{ 'active' if request.endpoint == 'leaderboard_page' }}" href="{{ url_for('leaderboard_page') }}"><i class="bi bi-trophy"></i> Yurt Sıralaması</a></li>
+                <li><a class="sidebar-link {{ 'active' if request.endpoint == 'chat' }}" href="{{ url_for('chat') }}"><i class="bi bi-chat-dots"></i> Genel Sohbet</a></li>
+                <li><a class="sidebar-link {{ 'active' if request.endpoint in ['messages_list','messages_thread'] }}" href="{{ url_for('messages_list') }}"><i class="bi bi-chat-left-text"></i> Mesajlar</a></li>
+            </ul>
+
+            <div class="sidebar-section-title">Yurt Hizmetleri</div>
+            <ul class="sidebar-nav-list">
+                <li>
+                    <a class="sidebar-link {{ 'active' if request.endpoint in ['attendance_list','attendance_detail'] }}" href="{{ url_for('attendance_list') }}">
+                        <i class="bi bi-clipboard-check"></i> Yoklama
+                        {% if can_manage_attendance and not session.get('is_admin') %}
+                        <span class="badge bg-success-subtle text-success ms-auto" style="font-size:0.65rem;">Sorumlu</span>
+                        {% endif %}
+                    </a>
+                </li>
+                <li><a class="sidebar-link {{ 'active' if request.endpoint == 'announcements_page' }}" href="{{ url_for('announcements_page') }}"><i class="bi bi-megaphone"></i> Duyurular</a></li>
+                <li>
+                    <a class="sidebar-link {{ 'active' if request.endpoint == 'maintenance_page' }}" href="{{ url_for('maintenance_page') }}">
+                        <i class="bi bi-tools"></i> Arıza & Talep
+                        {% if can_manage_maintenance and not session.get('is_admin') %}
+                        <span class="badge bg-warning-subtle text-warning ms-auto" style="font-size:0.65rem;">Teknik</span>
+                        {% endif %}
+                    </a>
+                </li>
+                <li><a class="sidebar-link {{ 'active' if request.endpoint == 'laundry_page' }}" href="{{ url_for('laundry_page') }}">{{ icons.washing_machine_icon(18) }} Çamaşırhane</a></li>
+            <li><a class="sidebar-link {{ 'active' if request.endpoint == 'roommate_matching' }}" href="{{ url_for('roommate_matching') }}"><i class="bi bi-people"></i> Oda Arkadaşı</a></li>
+                <li><a class="sidebar-link {{ 'active' if request.endpoint == 'market_page' }}" href="{{ url_for('market_page') }}"><i class="bi bi-bag"></i> Yurt Pazarı</a></li>
+            </ul>
+
+            {% if session.get('is_admin') %}
+            <div class="sidebar-section-title">Yönetim</div>
+            <ul class="sidebar-nav-list">
+                <li><a class="sidebar-link {{ 'active' if request.endpoint == 'admin_panel' }}" href="{{ url_for('admin_panel') }}"><i class="bi bi-shield-check"></i> Admin Paneli</a></li>
+            </ul>
+            {% endif %}
+
+            <div class="sidebar-section-title">Hesap</div>
+            <div class="sidebar-profile-card">
+                <a href="{{ url_for('profile', username=session.username) }}" class="avatar" style="width:36px;height:36px;font-size:0.8rem;">
+                    {% if current_user and current_user.profile_photo %}
+                    <img src="{{ url_for('static', filename='uploads/profiles/' + current_user.profile_photo) }}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">
+                    {% else %}
+                    {{ session.username[0]|upper }}
+                    {% endif %}
+                </a>
+                <div class="sidebar-profile-info min-w-0">
+                    <a href="{{ url_for('profile', username=session.username) }}" class="sidebar-profile-name d-block text-truncate">{{ current_user.full_name if current_user else session.username }}</a>
+                    <div class="d-flex align-items-center gap-1 mt-1">
+                        <span class="role-badge {{ current_role_info.class }}" style="font-size:0.62rem; padding:1px 5px;">
+                            <i class="bi {{ current_role_info.icon }} me-1"></i>{{ current_role_info.badge }}
+                        </span>
+                    </div>
+                </div>
+                <a href="{{ url_for('logout') }}" class="icon-btn border-0 text-muted ms-auto" title="Çıkış"><i class="bi bi-box-arrow-right"></i></a>
+            </div>
+
+            <div class="mt-2">
+                <button type="button" id="sidebar-pwa-install" class="btn btn-outline-secondary btn-sm w-100 d-flex align-items-center justify-content-center gap-2 trigger-pwa-modal" style="font-size:0.75rem; font-weight:600; padding:6px 10px; border-radius:var(--radius-sm); border-style:dashed;">
+                    <i class="bi bi-phone text-gold"></i> Uygulamayı Yükle
+                </button>
+            </div>
+        </aside>
+
+        <!-- ORTA İÇERİK ALANI -->
+        <main class="main-content">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ 'danger' if category == 'error' else ('success' if category == 'success' else 'secondary') }} alert-dismissible fade show mb-4 border" role="alert">
+                            {{ message }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Kapat"></button>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            {% block content %}{% endblock %}
+        </main>
+
+        <!-- SAĞ KONTEKST PANELİ (Masaüstü) -->
+        {% block context_panel %}
+        <aside class="context-sidebar">
+            {% if today_menu %}
+            <div class="card card-pad-sm">
+                <div class="section-title mb-2">
+                    <span class="small fw-bold"><i class="bi bi-cup-hot me-1 text-gold"></i> Günün Menüsü</span>
+                    <a href="{{ url_for('menu_page') }}" class="small">Tümü →</a>
+                </div>
+                <div class="text-muted small mb-2" style="font-size: 0.72rem;">{{ today_menu.menu_date|format_date_tr }} · {{ today_menu.menu_date|day_name_tr }}</div>
+                {% if today_menu.dinner %}
+                <div class="p-2 mb-2 rounded" style="background-color: var(--surface-2); border: 1px solid var(--border);">
+                    <div class="text-muted d-flex justify-content-between align-items-center" style="font-size:0.68rem; font-weight:700; text-transform:uppercase;">
+                        <span>Akşam Yemeği</span>
+                        <i class="bi bi-moon-stars text-indigo"></i>
+                    </div>
+                    <div class="small fw-semibold mt-1 text-truncate" title="{{ today_menu.dinner }}">{{ today_menu.dinner }}</div>
+                </div>
+                {% elif today_menu.breakfast %}
+                <div class="p-2 mb-2 rounded" style="background-color: var(--surface-2); border: 1px solid var(--border);">
+                    <div class="text-muted d-flex justify-content-between align-items-center" style="font-size:0.68rem; font-weight:700; text-transform:uppercase;">
+                        <span>Kahvaltı</span>
+                        <i class="bi bi-sun text-gold"></i>
+                    </div>
+                    <div class="small fw-semibold mt-1 text-truncate" title="{{ today_menu.breakfast }}">{{ today_menu.breakfast }}</div>
+                </div>
+                {% endif %}
+                <div class="d-flex justify-content-between align-items-center pt-1" style="font-size:0.75rem;">
+                    <span class="text-muted">Öğrenci Puanı</span>
+                    <span class="fw-bold" style="color: var(--gold);">★ {{ today_menu.avg_rating or '—' }} <span class="text-muted fw-normal">({{ today_menu.rating_count or 0 }})</span></span>
+                </div>
+                <a href="{{ url_for('menu_page') }}#today-menu-card" class="btn btn-outline-secondary btn-sm w-100 mt-2 py-1" style="font-size:0.75rem;">
+                    <i class="bi bi-star me-1"></i> Menüyü Puanla
+                </a>
+            </div>
+            {% endif %}
+
+            <div class="card card-pad-sm">
+                <div class="section-title mb-2">
+                    <span class="small fw-bold"><i class="bi bi-lightning-charge me-1"></i> Hızlı İşlemler</span>
+                </div>
+                <div class="d-flex flex-column gap-1">
+                    <a href="{{ url_for('create_post') }}" class="sidebar-link py-2" style="font-size:0.82rem;"><i class="bi bi-plus-square"></i> Yeni Gönderi Paylaş</a>
+                    <a href="{{ url_for('create_event') }}" class="sidebar-link py-2" style="font-size:0.82rem;"><i class="bi bi-calendar-plus"></i> Etkinlik Oluştur</a>
+                    <a href="{{ url_for('maintenance_page') }}" class="sidebar-link py-2" style="font-size:0.82rem;"><i class="bi bi-tools"></i> Arıza Bildir</a>
+                    <a href="{{ url_for('quiz_join') }}" class="sidebar-link py-2" style="font-size:0.82rem;"><i class="bi bi-joystick"></i> Yarışmaya Katıl</a>
+                </div>
+            </div>
+        </aside>
+        {% endblock %}
+    </div>
+    {% else %}
+    <div class="app-container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ 'danger' if category == 'error' else 'secondary' }} alert-dismissible fade show mb-4 border" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Kapat"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+        {% block auth_content %}{% endblock %}
+    </div>
+    {% endif %}
+
+    <!-- ===================== ZORUNLU YOKLAMA MODALI ===================== -->
+    {% if pending_attendance %}
+    <div class="mandatory-overlay" id="mandatory-overlay">
+        <div class="mandatory-box">
+            <div class="d-inline-flex align-items-center justify-content-center mb-3" style="width:48px;height:48px;border-radius:50%;background:var(--danger-bg);color:var(--danger);font-size:1.4rem;">
+                <i class="bi bi-exclamation-triangle"></i>
+            </div>
+            <h5 class="fw-bold mb-1">{{ pending_attendance.title }}</h5>
+            <p class="text-muted small mb-3">{{ pending_attendance.description or 'Yurtta kalan tüm öğrenciler için zorunludur. Lütfen durumunuzu bildirin.' }}</p>
+            <span class="mandatory-badge mb-4"><i class="bi bi-shield-exclamation"></i> Zorunlu Yoklama</span>
+            <form method="POST" action="{{ url_for('mark_attendance', attendance_id=pending_attendance.id) }}" class="d-flex gap-2 mt-2">
+                <input type="hidden" name="from" value="modal">
+                <button type="submit" name="status" value="present" class="btn btn-primary flex-fill"><i class="bi bi-check2"></i> Yurttayım</button>
+                <button type="submit" name="status" value="absent" class="btn btn-secondary flex-fill"><i class="bi bi-x"></i> Yurtta değilim</button>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
+
+    {% if session.get('user_id') %}
+    <script>
+        const socket = io();
+        const userId = {{ session.user_id }};
+
+        // ===================== AÇIK / KOYU MOD =====================
+        const html = document.documentElement;
+        const themeBtn = document.getElementById('theme-toggle-btn');
+        const themeIcon = document.getElementById('theme-icon');
+
+        function applyThemeUI(theme) {
+            const isDark = theme === 'dark';
+            if (themeIcon) themeIcon.className = isDark ? 'bi bi-moon' : 'bi bi-sun';
+            const metaTheme = document.querySelector('meta[name="theme-color"]');
+            if (metaTheme) metaTheme.setAttribute('content', isDark ? '#0E0E0D' : '#F6F6F3');
+        }
+
+        function setTheme(theme) {
+            html.setAttribute('data-bs-theme', theme);
+            try { localStorage.setItem('yurt-theme', theme); } catch (e) {}
+            applyThemeUI(theme);
+        }
+
+        applyThemeUI(html.getAttribute('data-bs-theme') || 'light');
+
+        if (themeBtn) {
+            themeBtn.addEventListener('click', () => {
+                const current = html.getAttribute('data-bs-theme') === 'dark' ? 'dark' : 'light';
+                setTheme(current === 'dark' ? 'light' : 'dark');
+            });
+        }
+
+        // ===================== MOBİL DRAWER =====================
+        const drawer = document.getElementById('side-drawer');
+        const backdrop = document.getElementById('drawer-backdrop');
+        const openBtn = document.getElementById('drawer-open-btn');
+        const closeBtn = document.getElementById('drawer-close-btn');
+
+        if (openBtn && drawer && backdrop) {
+            openBtn.addEventListener('click', () => {
+                drawer.classList.add('open');
+                backdrop.classList.add('open');
+            });
+        }
+        if (backdrop && drawer) {
+            backdrop.addEventListener('click', () => {
+                drawer.classList.remove('open');
+                backdrop.classList.remove('open');
+            });
+        }
+        if (closeBtn && drawer && backdrop) {
+            closeBtn.addEventListener('click', () => {
+                drawer.classList.remove('open');
+                backdrop.classList.remove('open');
+            });
+        }
+
+        // ===================== BİLDİRİM SİSTEMİ =====================
+        async function loadNotifications() {
+            try {
+                const response = await fetch('/api/notifications');
+                const data = await response.json();
+                const list = document.getElementById('notification-list');
+                const badge = document.getElementById('notif-badge');
+
+                if (!list) return;
+
+                if (!data.notifications || data.notifications.length === 0) {
+                    list.innerHTML = '<div class="p-3 text-center text-muted"><small>Henüz bildirim yok</small></div>';
+                    if (badge) badge.style.display = 'none';
+                    return;
+                }
+
+                if (badge) {
+                    badge.style.display = data.unread_count > 0 ? 'inline-flex' : 'none';
+                    badge.textContent = data.unread_count > 99 ? '99+' : data.unread_count;
+                }
+
+                list.innerHTML = data.notifications.slice(0, 6).map(n => `
+                    <a href="/notification/${n.id}/read" class="notification-item ${n.is_read ? '' : 'unread'}">
+                        <div class="d-flex justify-content-between align-items-baseline">
+                            <strong class="small text-truncate" style="max-width:200px;">${n.title}</strong>
+                            <small class="text-muted" style="font-size:0.68rem;">${n.time || ''}</small>
+                        </div>
+                        <p class="small text-muted mb-0 text-truncate" style="max-width:280px;">${n.message}</p>
+                    </a>
+                `).join('');
+            } catch (e) { console.error('Bildirim yüklenemedi:', e); }
+        }
+
+        loadNotifications();
+
+        // ===================== TELEFON WEB PUSH =====================
+        const enablePushBtn = document.getElementById('enable-push-btn');
+        function urlBase64ToUint8Array(base64String) {
+            const padding = '='.repeat((4 - base64String.length % 4) % 4);
+            const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+            const rawData = atob(base64);
+            return Uint8Array.from([...rawData].map(ch => ch.charCodeAt(0)));
+        }
+
+        async function syncPhonePushSubscription(sendTest = false) {
+            if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) return false;
+            if (Notification.permission !== 'granted') return false;
+            try {
+                const reg = await navigator.serviceWorker.ready;
+                let subscription = await reg.pushManager.getSubscription();
+                if (!subscription) {
+                    const keyResponse = await fetch('/api/push/vapid-public-key', {cache: 'no-store'});
+                    const keyData = await keyResponse.json();
+                    if (!keyData.publicKey) throw new Error('VAPID public key alınamadı');
+                    subscription = await reg.pushManager.subscribe({
+                        userVisibleOnly: true,
+                        applicationServerKey: urlBase64ToUint8Array(keyData.publicKey)
+                    });
+                }
+                const save = await fetch('/api/push/subscribe', {
+                    method: 'POST',
+                    headers: {'Content-Type':'application/json'},
+                    body: JSON.stringify({subscription: subscription.toJSON ? subscription.toJSON() : subscription})
+                });
+                if (!save.ok) throw new Error('Push aboneliği kaydedilemedi');
+                if (enablePushBtn) {
+                    enablePushBtn.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i> Telefon Bildirimleri Açık';
+                    enablePushBtn.classList.add('text-success');
+                }
+                if (sendTest) await fetch('/api/push/test', {method:'POST'});
+                return true;
+            } catch (err) {
+                console.error('Web Push aboneliği:', err);
+                return false;
+            }
+        }
+
+        async function enablePhoneNotifications() {
+            if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
+                alert('Bu tarayıcı telefon bildirimlerini desteklemiyor. Güncel Chrome veya iOS 16.4+ PWA kullanın.'); return;
+            }
+            if (/iphone|ipad|ipod/i.test(navigator.userAgent) && !(window.navigator.standalone || window.matchMedia('(display-mode: standalone)').matches)) {
+                alert('iPhone’da önce Uygulamayı Telefona Yükle ile YURT. uygulamasını Ana Ekrana ekleyip uygulamayı açmalısın.'); return;
+            }
+            try {
+                const permission = Notification.permission === 'granted'
+                    ? 'granted'
+                    : await Notification.requestPermission();
+                if (permission !== 'granted') {
+                    alert('Bildirim izni verilmedi. Telefon ayarlarından izin verebilirsin.');
+                    return;
+                }
+                const ok = await syncPhonePushSubscription(true);
+                if (!ok) alert('Telefon bildirimleri etkinleştirilemedi. HTTPS, PWA ve bildirim iznini kontrol et.');
+            } catch (err) {
+                console.error('Web Push kurulumu:', err);
+                alert('Telefon bildirimleri etkinleştirilemedi. HTTPS ve bildirim izni gerektiğini kontrol et.');
+            }
+        }
+        if (enablePushBtn) enablePushBtn.addEventListener('click', enablePhoneNotifications);
+
+        // Kullanıcı daha önce bildirim izni verdiyse aboneliği otomatik olarak
+        // sunucuya tekrar kaydet. Böylece butona yeniden basmak gerekmez ve
+        // telefonun bildirim paneline push düşmesi güvenilir hale gelir.
+        window.addEventListener('load', () => {
+            setTimeout(() => syncPhonePushSubscription(false), 1200);
+        });
+
+        function playNotificationChime() {
+            try {
+                const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                if (!AudioCtx) return;
+                const ctx = new AudioCtx();
+                const now = ctx.currentTime;
+                
+                // Birincil zil tonu (D5 -> A5)
+                const osc1 = ctx.createOscillator();
+                const gain1 = ctx.createGain();
+                osc1.type = 'sine';
+                osc1.frequency.setValueAtTime(587.33, now);
+                osc1.frequency.exponentialRampToValueAtTime(880.00, now + 0.12);
+                gain1.gain.setValueAtTime(0.2, now);
+                gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+                osc1.connect(gain1);
+                gain1.connect(ctx.destination);
+                osc1.start(now);
+                osc1.stop(now + 0.4);
+
+                // İkincil parıltı tonu (D6)
+                const osc2 = ctx.createOscillator();
+                const gain2 = ctx.createGain();
+                osc2.type = 'triangle';
+                osc2.frequency.setValueAtTime(1174.66, now + 0.08);
+                gain2.gain.setValueAtTime(0.1, now + 0.08);
+                gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+                osc2.connect(gain2);
+                gain2.connect(ctx.destination);
+                osc2.start(now + 0.08);
+                osc2.stop(now + 0.45);
+            } catch (e) {}
+        }
+
+        socket.on('connect', () => socket.emit('connect_user'));
+
+        socket.on('new_notification', function(data) {
+            loadNotifications();
+            playNotificationChime();
+
+            if (data.browser_push !== false && 'Notification' in window && Notification.permission === 'granted') {
+                if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+                    navigator.serviceWorker.ready.then(reg => {
+                        reg.showNotification(data.title || 'YURT. Bildirimi 🔔', {
+                            body: data.message || '',
+                            icon: '/static/img/icons/icon-192.png',
+                            badge: '/static/img/icons/badge-72.png',
+                            data: { url: data.link || '/' },
+                            vibrate: [200, 100, 200]
+                        });
+                    });
+                } else {
+                    new Notification(data.title || 'YURT. Bildirimi 🔔', {
+                        body: data.message || '',
+                        icon: '/static/img/icons/icon-192.png'
+                    });
+                }
+            }
+        });
+
+        socket.on('new_message', function(data) {
+            // Bu global dinleyici tüm sayfalarda çalışır. Kendi gönderdiğimiz
+            // mesajlar veya şu an açık olan sohbetin mesajları için (thread
+            // sayfası zaten kendi dinleyicisiyle ilgileniyor) burada tekrar
+            // rozet/toast göstermiyoruz.
+            if (data.is_mine) return;
+            if (typeof CONV_ID !== 'undefined' && CONV_ID === data.conversation_id) return;
+
+            const badgeEls = document.querySelectorAll('.bottom-nav a[href="/messages"] .nav-badge');
+            if (badgeEls.length === 0) {
+                const msgLink = document.querySelector('.bottom-nav a[href="/messages"]');
+                if (msgLink) {
+                    const b = document.createElement('span');
+                    b.className = 'nav-badge';
+                    b.textContent = '1';
+                    msgLink.appendChild(b);
+                }
+            } else {
+                badgeEls.forEach(b => {
+                    const n = (parseInt(b.textContent) || 0) + 1;
+                    b.textContent = n > 99 ? '99+' : n;
+                });
+            }
+
+            if (window.location.pathname.startsWith('/messages')) return;
+
+            const toast = document.createElement('div');
+            toast.style.cssText = 'position:fixed;right:18px;bottom:86px;z-index:9999;max-width:340px;padding:12px 15px;border-radius:14px;background:var(--surface,#fff);color:var(--text,#111);border:1px solid var(--border,#ddd);box-shadow:0 12px 30px rgba(0,0,0,.15);cursor:pointer;';
+            toast.innerHTML = `<strong>Yeni Mesaj 💬</strong><div style="font-size:.82rem;margin-top:3px;opacity:.75;">${(data.sender_name || 'Biri')}: ${(data.content || 'yeni bir mesaj gönderdi')}</div>`;
+            toast.addEventListener('click', () => { window.location.href = '/messages'; });
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 5000);
+        });
+
+        // iOS/PWA: Bildirim izni yalnızca kullanıcının açıkça bastığı
+        // "Telefon Bildirimlerini Aç" butonunda istenir. Sayfa açılır açılmaz
+        // requestPermission çağırmak iOS'ta izin akışını bozabilir.
+
+        // ===================== CANLI GENEL ARAMA (KİŞİ / ETKİNLİK / MENÜ) =====================
+        const globalSearchInput = document.getElementById('global-search-input');
+        const globalSearchDropdown = document.getElementById('global-search-dropdown');
+        const mobileSearchToggle = document.getElementById('mobile-search-toggle-btn');
+        const topbarSearchContainer = document.getElementById('topbarSearchContainer');
+        const mobileSearchClose = document.getElementById('mobileSearchClose');
+        let searchTimer = null;
+
+        if (mobileSearchToggle && topbarSearchContainer) {
+            mobileSearchToggle.addEventListener('click', () => {
+                topbarSearchContainer.classList.toggle('mobile-search-active');
+                if (topbarSearchContainer.classList.contains('mobile-search-active')) {
+                    if (mobileSearchClose) mobileSearchClose.style.display = 'block';
+                    globalSearchInput.focus();
+                } else {
+                    if (mobileSearchClose) mobileSearchClose.style.display = 'none';
+                    globalSearchDropdown.style.display = 'none';
+                }
+            });
+        }
+
+        if (mobileSearchClose && topbarSearchContainer) {
+            mobileSearchClose.addEventListener('click', () => {
+                topbarSearchContainer.classList.remove('mobile-search-active');
+                mobileSearchClose.style.display = 'none';
+                globalSearchDropdown.style.display = 'none';
+            });
+        }
+
+        if (globalSearchInput && globalSearchDropdown) {
+            globalSearchInput.addEventListener('input', () => {
+                clearTimeout(searchTimer);
+                const query = globalSearchInput.value.trim();
+                if (query.length < 1) {
+                    globalSearchDropdown.style.display = 'none';
+                    globalSearchDropdown.innerHTML = '';
+                    return;
+                }
+
+                globalSearchDropdown.innerHTML = '<div class="p-3 text-center text-muted small"><span class="spinner-border spinner-border-sm me-2" role="status"></span>Aranıyor...</div>';
+                globalSearchDropdown.style.display = 'block';
+
+                searchTimer = setTimeout(async () => {
+                    try {
+                        const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+                        const data = await res.json();
+                        
+                        let html = '';
+                        let hasResults = false;
+
+                        // Kişiler & Yetkililer
+                        if (data.users && data.users.length > 0) {
+                            hasResults = true;
+                            html += '<div class="search-category-title"><i class="bi bi-people me-1"></i> Kişiler & Yetkililer</div>';
+                            html += data.users.map(u => `
+                                <a href="${u.url}" class="search-result-item">
+                                    <div class="search-avatar">${u.profile_photo ? `<img src="/static/uploads/profiles/${u.profile_photo}" alt="">` : (u.username[0] || '').toUpperCase()}</div>
+                                    <div class="flex-fill text-truncate">
+                                        <div class="d-flex align-items-center gap-1 flex-wrap">
+                                            <span class="fw-semibold text-truncate">${u.full_name || u.username}</span>
+                                            <span class="role-badge ${u.role_class}" style="font-size:0.62rem; padding:1px 5px;"><i class="bi ${u.role_icon} me-1"></i>${u.role_badge}</span>
+                                        </div>
+                                        <div class="text-muted" style="font-size:0.72rem;">@${u.username} ${u.room_number ? '· Oda ' + u.room_number : ''}</div>
+                                    </div>
+                                </a>
+                            `).join('');
+                        }
+
+                        // Etkinlikler
+                        if (data.events && data.events.length > 0) {
+                            hasResults = true;
+                            html += '<div class="search-category-title"><i class="bi bi-calendar3 me-1"></i> Etkinlikler</div>';
+                            html += data.events.map(e => `
+                                <a href="${e.url}" class="search-result-item">
+                                    <div class="search-icon-box bg-gold-subtle"><i class="bi bi-calendar-event"></i></div>
+                                    <div class="flex-fill text-truncate">
+                                        <div class="fw-semibold text-truncate">${e.title}</div>
+                                        <div class="text-muted" style="font-size:0.72rem;">${e.event_date} ${e.location ? '· ' + e.location : ''}</div>
+                                    </div>
+                                </a>
+                            `).join('');
+                        }
+
+                        // Duyurular
+                        if (data.announcements && data.announcements.length > 0) {
+                            hasResults = true;
+                            html += '<div class="search-category-title"><i class="bi bi-megaphone me-1"></i> Duyurular</div>';
+                            html += data.announcements.map(a => `
+                                <a href="${a.url}" class="search-result-item">
+                                    <div class="search-icon-box"><i class="bi bi-megaphone"></i></div>
+                                    <div class="flex-fill text-truncate">
+                                        <div class="fw-semibold text-truncate">${a.title}</div>
+                                        <div class="text-muted" style="font-size:0.72rem;">${a.content}</div>
+                                    </div>
+                                </a>
+                            `).join('');
+                        }
+
+                        // Yemekhane Menüsü
+                        if (data.menus && data.menus.length > 0) {
+                            hasResults = true;
+                            html += '<div class="search-category-title"><i class="bi bi-cup-hot me-1"></i> Yemek Menüleri</div>';
+                            html += data.menus.map(m => `
+                                <a href="${m.url}" class="search-result-item">
+                                    <div class="search-icon-box"><i class="bi bi-egg-fried"></i></div>
+                                    <div class="flex-fill text-truncate">
+                                        <div class="fw-semibold text-truncate">${m.menu_date_tr}</div>
+                                        <div class="text-muted text-truncate" style="font-size:0.72rem;">${m.dinner || m.breakfast}</div>
+                                    </div>
+                                </a>
+                            `).join('');
+                        }
+
+                        if (!hasResults) {
+                            html = '<div class="p-3 text-center text-muted small"><i class="bi bi-search me-1"></i> Eşleşen sonuç bulunamadı.</div>';
+                        }
+
+                        globalSearchDropdown.innerHTML = html;
+                        globalSearchDropdown.style.display = 'block';
+                    } catch (e) {
+                        console.error('Search error:', e);
+                    }
+                }, 180);
+            });
+
+            // Klavye ile kapatma (Escape) ve Enter
+            globalSearchInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    globalSearchDropdown.style.display = 'none';
+                } else if (e.key === 'Enter') {
+                    const firstLink = globalSearchDropdown.querySelector('a.search-result-item');
+                    if (firstLink) {
+                        e.preventDefault();
+                        firstLink.click();
+                    }
+                }
+            });
+
+            // Dışarı tıklandığında kapat
+            document.addEventListener('click', (e) => {
+                if (!globalSearchInput.contains(e.target) && !globalSearchDropdown.contains(e.target)) {
+                    globalSearchDropdown.style.display = 'none';
+                }
+            });
+
+            // Odaklanıldığında ve değer varsa tekrar aç
+            globalSearchInput.addEventListener('focus', () => {
+                if (globalSearchInput.value.trim().length >= 1 && globalSearchDropdown.innerHTML.trim() !== '') {
+                    globalSearchDropdown.style.display = 'block';
+                }
+            });
+        }
+    </script>
+    {% endif %}
+
+    {% if not session.get('user_id') %}
+    <script>
+        const guestBtn = document.getElementById('theme-toggle-btn-guest');
+        const guestIcon = document.getElementById('theme-icon-guest');
+        const htmlEl = document.documentElement;
+
+        function refreshGuestIcon() {
+            const isDark = htmlEl.getAttribute('data-bs-theme') === 'dark';
+            if (guestIcon) guestIcon.className = isDark ? 'bi bi-moon' : 'bi bi-sun';
+        }
+        refreshGuestIcon();
+
+        if (guestBtn) {
+            guestBtn.addEventListener('click', () => {
+                const current = htmlEl.getAttribute('data-bs-theme') === 'dark' ? 'dark' : 'light';
+                const next = current === 'dark' ? 'light' : 'dark';
+                htmlEl.setAttribute('data-bs-theme', next);
+                try { localStorage.setItem('yurt-theme', next); } catch (e) {}
+                refreshGuestIcon();
+            });
+        }
+    </script>
+    {% endif %}
+
+    <!-- ===================== PWA KURULUM REHBERİ MODALI (iOS & Android) ===================== -->
+    <div class="modal fade" id="pwaGuideModal" tabindex="-1" aria-labelledby="pwaGuideModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg" style="background-color: var(--surface); color: var(--text-main);">
+                <div class="modal-header border-bottom pb-3" style="border-color: var(--border) !important;">
+                    <div class="d-flex align-items-center gap-2">
+                        <div class="pwa-banner-icon" style="width:36px;height:36px;font-size:1.1rem;">
+                            <i class="bi bi-phone"></i>
+                        </div>
+                        <div>
+                            <h6 class="modal-title fw-bold mb-0" id="pwaGuideModalLabel">Telefona Nasıl Yüklenir?</h6>
+                            <small class="text-muted" style="font-size:0.72rem;">Uygulamayı ana ekranınıza ekleyin</small>
+                        </div>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Kapat"></button>
+                </div>
+                <div class="modal-body py-3">
+                    <!-- iOS Rehberi -->
+                    <div id="pwa-guide-ios" style="display:none;">
+                        <div class="alert alert-warning d-flex align-items-center gap-2 p-2 mb-3" style="font-size:0.8rem;">
+                            <i class="bi bi-apple fs-5"></i>
+                            <div><strong>iPhone / iPad (Safari)</strong> kullanıcıları için:</div>
+                        </div>
+                        <ol class="list-group list-group-numbered mb-3" style="font-size:0.85rem;">
+                            <li class="list-group-item bg-transparent border-0 ps-0 pb-2 text-reset">
+                                Safari'nin en altındaki <strong>Paylaş (<i class="bi bi-box-arrow-up text-primary"></i>)</strong> simgesine dokunun.
+                            </li>
+                            <li class="list-group-item bg-transparent border-0 ps-0 pb-2 text-reset">
+                                Açılan menüde aşağı kaydırıp <strong>"Ana Ekrana Ekle" (<i class="bi bi-plus-square text-warning"></i>)</strong> seçeneğini seçin.
+                            </li>
+                            <li class="list-group-item bg-transparent border-0 ps-0 pb-1 text-reset">
+                                Sağ üst köşedeki <strong>"Ekle"</strong> butonuna basarak kurulumu tamamlayın. 🎉
+                            </li>
+                        </ol>
+                    </div>
+
+                    <!-- Android / Masaüstü Rehberi -->
+                    <div id="pwa-guide-android">
+                        <div class="alert alert-info d-flex align-items-center gap-2 p-2 mb-3" style="font-size:0.8rem;">
+                            <i class="bi bi-android2 fs-5"></i>
+                            <div><strong>Android & Tarayıcı</strong> kullanıcıları için:</div>
+                        </div>
+                        <button type="button" class="btn btn-warning w-100 fw-bold py-2 mb-3 shadow-sm" id="pwa-direct-install-btn">
+                            <i class="bi bi-download me-1"></i> Şimdi Yükle
+                        </button>
+                        <ol class="list-group list-group-numbered mb-2" style="font-size:0.82rem;">
+                            <li class="list-group-item bg-transparent border-0 ps-0 pb-2 text-reset">
+                                Yukarıdaki <strong>"Şimdi Yükle"</strong> butonuna dokunun veya tarayıcının sağ üstündeki <strong>üç nokta (⋮)</strong> menüsüne basın.
+                            </li>
+                            <li class="list-group-item bg-transparent border-0 ps-0 pb-2 text-reset">
+                                <strong>"Uygulamayı Yükle"</strong> veya <strong>"Ana Ekrana Ekle"</strong> seçeneğine tıklayın.
+                            </li>
+                        </ol>
+                    </div>
+                </div>
+                <div class="modal-footer border-top pt-2" style="border-color: var(--border) !important;">
+                    <button type="button" class="btn btn-secondary btn-sm w-100" data-bs-dismiss="modal">Anladım, Kapat</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===================== PWA & SERVICE WORKER CORE ===================== -->
+    <script>
+        // Service Worker Kaydı
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js', {updateViaCache: 'none'})
+                    .then((reg) => {
+                        console.log('PWA Service Worker aktif:', reg.scope);
+                    })
+                    .catch((err) => {
+                        console.warn('PWA Service Worker kaydı:', err);
+                    });
+            });
+        }
+
+        // ================================================================
+        // PWA INSTALL — Android Chrome + iOS Safari
+        // ================================================================
+        let deferredPwaPrompt = null;
+        const pwaBanner = document.getElementById('pwa-install-banner');
+        const pwaInstallBtn = document.getElementById('pwa-install-btn');
+        const pwaDismissBtn = document.getElementById('pwa-dismiss-btn');
+        const pwaDirectInstallBtn = document.getElementById('pwa-direct-install-btn');
+        const isIos = /iphone|ipad|ipod/.test(window.navigator.userAgent.toLowerCase());
+        const isAndroid = /android/.test(window.navigator.userAgent.toLowerCase());
+        const isStandalone = window.matchMedia('(display-mode: standalone)').matches ||
+            window.matchMedia('(display-mode: fullscreen)').matches ||
+            window.navigator.standalone === true;
+
+        function isPwaInstalled() {
+            return isStandalone || document.referrer.startsWith('android-app://');
+        }
+
+        function showPwaGuideModal() {
+            const iosGuide = document.getElementById('pwa-guide-ios');
+            const androidGuide = document.getElementById('pwa-guide-android');
+            const androidTitle = androidGuide ? androidGuide.querySelector('.alert div') : null;
+
+            if (isIos) {
+                if (iosGuide) iosGuide.style.display = 'block';
+                if (androidGuide) androidGuide.style.display = 'none';
+            } else {
+                if (iosGuide) iosGuide.style.display = 'none';
+                if (androidGuide) androidGuide.style.display = 'block';
+                if (androidTitle) {
+                    androidTitle.innerHTML = isAndroid
+                        ? '<strong>Android</strong> için:'
+                        : '<strong>Telefon / Tarayıcı</strong> için:';
+                }
+            }
+
+            const modalEl = document.getElementById('pwaGuideModal');
+            if (modalEl && typeof bootstrap !== 'undefined') {
+                bootstrap.Modal.getOrCreateInstance(modalEl).show();
+            }
+        }
+
+        async function triggerPwaInstall() {
+            if (isPwaInstalled()) {
+                return;
+            }
+
+            // Android/Chromium: use the native install sheet whenever Chrome
+            // exposes it. This is the same prompt as the browser's own
+            // "Uygulamayı yükle" action and results in a standalone app.
+            if (deferredPwaPrompt) {
+                try {
+                    deferredPwaPrompt.prompt();
+                    const choice = await deferredPwaPrompt.userChoice;
+                    if (choice && choice.outcome === 'accepted') {
+                        deferredPwaPrompt = null;
+                        if (pwaBanner) pwaBanner.style.display = 'none';
+                    }
+                } catch (err) {
+                    console.warn('PWA native install prompt failed:', err);
+                    showPwaGuideModal();
+                }
+                return;
+            }
+
+            // iOS does not expose beforeinstallprompt. Safari's native
+            // installation flow is Share -> Add to Home Screen, which opens
+            // the site in standalone mode after installation.
+            showPwaGuideModal();
+        }
+
+        // Capture the browser's native install event before any UI can consume it.
+        window.addEventListener('beforeinstallprompt', (event) => {
+            event.preventDefault();
+            deferredPwaPrompt = event;
+
+            if (!isPwaInstalled() && pwaBanner && !localStorage.getItem('pwa-dismissed')) {
+                pwaBanner.style.display = 'flex';
+            }
+        });
+
+        // The browser can fire this again after a service-worker/manifest update.
+        window.addEventListener('appinstalled', () => {
+            deferredPwaPrompt = null;
+            if (pwaBanner) pwaBanner.style.display = 'none';
+            document.querySelectorAll('.trigger-pwa-modal').forEach((el) => {
+                el.style.display = 'none';
+            });
+            console.log('Yurt Sosyal PWA başarıyla yüklendi.');
+        });
+
+        if (isPwaInstalled()) {
+            if (pwaBanner) pwaBanner.style.display = 'none';
+            document.querySelectorAll('.trigger-pwa-modal').forEach((el) => {
+                el.style.display = 'none';
+            });
+        } else if (!localStorage.getItem('pwa-dismissed')) {
+            // iOS has no beforeinstallprompt, so show the install affordance too.
+            // Android will be upgraded to the native prompt as soon as the event fires.
+            setTimeout(() => {
+                if (pwaBanner && !isPwaInstalled()) {
+                    pwaBanner.style.display = 'flex';
+                }
+            }, 1200);
+        }
+
+        if (pwaInstallBtn) {
+            pwaInstallBtn.addEventListener('click', triggerPwaInstall);
+        }
+
+        if (pwaDirectInstallBtn) {
+            pwaDirectInstallBtn.addEventListener('click', triggerPwaInstall);
+        }
+
+        document.querySelectorAll('.trigger-pwa-modal').forEach((btn) => {
+            btn.addEventListener('click', triggerPwaInstall);
+        });
+
+        if (pwaDismissBtn) {
+            pwaDismissBtn.addEventListener('click', () => {
+                if (pwaBanner) pwaBanner.style.display = 'none';
+                try { localStorage.setItem('pwa-dismissed', 'true'); } catch (e) {}
+            });
+        }
+    </script>
+
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

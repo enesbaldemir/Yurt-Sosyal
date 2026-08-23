@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}{{ ann.title }} — Duyuru Detayı{% endblock %}
+{% block content %}
+
+<div class="d-flex align-items-center justify-content-between mb-4">
+    <div>
+        <span class="kicker">Duyuru</span>
+        <h4 class="fw-bold mb-0">{{ ann.title }}</h4>
+    </div>
+    <a href="{{ url_for('announcements_page') }}" class="btn btn-secondary btn-sm">
+        <i class="bi bi-arrow-left"></i> Duyurulara Dön
+    </a>
+</div>
+
+<div class="card card-pad">
+    <div class="d-flex align-items-center gap-2 mb-3">
+        {% if ann.is_urgent or ann.priority == 'urgent' %}
+        <span class="badge-tag" style="background-color: var(--danger-bg); color: var(--danger); border-color: rgba(179,57,57,0.3);">
+            <i class="bi bi-exclamation-triangle"></i> Acil
+        </span>
+        {% endif %}
+        {% if ann.is_pinned %}
+        <span class="badge-tag badge-gold"><i class="bi bi-pin-angle"></i> Sabitlenmiş</span>
+        {% endif %}
+        <span class="badge-tag">{{ ann.category or 'Genel' }}</span>
+    </div>
+
+    <h3 class="fw-bold mb-3">{{ ann.title }}</h3>
+    <p class="text-muted mb-4" style="white-space: pre-line; line-height: 1.7;">{{ ann.content }}</p>
+
+    <div class="d-flex justify-content-between align-items-center pt-3 border-top text-muted small" style="border-color: var(--border) !important;">
+        <span>Yayınlayan: <strong>{{ ann.creator_name or 'Yurt Yönetimi' }}</strong></span>
+        <span>{{ ann.created_at|datetime_tr }}</span>
+    </div>
+</div>
+
+{% endblock %}

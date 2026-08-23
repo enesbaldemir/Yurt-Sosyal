@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Yemekhane — Yurt Sosyal{% endblock %}
+{% block content %}
+
+<div class="d-flex align-items-center justify-content-between mb-4">
+    <div>
+        <span class="kicker">Yemek Hizmetleri</span>
+        <h4 class="fw-bold mb-0">Yemekhane</h4>
+    </div>
+    <a href="{{ url_for('menu_page') }}" class="btn btn-secondary btn-sm">Aylık Menüye Git →</a>
+</div>
+
+{% if today_meals %}
+    <div class="card card-pad mb-4">
+        <h6 class="fw-bold mb-3">Bugün Ne Var?</h6>
+        {% for m in today_meals %}
+        <div class="p-3 mb-3 rounded" style="background-color: var(--surface-2); border: 1px solid var(--border);">
+            <div class="d-flex justify-content-between align-items-baseline mb-2">
+                <span class="kicker">{{ meal_labels[m.meal_type] if meal_labels else m.meal_type }}</span>
+                {% if m.avg_rating %}
+                <span class="small" style="color: var(--gold);">★ {{ '%.1f'|format(m.avg_rating) }} ({{ m.rating_count }})</span>
+                {% endif %}
+            </div>
+            <p class="mb-3" style="white-space: pre-wrap; font-size: 0.9rem;">{{ m.items }}</p>
+            <form method="POST" action="{{ url_for('rate_meal', meal_id=m.id) }}" class="d-flex align-items-center gap-1">
+                <span class="text-muted small me-2">Puanla:</span>
+                {% for i in range(1, 6) %}
+                <button type="submit" name="rating" value="{{ i }}" class="btn btn-sm p-0 border-0 bg-transparent" style="font-size: 1.2rem; line-height: 1; color: var(--gold);">
+                    <i class="bi {{ 'bi-star-fill' if m.my_rating and i <= m.my_rating else 'bi-star' }}"></i>
+                </button>
+                {% endfor %}
+            </form>
+        </div>
+        {% endfor %}
+    </div>
+{% endif %}
+
+{% if week_by_date %}
+<div class="card card-pad">
+    <h6 class="fw-bold mb-3">Haftalık Menü</h6>
+    {% for date_str, meals in week_by_date.items() %}
+    <div class="p-3 mb-2 rounded" style="background-color: var(--surface-2); border: 1px solid var(--border);">
+        <div class="fw-bold small mb-2">{{ date_str }}</div>
+        {% for m in meals %}
+        <div class="d-flex justify-content-between align-items-start py-1 border-bottom" style="border-color: var(--border) !important;">
+            <div>
+                <span class="text-muted small fw-semibold">{{ meal_labels[m.meal_type] if meal_labels else m.meal_type }}: </span>
+                <span class="small">{{ m.items }}</span>
+            </div>
+            {% if m.avg_rating %}
+            <span class="small" style="color: var(--gold);">★ {{ '%.1f'|format(m.avg_rating) }}</span>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+{% endblock %}

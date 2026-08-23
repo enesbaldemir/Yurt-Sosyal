@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+{% block title %}{{ profile_user.full_name }} — Profil{% endblock %}
+{% block content %}
+
+{% set prof_role_key = profile_user.role or ('yurt_muduru' if profile_user.is_admin else 'ogrenci') %}
+{% set prof_role = user_roles.get(prof_role_key, user_roles['ogrenci']) %}
+
+<div class="card card-pad mb-4">
+    <div class="d-flex align-items-start gap-4 flex-wrap">
+        <div class="avatar-ring">
+            {% if profile_user.profile_photo %}
+            <img src="{{ url_for('static', filename='uploads/profiles/' + profile_user.profile_photo) }}" class="avatar" width="88" height="88" alt="" style="width:88px;height:88px;">
+            {% else %}
+            <div class="avatar" style="width:88px;height:88px;font-size:2rem;">{{ profile_user.full_name[0]|upper }}</div>
+            {% endif %}
+        </div>
+
+        <div class="flex-fill min-w-0">
+            <div class="d-flex align-items-center gap-2 flex-wrap mb-1">
+                <h4 class="fw-bold mb-0">{{ profile_user.full_name }}</h4>
+                <span class="role-badge {{ prof_role.class }}">
+                    <i class="bi {{ prof_role.icon }} me-1"></i>{{ prof_role.badge }}
+                </span>
+                {% if profile_user.in_dorm %}<span class="badge-dorm"><i class="bi bi-geo-alt"></i> Yurtta</span>{% endif %}
+            </div>
+
+            <div class="text-muted small mb-2">
+                @{{ profile_user.username }}{% if profile_user.room_number %} · Oda: {{ profile_user.room_number }}{% endif %}
+            </div>
+
+            {% if profile_user.bio %}
+            <p class="small text-muted mb-3" style="max-width: 580px;">{{ profile_user.bio }}</p>
+            {% endif %}
+
+            <div class="profile-stats">
+                <div>
+                    <span class="profile-stat-num">{{ post_count }}</span>
+                    <span class="profile-stat-lbl">Gönderi</span>
+                </div>
+                <a href="{{ url_for('followers_list', username=profile_user.username) }}">
+                    <span class="profile-stat-num" id="followers-count">{{ followers_count }}</span>
+                    <span class="profile-stat-lbl">Takipçi</span>
+                </a>
+                <a href="{{ url_for('following_list', username=profile_user.username) }}">
+                    <span class="profile-stat-num">{{ following_count }}</span>
+                    <span class="profile-stat-lbl">Takip</span>
+                </a>
+            </div>
+
+            {% if session.get('is_admin') and profile_user.id != session.user_id %}
+            <div class="mt-3 pt-2 border-top d-flex align-items-center justify-content-between flex-wrap gap-2" style="border-color: var(--border) !important;">
+                <span class="small text-muted fw-semibold" style="font-size:0.75rem;"><i class="bi bi-shield-lock me-1"></i> Rol & Yetki Tanımla:</span>
+                <form method="POST" action="{{ url_for('set_user_role', user_id=profile_user.id) }}" class="d-flex align-items-center gap-2">
+                    <select name="role" class="form-select form-select-sm" onchange="this.form.submit()" style="min-width: 180px; font-size: 0.78rem; font-weight: 600;">
+                        {% for r_key, r_info in user_roles.items() %}
+                        <option value="{{ r_key }}" {{ 'selected' if prof_role_key == r_key }}>
+                            {{ r_info.title }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </form>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Eylem Butonları -->
+    <div class="d-flex gap-2 mt-4 pt-3 border-top" style="border-color: var(--border) !important;">
+        {% if profile_user.id == session.user_id %}
+        <a href="{{ url_for('edit_profile') }}" class="btn btn-secondary btn-sm flex-fill">
+            <i class="bi bi-pencil-square"></i> Profili Düzenle
+        </a>
+        <button type="button" class="btn btn-outline-warning btn-sm flex-fill trigger-pwa-modal">
+            <i class="bi bi-phone"></i> Uygulamayı Yükle
+        </button>
+        {% else %}
+        <button type="button" id="follow-btn" data-username="{{ profile_user.username }}"
+                class="btn btn-sm flex-fill {{ 'btn-secondary' if am_following else 'btn-primary' }}">
+            {% if am_following %}
+                <i class="bi bi-check2"></i> Takip Ediliyor
+            {% else %}
+                <i class="bi bi-person-plus"></i> Takip Et
+            {% endif %}
+        </button>
+        <a href="{{ url_for('messages_thread', other_id=profile_user.id) }}" class="btn btn-secondary btn-sm flex-fill">
+            <i class="bi bi-chat-left-text"></i> Mesaj Gönder
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+<!-- GÖNDERİLER -->
+<div class="section-title">
+    <span><i class="bi bi-grid-3x3 me-1"></i> Gönderiler</span>
+    <span class="text-muted small">{{ posts|length }} paylaşım</span>
+</div>
+
+{% if posts %}
+<div class="post-grid mb-4">
+    {% for p in posts %}
+    <a href="{{ url_for('feed') }}#post-{{ p.id }}">
+        {% if p.media_type == 'video' %}
+            <video src="{{ url_for('static', filename='uploads/posts/' + p.media_path) }}" muted></video>
+            <i class="bi bi-camera-reels video-badge"></i>
+        {% elif p.media_type == 'image' %}
+            <img src="{{ url_for('static', filename='uploads/posts/' + p.media_path) }}" alt="" loading="lazy">
+        {% else %}
+            <div class="text-tile">{{ p.caption|truncate(60) }}</div>
+        {% endif %}
+    </a>
+    {% endfor %}
+</div>
+{% else %}
+<div class="card card-pad text-center py-4 mb-4">
+    <div class="empty-state">
+        <i class="bi bi-camera"></i>
+        <p class="small mb-0">Henüz yayınlanmış bir gönderi bulunmuyor.</p>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const followBtn = document.getElementById('follow-btn');
+if (followBtn) {
+    followBtn.addEventListener('click', async () => {
+        const username = followBtn.dataset.username;
+        try {
+            const res = await fetch(`/profile/${username}/follow`, {
+                method: 'POST',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            const data = await res.json();
+            const countEl = document.getElementById('followers-count');
+            if (countEl) countEl.textContent = data.followers_count;
+            if (data.following) {
+                followBtn.className = 'btn btn-secondary btn-sm flex-fill';
+                followBtn.innerHTML = '<i class="bi bi-check2"></i> Takip Ediliyor';
+            } else {
+                followBtn.className = 'btn btn-primary btn-sm flex-fill';
+                followBtn.innerHTML = '<i class="bi bi-person-plus"></i> Takip Et';
+            }
+        } catch (e) { console.error(e); }
+    });
+}
+</script>
+{% endblock %}

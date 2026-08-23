@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}{{ event.title }} — Etkinlik Detayı{% endblock %}
+{% block content %}
+
+<div class="d-flex align-items-center justify-content-between mb-4">
+    <div>
+        <span class="kicker">Etkinlik Detayı</span>
+        <h4 class="fw-bold mb-0">{{ event.title }}</h4>
+    </div>
+    <a href="{{ url_for('events') }}" class="btn btn-secondary btn-sm">
+        <i class="bi bi-arrow-left"></i> Etkinliklere Dön
+    </a>
+</div>
+
+<div class="card card-pad mb-4">
+    <div class="d-flex justify-content-between align-items-baseline mb-2">
+        <span class="badge-tag">{{ event.event_type }}</span>
+        <span class="text-muted small">Düzenleyen: <strong>{{ event.creator_name }}</strong></span>
+    </div>
+
+    <h3 class="fw-bold mb-3">{{ event.title }}</h3>
+
+    {% if event.image_path %}<img src="{{ url_for('static', filename='uploads/events/' + event.image_path) }}" alt="{{ event.title }}" class="w-100 mb-4" style="max-height:420px;object-fit:cover;border-radius:16px;">{% endif %}
+
+    {% if event.description %}
+    <p class="text-muted mb-4" style="line-height:1.6; white-space: pre-line;">{{ event.description }}</p>
+    {% endif %}
+
+    <div class="row g-3 p-3 rounded mb-4" style="background-color: var(--surface-2); border: 1px solid var(--border);">
+        <div class="col-sm-6">
+            <div class="text-muted small fw-semibold text-uppercase" style="font-size:0.7rem;">Konum</div>
+            <div class="fw-bold mt-1"><i class="bi bi-geo-alt me-1 text-muted"></i>{{ event.location }}</div>
+        </div>
+        <div class="col-sm-6">
+            <div class="text-muted small fw-semibold text-uppercase" style="font-size:0.7rem;">Tarih & Saat</div>
+            <div class="fw-bold mt-1"><i class="bi bi-calendar3 me-1 text-muted"></i>{{ event.event_date }}</div>
+        </div>
+    </div>
+
+    <div class="d-flex gap-2 flex-wrap">
+        {% if is_joined %}
+        <a href="{{ url_for('leave_event', event_id=event.id) }}" class="btn btn-soft-danger flex-fill py-2">
+            <i class="bi bi-x-circle me-1"></i> Etkinlikten Ayrıl
+        </a>
+        {% else %}
+        <a href="{{ url_for('join_event', event_id=event.id) }}" class="btn btn-primary flex-fill py-2">
+            <i class="bi bi-check2-circle me-1"></i> Etkinliğe Katıl
+        </a>
+        {% endif %}
+
+        {% if session.get('is_admin') %}
+        <a href="{{ url_for('delete_event', event_id=event.id) }}" class="btn btn-soft-danger" onclick="return confirm('Etkinliği kalıcı olarak silmek istediğinizden emin misiniz?')" title="Sil">
+            <i class="bi bi-trash3"></i>
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+<div class="card card-pad">
+    <div class="section-title mb-3">
+        <span><i class="bi bi-people me-1"></i> Katılımcı Listesi</span>
+        <span class="badge-tag">{{ participants|length }}{% if event.max_participants %} / {{ event.max_participants }}{% endif %}</span>
+    </div>
+
+    {% if participants %}
+    <div class="d-flex flex-column">
+        {% for p in participants %}
+        <div class="d-flex justify-content-between align-items-center py-2 border-bottom" style="border-color: var(--border) !important;">
+            <a href="{{ url_for('profile', username=p.username) }}" class="fw-semibold small">{{ p.full_name }}</a>
+            <span class="text-muted small">Oda: {{ p.room_number or '-' }}</span>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-center py-3 text-muted small">
+        Henüz katılımcı bulunmuyor. İlk katılan sen ol!
+    </div>
+    {% endif %}
+</div>
+
+{% endblock %}

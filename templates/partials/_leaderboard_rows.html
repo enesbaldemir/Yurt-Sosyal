@@ -1,0 +1,20 @@
+{% if leaderboard %}
+    <div class="d-flex flex-column">
+    {% for p in leaderboard %}
+    <div class="leaderboard-row {{ 'me' if p.user_id == session.user_id }}">
+        <div class="d-flex align-items-center gap-2 min-w-0">
+            <span class="leaderboard-rank">#{{ loop.index }}</span>
+            {% if p.profile_photo %}
+            <img src="{{ url_for('static', filename='uploads/profiles/' + p.profile_photo) }}" class="leaderboard-avatar" alt="">
+            {% else %}
+            <span class="leaderboard-avatar leaderboard-avatar-fallback">{{ p.full_name[0]|upper }}</span>
+            {% endif %}
+            <span class="text-truncate">{{ p.full_name }}</span>
+        </div>
+        <strong>{{ p.best_score }}</strong>
+    </div>
+    {% endfor %}
+    </div>
+{% else %}
+    <p class="small text-muted mb-0 py-2 text-center">Henüz skor kaydedilmedi, ilk sen ol!</p>
+{% endif %}

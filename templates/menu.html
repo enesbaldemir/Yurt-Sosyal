@@ -1,0 +1,704 @@
+{% extends 'base.html' %}
+{% block title %}Yemekhane Menüsü — Yurt Sosyal{% endblock %}
+{% block content %}
+
+<!-- ===================== SAYFA BAŞLIĞI ===================== -->
+<div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+    <div>
+        <span class="kicker">Yemek Hizmetleri</span>
+        <h3 class="serif-heading mb-0" style="font-size: 2rem;">Yemekhane Menüsü</h3>
+    </div>
+    {% if today_menu %}
+    <div class="badge-tag badge-gold py-2 px-3 d-flex align-items-center gap-2">
+        <span class="live-dot"></span>
+        <i class="bi bi-calendar3"></i>
+        <span>{{ today|format_date_tr }} · {{ today|day_name_tr }}</span>
+    </div>
+    {% endif %}
+</div>
+
+<div class="card card-pad-sm mb-4 meal-hours-card">
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+        <div class="d-flex align-items-center gap-2">
+            <span class="meal-hours-icon"><i class="bi bi-clock"></i></span>
+            <div>
+                <strong class="d-block">Yemekhane Saatleri</strong>
+                <span class="text-muted small">Bugünün servis saatleri</span>
+            </div>
+        </div>
+        <div class="d-flex flex-wrap gap-2">
+            <span class="badge-tag"><i class="bi bi-sun me-1"></i>Kahvaltı {{ meal_schedule.breakfast }}</span>
+            <span class="badge-tag"><i class="bi bi-moon-stars me-1"></i>Akşam {{ meal_schedule.dinner }}</span>
+        </div>
+    </div>
+</div>
+
+<!-- ===================== BUGÜNÜN ÖNE ÇIKAN MENÜSÜ ===================== -->
+{% if today_menu %}
+<div class="today-menu-card mb-5" id="today-menu-card">
+    <div class="today-menu-header d-flex justify-content-between align-items-center flex-wrap gap-3">
+        <div>
+            <div class="d-flex align-items-center gap-2">
+                <span class="badge-pill-accent"><i class="bi bi-star-fill text-warning me-1"></i> Günün Menüsü</span>
+                <span class="text-muted small fw-medium">{{ today|format_date_tr }}, {{ today|day_name_tr }}</span>
+            </div>
+            <h4 class="fw-bold mt-2 mb-0">Bugün Yemekhanede Ne Var?</h4>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            {% if session.get('is_admin') %}
+            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="openAdminMenuEdit('{{ today_menu.menu_date }}')">
+                <i class="bi bi-pencil-square me-1"></i> Menüyü Düzenle
+            </button>
+            {% endif %}
+            <div class="d-flex align-items-center gap-2 bg-surface-subtle p-2 px-3 rounded-pill border">
+                <span class="text-warning fs-6" style="letter-spacing: 1px;">
+                    {% for i in range(1,6) %}
+                    <i class="bi bi-star{% if today_menu.avg_rating and i <= today_menu.avg_rating|round(0,'floor') %}-fill{% endif %}"></i>
+                    {% endfor %}
+                </span>
+                <strong class="fs-6" id="header-avg-rating">{{ today_menu.avg_rating or '—' }}</strong>
+                <span class="text-muted small" id="header-rating-count">({{ today_menu.rating_count or 0 }} Değerlendirme)</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- ÖĞÜNLER GRID (Sadece Kahvaltı ve Akşam Yemeği) -->
+    <div class="row g-3 mt-1">
+        <!-- 1. KAHVALTI (Varsa) -->
+        {% if today_menu.breakfast %}
+        <div class="{% if today_menu.dinner %}col-lg-6{% else %}col-12{% endif %}">
+            <div class="meal-block-card h-100">
+                <div class="meal-block-header">
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="meal-icon-box bg-sun"><i class="bi bi-sun"></i></span>
+                        <div>
+                            <h6 class="fw-bold mb-0">Kahvaltı Menüsü</h6>
+                            <span class="text-muted" style="font-size: 0.72rem;">{{ meal_schedule.breakfast }}</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="meal-courses-list" id="today-breakfast-list">
+                    {% for item in today_menu.breakfast|split_courses %}
+                    <div class="meal-course-item">
+                        <span class="course-badge breakfast-badge"><i class="bi bi-check2"></i></span>
+                        <span class="course-text">{{ item }}</span>
+                    </div>
+                    {% else %}
+                    <p class="text-muted small mb-0">{{ today_menu.breakfast }}</p>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- 2. AKŞAM YEMEĞİ (Varsa) -->
+        {% if today_menu.dinner %}
+        <div class="{% if today_menu.breakfast %}col-lg-6{% else %}col-12{% endif %}">
+            <div class="meal-block-card h-100">
+                <div class="meal-block-header">
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="meal-icon-box bg-moon"><i class="bi bi-moon-stars"></i></span>
+                        <div>
+                            <h6 class="fw-bold mb-0">Akşam Yemeği Menüsü</h6>
+                            <span class="text-muted" style="font-size: 0.72rem;">{{ meal_schedule.dinner }}</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="meal-courses-list" id="today-dinner-list">
+                    {% for item in today_menu.dinner|split_courses %}
+                    <div class="meal-course-item">
+                        <span class="course-badge dinner-badge">{{ loop.index }}. Kap</span>
+                        <span class="course-text fw-medium">{{ item }}</span>
+                    </div>
+                    {% else %}
+                    <p class="text-muted small mb-0">{{ today_menu.dinner }}</p>
+                    {% endfor %}
+                </div>
+                {% if today_menu.snack %}
+                <div class="snack-pill mt-3" id="today-snack-pill">
+                    <i class="bi bi-cup-hot me-1 text-gold"></i>
+                    <strong>İkram:</strong> {{ today_menu.snack }}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- DİNAMİK TEK TIKLA YILDIZ PUANLAMA ALANI -->
+    <div class="quick-rate-bar mt-4">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+            <div class="d-flex align-items-center gap-3">
+                <div>
+                    <span class="fw-bold d-block" style="font-size: 0.92rem;">Bugünün Menüsünü Puanla:</span>
+                    <span class="text-muted" style="font-size: 0.75rem;">Yıldızlara tıklayarak anında değerlendir (+10 XP)</span>
+                </div>
+                <!-- 1-Click Interactive Stars -->
+                <div class="click-star-rating" id="quick-star-group" data-current-score="{{ today_menu.my_rating or 0 }}">
+                    {% for i in range(1,6) %}
+                    <button type="button" class="star-click-btn {% if today_menu.my_rating and i <= today_menu.my_rating %}filled{% endif %}" data-star="{{ i }}" title="{{ i }} Yıldız">
+                        <i class="bi bi-star-fill"></i>
+                    </button>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="d-flex align-items-center gap-2">
+                <span id="rate-toast-badge" class="rate-feedback-pill" style="{% if not today_menu.my_rating %}display:none;{% endif %}">
+                    <i class="bi bi-check-circle-fill text-success me-1"></i>
+                    <span id="rate-toast-text">{% if today_menu.my_rating %}Puanınız: {{ today_menu.my_rating }} ★ (Kaydedildi){% else %}Puanınız Kaydedildi!{% endif %}</span>
+                </span>
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="toggle-comment-btn">
+                    <i class="bi bi-chat-left-text me-1"></i> Görüş Ekle
+                </button>
+            </div>
+        </div>
+
+        <!-- Opsiyonel Yorum Kutusu (İsteğe Bağlı Açılır) -->
+        <div id="comment-drawer" class="mt-3 pt-3 border-top" style="display: none; border-color: var(--border) !important;">
+            <div class="row g-2 align-items-center">
+                <div class="col-md-9">
+                    <input type="text" id="quick-comment-input" class="form-control form-control-sm" placeholder="Yemekler hakkında görüş veya öneriniz (Örn: Çorba çok lezzetliydi)..." value="{{ today_menu.my_comment or '' }}" maxlength="300">
+                </div>
+                <div class="col-md-3 text-end">
+                    <button type="button" class="btn btn-primary btn-sm w-100" id="save-comment-btn">
+                        <i class="bi bi-check2 me-1"></i> Notu Kaydet
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="card card-pad text-center py-5 mb-5">
+    <div class="mb-3" style="font-size: 2.5rem; color: var(--text-faint);">
+        <i class="bi bi-cup-hot"></i>
+    </div>
+    <h5 class="fw-bold mb-1">Bugün İçin Menü Girilmedi</h5>
+    <p class="small text-muted mb-3">Yönetim tarafından Excel menüsü yüklendiğinde günün menüsü burada listelenecektir.</p>
+    {% if session.get('is_admin') %}
+    <button type="button" class="btn btn-primary btn-sm mx-auto" onclick="openAdminMenuEdit('{{ today }}')">
+        <i class="bi bi-plus-circle me-1"></i> Bugünün Menüsünü Manuel Ekle
+    </button>
+    {% endif %}
+</div>
+{% endif %}
+
+
+<!-- ===================== AYLIK MENÜ LİSTESİ & TAKVİM ===================== -->
+<div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+    <div>
+        <span class="kicker">Aylık Plan</span>
+        <h4 class="fw-bold mb-0">Tüm Menü Takvimi</h4>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+        {% if session.get('is_admin') %}
+        <button type="button" class="btn btn-outline-primary btn-sm" onclick="openAdminMenuEdit('')">
+            <i class="bi bi-plus-lg me-1"></i> Günlük Menü Ekle
+        </button>
+        {% endif %}
+        <span class="badge-tag">{{ menus|length }} Gün Kayıtlı</span>
+        <div class="btn-group btn-group-sm" role="group" aria-label="Görünüm Seçici">
+            <button type="button" class="btn btn-secondary active" id="view-grid-btn" title="Kart Görünümü"><i class="bi bi-grid"></i></button>
+            <button type="button" class="btn btn-secondary" id="view-table-btn" title="Tablo Görünümü"><i class="bi bi-list-ul"></i></button>
+        </div>
+    </div>
+</div>
+
+<!-- FİLTRE VE ARAMA ÇUBUĞU -->
+<div class="card card-pad-sm mb-4">
+    <div class="row g-2 align-items-center">
+        <div class="col-md-5">
+            <div class="input-group input-group-sm">
+                <span class="input-group-text bg-transparent border-end-0 text-muted"><i class="bi bi-search"></i></span>
+                <input type="text" id="menu-search-input" class="form-control border-start-0 ps-0" placeholder="Yemek ara (Örn: Çorba, Köfte, Tavuk, Pilav)...">
+            </div>
+        </div>
+        <div class="col-md-4">
+            <select id="month-filter-select" class="form-select form-select-sm">
+                <option value="all">Tüm Aylar</option>
+                {% for ym in months_available %}
+                <option value="{{ ym }}">{{ ym|format_date_tr }} Menüsü</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-3 text-end">
+            <div class="btn-group btn-group-sm w-100" role="group">
+                <button type="button" class="btn btn-outline-secondary active btn-filter-meal" data-meal="all">Tümü</button>
+                <button type="button" class="btn btn-outline-secondary btn-filter-meal" data-meal="dinner">Akşam</button>
+                <button type="button" class="btn btn-outline-secondary btn-filter-meal" data-meal="breakfast">Kahvaltı</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 1. KART GÖRÜNÜMÜ (GRID) -->
+<div id="grid-view-container" class="row g-3">
+{% for m in menus %}
+    {% set is_today = (m.menu_date == today) %}
+    <div class="col-md-6 col-lg-4 menu-day-item" data-date="{{ m.menu_date }}" data-month="{{ m.menu_date[:7] }}" data-has-breakfast="{{ '1' if m.breakfast else '0' }}" data-has-dinner="{{ '1' if m.dinner else '0' }}">
+        <div class="card card-pad h-100 day-menu-card {{ 'is-today' if is_today }}">
+            <!-- Kart Başlığı -->
+            <div class="d-flex justify-content-between align-items-start pb-2 mb-2 border-bottom">
+                <div>
+                    <div class="d-flex align-items-center gap-1">
+                        {% if is_today %}
+                        <span class="today-pill">BUGÜN</span>
+                        {% endif %}
+                        <span class="day-name-pill">{{ m.menu_date|day_name_tr }}</span>
+                    </div>
+                    <h6 class="fw-bold mt-1 mb-0">{{ m.menu_date|format_date_tr }}</h6>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    {% if session.get('is_admin') %}
+                    <button type="button" class="btn btn-sm btn-icon-subtle text-muted" onclick="openAdminMenuEdit('{{ m.menu_date }}')" title="Menüyü Düzenle">
+                        <i class="bi bi-pencil"></i>
+                    </button>
+                    {% endif %}
+                    {% if m.avg_rating %}
+                    <div class="rating-badge-mini" title="{{ m.rating_count }} oy">
+                        <i class="bi bi-star-fill text-warning"></i>
+                        <span>{{ m.avg_rating }}</span>
+                        <small class="text-muted">({{ m.rating_count }})</small>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Öğün İçerikleri -->
+            <div class="day-menu-body">
+                <!-- Kahvaltı -->
+                {% if m.breakfast %}
+                <div class="meal-mini-section meal-sec-breakfast mb-2">
+                    <div class="meal-mini-title text-gold">
+                        <i class="bi bi-sun me-1"></i> Kahvaltı
+                    </div>
+                    <ul class="meal-mini-list">
+                        {% for item in m.breakfast|split_courses %}
+                        <li>{{ item }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+
+                <!-- Akşam Yemeği -->
+                {% if m.dinner %}
+                <div class="meal-mini-section meal-sec-dinner">
+                    <div class="meal-mini-title text-indigo">
+                        <i class="bi bi-moon-stars me-1"></i> Akşam Yemeği
+                    </div>
+                    <ul class="meal-mini-list">
+                        {% for item in m.dinner|split_courses %}
+                        <li><span class="course-num-dot">{{ loop.index }}</span> {{ item }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+
+                {% if not m.breakfast and not m.dinner %}
+                <div class="text-muted small py-2 text-center">Menü bilgisi girilmedi</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+{% else %}
+    <div class="col-12" id="empty-menu-msg">
+        <div class="card card-pad text-center py-5">
+            <p class="small text-muted mb-0">Henüz yayınlanmış yemekhane menüsü bulunmuyor.</p>
+        </div>
+    </div>
+{% endfor %}
+</div>
+
+<!-- 2. TABLO GÖRÜNÜMÜ (TABLE) -->
+<div id="table-view-container" class="card card-pad" style="display:none;">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0" style="font-size: 0.85rem;">
+            <thead>
+                <tr class="text-muted" style="border-bottom: 2px solid var(--border);">
+                    <th style="min-width: 140px;">Tarih / Gün</th>
+                    <th>Kahvaltı</th>
+                    <th>Akşam Yemeği</th>
+                    <th style="min-width: 90px;">Puan</th>
+                    {% if session.get('is_admin') %}
+                    <th style="min-width: 70px;">İşlem</th>
+                    {% endif %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for m in menus %}
+                <tr class="menu-table-row {{ 'table-active' if m.menu_date == today }}" data-date="{{ m.menu_date }}" data-month="{{ m.menu_date[:7] }}" data-has-breakfast="{{ '1' if m.breakfast else '0' }}" data-has-dinner="{{ '1' if m.dinner else '0' }}">
+                    <td>
+                        <div class="fw-bold">{{ m.menu_date|format_date_tr }}</div>
+                        <div class="text-muted" style="font-size:0.72rem;">{{ m.menu_date|day_name_tr }} {% if m.menu_date == today %}<span class="badge bg-warning text-dark ms-1">Bugün</span>{% endif %}</div>
+                    </td>
+                    <td>
+                        {% if m.breakfast %}
+                        <div class="text-muted" style="line-height: 1.4;">{{ m.breakfast }}</div>
+                        {% else %}
+                        <span class="text-faint">—</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if m.dinner %}
+                        <div class="fw-medium" style="line-height: 1.4;">{{ m.dinner }}</div>
+                        {% else %}
+                        <span class="text-faint">—</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if m.avg_rating %}
+                        <span class="fw-bold text-warning">★ {{ m.avg_rating }}</span>
+                        <div class="text-muted" style="font-size:0.68rem;">{{ m.rating_count }} oy</div>
+                        {% else %}
+                        <span class="text-faint">—</span>
+                        {% endif %}
+                    </td>
+                    {% if session.get('is_admin') %}
+                    <td>
+                        <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2" onclick="openAdminMenuEdit('{{ m.menu_date }}')">Düzenle</button>
+                    </td>
+                    {% endif %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- ===================== ADMİN MENÜ DÜZENLEME MODALI ===================== -->
+{% if session.get('is_admin') %}
+<div class="modal fade" id="adminMenuEditModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="background: var(--surface); border: 1px solid var(--border);">
+            <div class="modal-header">
+                <h6 class="modal-title fw-bold" id="adminModalTitle">
+                    <i class="bi bi-pencil-square me-1 text-gold"></i> Menü Düzenle
+                </h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Kapat"></button>
+            </div>
+            <form id="adminMenuSaveForm">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Menü Tarihi</label>
+                        <input type="date" name="menu_date" id="modal-menu-date" class="form-control form-control-sm" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold text-gold"><i class="bi bi-sun me-1"></i> Kahvaltı Menüsü</label>
+                        <textarea name="breakfast" id="modal-menu-breakfast" class="form-control form-control-sm" rows="3" placeholder="Yemekleri aralarında • veya yeni satır ile yazın..."></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold text-indigo"><i class="bi bi-moon-stars me-1"></i> Akşam Yemeği Menüsü</label>
+                        <textarea name="dinner" id="modal-menu-dinner" class="form-control form-control-sm" rows="3" placeholder="Örn: Mercimek Çorba • İzmir Köfte • Pirinç Pilavı • Mevsim Salata"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold"><i class="bi bi-cup-hot me-1 text-gold"></i> İkram / Ara Öğün (İsteğe Bağlı)</label>
+                        <input type="text" name="snack" id="modal-menu-snack" class="form-control form-control-sm" placeholder="Örn: Çay & Kek">
+                    </div>
+                    <div id="modal-error-msg" class="small text-danger" style="display:none;"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">İptal</button>
+                    <button type="submit" class="btn btn-primary btn-sm" id="modal-save-btn">
+                        <i class="bi bi-check2 me-1"></i> Değişiklikleri Kaydet
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    // 1. Görünüm Değiştirici (Grid / Table)
+    const gridBtn = document.getElementById('view-grid-btn');
+    const tableBtn = document.getElementById('view-table-btn');
+    const gridContainer = document.getElementById('grid-view-container');
+    const tableContainer = document.getElementById('table-view-container');
+
+    if (gridBtn && tableBtn && gridContainer && tableContainer) {
+        gridBtn.addEventListener('click', () => {
+            gridBtn.classList.add('active');
+            tableBtn.classList.remove('active');
+            gridContainer.style.display = 'flex';
+            tableContainer.style.display = 'none';
+        });
+
+        tableBtn.addEventListener('click', () => {
+            tableBtn.classList.add('active');
+            gridBtn.classList.remove('active');
+            gridContainer.style.display = 'none';
+            tableContainer.style.display = 'block';
+        });
+    }
+
+    // 2. Arama & Filtreleme
+    const searchInput = document.getElementById('menu-search-input');
+    const monthSelect = document.getElementById('month-filter-select');
+    const mealButtons = document.querySelectorAll('.btn-filter-meal');
+    let currentMealFilter = 'all';
+
+    function filterMenus() {
+        const query = (searchInput ? searchInput.value : '').toLowerCase().trim();
+        const selectedMonth = monthSelect ? monthSelect.value : 'all';
+
+        const dayCards = document.querySelectorAll('.menu-day-item');
+        const tableRows = document.querySelectorAll('.menu-table-row');
+
+        function matches(el) {
+            const mMonth = el.getAttribute('data-month');
+            const hasB = el.getAttribute('data-has-breakfast') === '1';
+            const hasD = el.getAttribute('data-has-dinner') === '1';
+            const text = el.innerText.toLowerCase();
+
+            const matchMonth = (selectedMonth === 'all' || mMonth === selectedMonth);
+            const matchSearch = (!query || text.includes(query));
+            let matchMeal = true;
+            if (currentMealFilter === 'dinner') matchMeal = hasD;
+            else if (currentMealFilter === 'breakfast') matchMeal = hasB;
+
+            return matchMonth && matchSearch && matchMeal;
+        }
+
+        dayCards.forEach(card => {
+            card.style.display = matches(card) ? '' : 'none';
+        });
+
+        tableRows.forEach(row => {
+            row.style.display = matches(row) ? '' : 'none';
+        });
+    }
+
+    if (searchInput) searchInput.addEventListener('input', filterMenus);
+    if (monthSelect) monthSelect.addEventListener('change', filterMenus);
+
+    mealButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+            mealButtons.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            currentMealFilter = btn.getAttribute('data-meal');
+            filterMenus();
+        });
+    });
+
+    // 3. DİNAMİK 1-TIKLA YILDIZ PUANLAMA (Tıklayınca Anında Kaydeder)
+    const starBtns = document.querySelectorAll('.star-click-btn');
+    const starGroup = document.getElementById('quick-star-group');
+    const toastBadge = document.getElementById('rate-toast-badge');
+    const toastText = document.getElementById('rate-toast-text');
+    const toggleCommentBtn = document.getElementById('toggle-comment-btn');
+    const commentDrawer = document.getElementById('comment-drawer');
+    const quickCommentInput = document.getElementById('quick-comment-input');
+    const saveCommentBtn = document.getElementById('save-comment-btn');
+    const todayDate = "{{ today }}";
+
+    let currentScore = starGroup ? parseInt(starGroup.getAttribute('data-current-score') || '0') : 0;
+
+    function renderStarPreview(val) {
+        starBtns.forEach(btn => {
+            const s = parseInt(btn.getAttribute('data-star'));
+            if (s <= val) {
+                btn.classList.add('filled');
+            } else {
+                btn.classList.remove('filled');
+            }
+        });
+    }
+
+    starBtns.forEach(btn => {
+        const starVal = parseInt(btn.getAttribute('data-star'));
+
+        btn.addEventListener('mouseenter', () => {
+            renderStarPreview(starVal);
+        });
+
+        btn.addEventListener('mouseleave', () => {
+            renderStarPreview(currentScore);
+        });
+
+        btn.addEventListener('click', async () => {
+            currentScore = starVal;
+            renderStarPreview(currentScore);
+            if (starGroup) starGroup.setAttribute('data-current-score', currentScore);
+
+            try {
+                const res = await fetch('{{ url_for("rate_menu") }}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: JSON.stringify({
+                        menu_date: todayDate,
+                        overall_rating: currentScore,
+                        comment: quickCommentInput ? quickCommentInput.value.trim() : ''
+                    })
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    if (toastBadge) {
+                        toastBadge.style.display = 'inline-flex';
+                        toastBadge.className = 'rate-feedback-pill bg-success-subtle text-success border border-success-subtle animate-pop';
+                    }
+                    if (toastText) {
+                        toastText.textContent = `Puanınız: ${currentScore} ★ Kaydedildi (+10 XP) 🎉`;
+                    }
+                    const avgEl = document.getElementById('header-avg-rating');
+                    const countEl = document.getElementById('header-rating-count');
+                    if (avgEl && data.avg_rating) avgEl.textContent = data.avg_rating;
+                    if (countEl && data.rating_count) countEl.textContent = `(${data.rating_count} Değerlendirme)`;
+                }
+            } catch (err) {
+                console.error(err);
+            }
+        });
+    });
+
+    if (toggleCommentBtn && commentDrawer) {
+        toggleCommentBtn.addEventListener('click', () => {
+            commentDrawer.style.display = commentDrawer.style.display === 'none' ? 'block' : 'none';
+        });
+    }
+
+    if (saveCommentBtn && quickCommentInput) {
+        saveCommentBtn.addEventListener('click', async () => {
+            saveCommentBtn.disabled = true;
+            saveCommentBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+            try {
+                const res = await fetch('{{ url_for("rate_menu") }}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: JSON.stringify({
+                        menu_date: todayDate,
+                        overall_rating: currentScore || 5,
+                        comment: quickCommentInput.value.trim()
+                    })
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    saveCommentBtn.className = 'btn btn-success btn-sm w-100';
+                    saveCommentBtn.innerHTML = '<i class="bi bi-check2"></i> Kaydedildi';
+                    setTimeout(() => {
+                        saveCommentBtn.className = 'btn btn-primary btn-sm w-100';
+                        saveCommentBtn.innerHTML = '<i class="bi bi-check2 me-1"></i> Notu Kaydet';
+                        saveCommentBtn.disabled = false;
+                    }, 2000);
+                }
+            } catch (e) {
+                console.error(e);
+                saveCommentBtn.disabled = false;
+            }
+        });
+    }
+});
+
+// ===================== ADMİN MANUEL DÜZENLEME JS =====================
+let adminMenuModal = null;
+
+async function openAdminMenuEdit(menuDate) {
+    const modalEl = document.getElementById('adminMenuEditModal');
+    if (!modalEl) return;
+    if (!adminMenuModal) {
+        adminMenuModal = new bootstrap.Modal(modalEl);
+    }
+
+    const dateInput = document.getElementById('modal-menu-date');
+    const breakfastInput = document.getElementById('modal-menu-breakfast');
+    const dinnerInput = document.getElementById('modal-menu-dinner');
+    const snackInput = document.getElementById('modal-menu-snack');
+    const errorMsg = document.getElementById('modal-error-msg');
+
+    if (errorMsg) errorMsg.style.display = 'none';
+
+    if (menuDate) {
+        dateInput.value = menuDate;
+        try {
+            const res = await fetch(`/api/menu/${menuDate}`);
+            const data = await res.json();
+            if (data.ok && data.menu) {
+                breakfastInput.value = data.menu.breakfast || '';
+                dinnerInput.value = data.menu.dinner || '';
+                snackInput.value = data.menu.snack || '';
+            }
+        } catch (e) {
+            console.error(e);
+        }
+    } else {
+        dateInput.value = new Date().toISOString().split('T')[0];
+        breakfastInput.value = '';
+        dinnerInput.value = '';
+        snackInput.value = '';
+    }
+
+    adminMenuModal.show();
+}
+
+const adminForm = document.getElementById('adminMenuSaveForm');
+if (adminForm) {
+    adminForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const saveBtn = document.getElementById('modal-save-btn');
+        const errorMsg = document.getElementById('modal-error-msg');
+
+        if (saveBtn) {
+            saveBtn.disabled = true;
+            saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Kaydediliyor...';
+        }
+
+        const payload = {
+            menu_date: document.getElementById('modal-menu-date').value,
+            breakfast: document.getElementById('modal-menu-breakfast').value,
+            dinner: document.getElementById('modal-menu-dinner').value,
+            snack: document.getElementById('modal-menu-snack').value
+        };
+
+        try {
+            const res = await fetch('{{ url_for("save_menu_manual") }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+            if (data.ok) {
+                if (adminMenuModal) adminMenuModal.hide();
+                window.location.reload();
+            } else {
+                if (errorMsg) {
+                    errorMsg.textContent = data.error || 'Hata oluştu.';
+                    errorMsg.style.display = 'block';
+                }
+                if (saveBtn) {
+                    saveBtn.disabled = false;
+                    saveBtn.innerHTML = '<i class="bi bi-check2 me-1"></i> Değişiklikleri Kaydet';
+                }
+            }
+        } catch (err) {
+            console.error(err);
+            if (errorMsg) {
+                errorMsg.textContent = 'Bağlantı hatası.';
+                errorMsg.style.display = 'block';
+            }
+            if (saveBtn) {
+                saveBtn.disabled = false;
+                saveBtn.innerHTML = '<i class="bi bi-check2 me-1"></i> Değişiklikleri Kaydet';
+            }
+        }
+    });
+}
+</script>
+{% endblock %}
+
+<style>
+.meal-hours-card{border:1px solid var(--border);background:var(--surface-1);}
+.meal-hours-icon{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;background:var(--surface-2);color:var(--gold);}
+</style>

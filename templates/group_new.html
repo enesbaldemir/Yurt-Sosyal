@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}Yeni Grup — Mesajlar{% endblock %}
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/messages.css') }}?v=2">
+{% endblock %}
+{% block content %}
+
+<div class="msg-card p-4" style="max-width:560px; margin:0 auto;">
+    <div class="d-flex align-items-center gap-2 mb-4">
+        <a href="{{ url_for('messages_list') }}" class="icon-btn"><i class="bi bi-arrow-left"></i></a>
+        <h5 class="fw-bold mb-0">Yeni Grup</h5>
+    </div>
+
+    <form method="POST" enctype="multipart/form-data" id="groupNewForm">
+        <label class="group-photo-picker" for="groupPhotoInput" id="groupPhotoPreview">
+            <i class="bi bi-camera"></i>
+        </label>
+        <input type="file" id="groupPhotoInput" name="photo" accept="image/*" style="display:none;">
+
+        <div class="mb-3">
+            <label class="form-label small fw-semibold">Grup adı</label>
+            <input type="text" class="form-control" name="name" placeholder="Örn. 3. Kat Öğrencileri" maxlength="80" required>
+        </div>
+        <div class="mb-3">
+            <label class="form-label small fw-semibold">Açıklama (opsiyonel)</label>
+            <textarea class="form-control" name="description" rows="2" maxlength="300" placeholder="Grup hakkında kısa bir not..."></textarea>
+        </div>
+
+        <div class="mb-2 d-flex align-items-center justify-content-between">
+            <label class="form-label small fw-semibold mb-0">Üyeler</label>
+            <span class="small text-muted" id="selectedCount">0 seçildi</span>
+        </div>
+        <input type="text" class="form-control mb-2" id="memberSearchInput" placeholder="İsim veya kullanıcı adı ara...">
+        <div style="max-height:320px; overflow-y:auto; border:1px solid var(--border); border-radius:var(--radius-md); padding:6px;">
+            {% for u in all_users %}
+            <div class="member-pick-row" data-name="{{ (u.full_name ~ ' ' ~ u.username)|lower }}" onclick="toggleMember(this, {{ u.id }})">
+                <div class="member-pick-check"><i class="bi bi-check-lg"></i></div>
+                {% if u.profile_photo %}
+                    <img class="avatar" src="{{ url_for('static', filename='uploads/profiles/' ~ u.profile_photo) }}" alt="">
+                {% else %}
+                    <div class="avatar">{{ u.full_name[:1]|upper }}</div>
+                {% endif %}
+                <div>
+                    <div style="font-weight:600; font-size:.86rem;">{{ u.full_name }}</div>
+                    <div style="font-size:.74rem; color:var(--text-muted);">@{{ u.username }}</div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        <div id="memberIdsContainer"></div>
+
+        <button type="submit" class="btn btn-primary w-100 mt-4">Grubu Oluştur</button>
+    </form>
+</div>
+
+{% endblock %}
+{% block extra_js %}
+<script>
+const selected = new Set();
+function toggleMember(el, id) {
+    if (selected.has(id)) { selected.delete(id); el.classList.remove('selected'); }
+    else { selected.add(id); el.classList.add('selected'); }
+    document.getElementById('selectedCount').textContent = selected.size + ' seçildi';
+}
+document.getElementById('memberSearchInput').addEventListener('input', function() {
+    const q = this.value.trim().toLowerCase();
+    document.querySelectorAll('.member-pick-row').forEach(r => r.style.display = r.dataset.name.includes(q) ? 'flex' : 'none');
+});
+document.getElementById('groupPhotoInput').addEventListener('change', function() {
+    if (this.files && this.files[0]) {
+        const reader = new FileReader();
+        reader.onload = e => document.getElementById('groupPhotoPreview').innerHTML = `<img src="${e.target.result}">`;
+        reader.readAsDataURL(this.files[0]);
+    }
+});
+document.getElementById('groupNewForm').addEventListener('submit', function(e) {
+    if (selected.size === 0) {
+        e.preventDefault();
+        alert('Lütfen en az bir üye seçin.');
+        return;
+    }
+    const container = document.getElementById('memberIdsContainer');
+    container.innerHTML = '';
+    selected.forEach(id => {
+        const inp = document.createElement('input');
+        inp.type = 'hidden'; inp.name = 'member_ids'; inp.value = id;
+        container.appendChild(inp);
+    });
+});
+</script>
+{% endblock %}

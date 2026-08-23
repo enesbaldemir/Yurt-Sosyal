@@ -1,0 +1,486 @@
+{% extends "base.html" %}
+{% block title %}Sosyal Akış — Yurt Sosyal{% endblock %}
+{% block content %}
+
+<div class="d-flex align-items-center justify-content-between mb-4">
+    <div>
+        <span class="kicker">Topluluk</span>
+        <h4 class="fw-bold mb-0">Sosyal Akış</h4>
+    </div>
+    <a href="{{ url_for('create_post') }}" class="btn btn-primary btn-sm">
+        <i class="bi bi-plus-lg"></i> Yeni Paylaşım
+    </a>
+</div>
+
+<!-- ===================== EDITORIAL STORIES BAR ===================== -->
+<div class="stories-bar">
+    <div class="story-item add-story" id="add-story-btn">
+        <div class="story-ring seen">
+            <div class="story-avatar-inner">
+                {% if current_user.profile_photo %}
+                <img src="{{ url_for('static', filename='uploads/profiles/' + current_user.profile_photo) }}" alt="">
+                {% else %}
+                <span>{{ current_user.full_name[0]|upper if current_user and current_user.full_name else session.username[0]|upper }}</span>
+                {% endif %}
+            </div>
+            <span class="plus-badge"><i class="bi bi-plus"></i></span>
+        </div>
+        <span class="story-label">Hikaye Ekle</span>
+    </div>
+
+    {% for g in story_groups %}
+    <div class="story-item" data-user-id="{{ g.user_id }}">
+        <div class="story-ring {{ 'seen' if g.all_seen else '' }}">
+            <div class="story-avatar-inner">
+                {% if g.profile_photo %}
+                <img src="{{ url_for('static', filename='uploads/profiles/' + g.profile_photo) }}" alt="">
+                {% else %}
+                <span>{{ g.full_name[0]|upper }}</span>
+                {% endif %}
+            </div>
+        </div>
+        <span class="story-label">{{ 'Sen' if g.user_id == session.user_id else g.full_name.split(' ')[0] }}</span>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Gizli dosya seçici & editör -->
+<input type="file" id="story-file-input" accept="image/*,video/*" class="d-none">
+
+<div class="story-editor" id="storyEditor">
+    <div class="story-editor-header w-100 d-flex justify-content-between align-items-center px-4 py-3" style="position: absolute; top:0; z-index: 100;">
+        <button type="button" class="icon-btn" id="storyEditorClose" style="background: rgba(255,255,255,0.15); color:#fff; border:none;"><i class="bi bi-x-lg"></i></button>
+        <div class="d-flex align-items-center gap-2" id="storyEditorToolbar">
+            <button type="button" class="icon-btn" id="storyAddTextBtn" title="Metin Ekle" style="background: rgba(255,255,255,0.15); color:#fff; border:none;"><i class="bi bi-fonts"></i></button>
+            <div class="d-flex gap-1" id="colorSwatches">
+                <span class="swatch active rounded-circle border border-white" data-color="#ffffff" style="width:20px;height:20px;background:#ffffff;cursor:pointer;"></span>
+                <span class="swatch rounded-circle" data-color="#000000" style="width:20px;height:20px;background:#000000;cursor:pointer;"></span>
+                <span class="swatch rounded-circle" data-color="#c5a869" style="width:20px;height:20px;background:#c5a869;cursor:pointer;"></span>
+                <span class="swatch rounded-circle" data-color="#3da869" style="width:20px;height:20px;background:#3da869;cursor:pointer;"></span>
+                <span class="swatch rounded-circle" data-color="#468fd6" style="width:20px;height:20px;background:#468fd6;cursor:pointer;"></span>
+            </div>
+        </div>
+        <button type="button" class="btn btn-primary btn-sm" id="storyEditorShare">Paylaş</button>
+    </div>
+    <div class="story-viewer-body" id="storyEditorCanvas">
+        <!-- Medya JS ile eklenir -->
+    </div>
+    <p class="small text-muted mt-3" style="color: rgba(255,255,255,0.7) !important;">Metin kutusunu taşıyabilir veya çift dokunarak düzenleyebilirsin.</p>
+</div>
+
+<!-- Story Viewer -->
+<div class="story-viewer" id="storyViewer">
+    <div class="story-viewer-body">
+        <div class="story-viewer-progress" id="storyProgress"></div>
+        <div class="story-viewer-header">
+            <img id="storyViewerAvatar" src="" class="avatar" style="width:32px;height:32px;border:none;">
+            <div>
+                <span id="storyViewerName" class="fw-semibold small d-block"></span>
+                <span id="storyViewerTime" class="text-muted" style="font-size:0.68rem;color:rgba(255,255,255,0.7) !important;"></span>
+            </div>
+            <button type="button" class="icon-btn ms-auto border-0 text-white" id="storyCloseBtn" style="background:transparent;"><i class="bi bi-x-lg"></i></button>
+        </div>
+        <div class="story-tap-zone left" id="storyPrevZone"></div>
+        <div class="story-tap-zone right" id="storyNextZone"></div>
+        <div id="storyViewerMediaContainer" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;"></div>
+        <div class="story-text-layer" id="storyTextLayer" style="position:absolute;inset:0;pointer-events:none;"></div>
+        <div class="story-caption" id="storyCaption" style="position:absolute;bottom:16px;left:16px;right:16px;color:#fff;font-size:0.85rem;background:rgba(0,0,0,0.6);padding:8px 12px;border-radius:8px;"></div>
+    </div>
+</div>
+
+<!-- ===================== FEED POSTS ===================== -->
+{% if posts %}
+    {% for p in posts %}
+    <article class="card post-card" id="post-{{ p.id }}">
+        <div class="post-header">
+            {% set author_role_key = p.role or ('yurt_muduru' if p.is_admin else 'ogrenci') %}
+            {% set author_role = user_roles.get(author_role_key, user_roles['ogrenci']) %}
+            <a href="{{ url_for('profile', username=p.username) }}" class="avatar-ring">
+                {% if p.profile_photo %}
+                <img src="{{ url_for('static', filename='uploads/profiles/' + p.profile_photo) }}" class="avatar" width="38" height="38" alt="">
+                {% else %}
+                <div class="avatar" style="width:38px;height:38px;">{{ p.full_name[0]|upper }}</div>
+                {% endif %}
+            </a>
+            <div class="flex-fill min-w-0">
+                <div class="d-flex align-items-center gap-1 flex-wrap">
+                    <a href="{{ url_for('profile', username=p.username) }}" class="name text-truncate">{{ p.full_name }}</a>
+                    {% if author_role_key != 'ogrenci' %}
+                    <span class="role-badge {{ author_role.class }}" style="font-size:0.65rem; padding:1px 6px;">
+                        <i class="bi {{ author_role.icon }} me-1"></i>{{ author_role.badge }}
+                    </span>
+                    {% endif %}
+                </div>
+                <span class="meta">@{{ p.username }} · {{ p.created_at|datetime_tr }}</span>
+            </div>
+            {% if p.user_id == session.user_id or session.get('is_admin') %}
+            <a href="{{ url_for('delete_post', post_id=p.id) }}" class="icon-btn border-0 text-muted" style="font-size:0.9rem;" onclick="return confirm('Bu gönderiyi silmek istediğinizden emin misiniz?')" title="Sil">
+                <i class="bi bi-trash3"></i>
+            </a>
+            {% endif %}
+        </div>
+
+        {% if p.media_type == 'video' %}
+        <div class="post-media-wrap" data-like-target="{{ p.id }}">
+            <video class="post-media" src="{{ url_for('static', filename='uploads/posts/' + p.media_path) }}" controls playsinline></video>
+            <i class="bi bi-heart-fill like-burst-heart"></i>
+        </div>
+        {% elif p.media_type == 'image' %}
+        <div class="post-media-wrap" data-like-target="{{ p.id }}">
+            <img class="post-media" src="{{ url_for('static', filename='uploads/posts/' + p.media_path) }}" alt="" loading="lazy">
+            <i class="bi bi-heart-fill like-burst-heart"></i>
+        </div>
+        {% else %}
+        <div class="text-post-body post-media-wrap" data-like-target="{{ p.id }}">
+            {{ p.caption }}
+            <i class="bi bi-heart-fill like-burst-heart"></i>
+        </div>
+        {% endif %}
+
+        <div class="post-actions">
+            <button class="icon-btn like-btn {{ 'liked' if p.liked_by_me }}" data-post-id="{{ p.id }}" title="Beğen">
+                <i class="bi {{ 'bi-heart-fill' if p.liked_by_me else 'bi-heart' }}"></i>
+            </button>
+            <button class="icon-btn comment-toggle-btn" data-target="comments-{{ p.id }}" title="Yorum Yap">
+                <i class="bi bi-chat"></i>
+            </button>
+        </div>
+
+        <div class="post-likes">
+            <span id="like-count-{{ p.id }}">{{ p.like_count }}</span> beğeni
+        </div>
+
+        {% if p.caption and p.media_type != 'text' %}
+        <div class="post-caption">
+            <a href="{{ url_for('profile', username=p.username) }}" class="name">{{ p.full_name }}</a>{{ p.caption }}
+        </div>
+        {% endif %}
+
+        {% if p.comment_count %}
+        <button class="comment-toggle-link comment-toggle-btn" data-target="comments-{{ p.id }}">
+            {{ p.comment_count }} yorumun tümünü göster
+        </button>
+        {% endif %}
+
+        <div class="post-comments-list" id="comments-{{ p.id }}" style="display:none;">
+            {% for c in p.comments %}
+            <div class="comment">
+                <a href="{{ url_for('profile', username=c.username) }}" class="name">{{ c.full_name }}</a>
+                <span>{{ c.comment }}</span>
+                <div class="comment-time">
+                    {{ c.created_at|time_tr }}
+                    <button type="button" class="reply-btn" data-post-id="{{ p.id }}" data-comment-id="{{ c.id }}" data-name="{{ c.full_name }}">Yanıtla</button>
+                </div>
+                {% if c.replies %}
+                <div class="comment-replies">
+                    {% for r in c.replies %}
+                    <div class="comment reply">
+                        <a href="{{ url_for('profile', username=r.username) }}" class="name">{{ r.full_name }}</a>
+                        <span>{{ r.comment }}</span>
+                        <div class="comment-time">
+                            {{ r.created_at|time_tr }}
+                            <button type="button" class="reply-btn" data-post-id="{{ p.id }}" data-comment-id="{{ c.id }}" data-name="{{ r.full_name }}">Yanıtla</button>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+            {% else %}
+            <p class="text-muted small mb-0">Henüz yorum yapılmamış, ilk yorumu sen yaz!</p>
+            {% endfor %}
+        </div>
+
+        <form class="post-comment-form" action="{{ url_for('comment_post', post_id=p.id) }}" method="POST">
+            <input type="text" name="comment" placeholder="Bir yorum ekle..." autocomplete="off" required>
+            <input type="hidden" name="parent_id" value="">
+            <button type="submit">Paylaş</button>
+        </form>
+    </article>
+    {% endfor %}
+
+    {% if has_more %}
+    <div class="text-center my-4">
+        <a href="{{ url_for('feed', page=page+1) }}" class="btn btn-secondary btn-sm">Daha Fazla Göster</a>
+    </div>
+    {% endif %}
+
+{% else %}
+    <div class="card card-pad text-center py-5">
+        <div class="empty-state">
+            <i class="bi bi-camera"></i>
+            <h6 class="fw-bold mt-2">Henüz Paylaşım Yok</h6>
+            <p class="small text-muted mb-3">Yurt arkadaşlarınla ilk fotoğrafını veya düşünceni paylaş.</p>
+            <a href="{{ url_for('create_post') }}" class="btn btn-primary btn-sm">İlk Paylaşımı Yap</a>
+        </div>
+    </div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// ===================== BEĞENİ VE YORUM İŞLEMLERİ =====================
+
+function setLikeUI(postId, liked, likeCount) {
+    const btn = document.querySelector(`.like-btn[data-post-id="${postId}"]`);
+    const countEl = document.getElementById(`like-count-${postId}`);
+    if (countEl && likeCount !== undefined && likeCount !== null) countEl.textContent = likeCount;
+    if (btn) {
+        if (liked) {
+            btn.classList.add('liked');
+            btn.innerHTML = '<i class="bi bi-heart-fill"></i>';
+        } else {
+            btn.classList.remove('liked');
+            btn.innerHTML = '<i class="bi bi-heart"></i>';
+        }
+    }
+}
+
+// Sunucudaki /post/<id>/like uç noktası beğeniyi AÇAR/KAPATIR (toggle).
+// onlyLike=true iken zaten beğenilmişse tekrar istek atılmaz (çift dokunuşta beğeniyi geri almamak için).
+async function toggleLike(postId, onlyLike = false) {
+    const btn = document.querySelector(`.like-btn[data-post-id="${postId}"]`);
+    const alreadyLiked = btn && btn.classList.contains('liked');
+    if (onlyLike && alreadyLiked) return null;
+
+    try {
+        const res = await fetch(`/post/${postId}/like`, {
+            method: 'POST',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        });
+        const data = await res.json();
+        setLikeUI(postId, data.liked, data.like_count);
+        return data;
+    } catch (e) {
+        console.error(e);
+        return null;
+    }
+}
+
+document.querySelectorAll('.like-btn').forEach(btn => {
+    btn.addEventListener('click', () => toggleLike(btn.dataset.postId));
+});
+
+// ===================== ÇİFT TIKLA / ÇİFT DOKUN BEĞENİ ANİMASYONU =====================
+// Instagram tarzı: gönderi görseline çift tıklandığında/dokunulduğunda kalp animasyonu
+// oynatılır ve gönderi (henüz beğenilmemişse) beğenilir.
+document.querySelectorAll('.post-media-wrap').forEach(wrap => {
+    const postId = wrap.dataset.likeTarget;
+    const heart = wrap.querySelector('.like-burst-heart');
+
+    function playBurst() {
+        if (!heart) return;
+        heart.classList.remove('burst');
+        // reflow ile animasyonun her seferinde yeniden başlaması sağlanır
+        void heart.offsetWidth;
+        heart.classList.add('burst');
+    }
+
+    // Masaüstü: çift tık
+    wrap.addEventListener('dblclick', (e) => {
+        e.preventDefault();
+        playBurst();
+        toggleLike(postId, true);
+    });
+
+    // Mobil: çift dokunuşu elle yakala (video kontrollerine dokunulduysa yok say)
+    let lastTap = 0;
+    wrap.addEventListener('touchend', (e) => {
+        if (e.target.closest('video')) return; // video kontrol çubuğuyla çakışmasın
+        const now = Date.now();
+        if (now - lastTap < 320) {
+            e.preventDefault();
+            playBurst();
+            toggleLike(postId, true);
+        }
+        lastTap = now;
+    });
+});
+
+document.querySelectorAll('.comment-toggle-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        const targetId = btn.dataset.target;
+        const target = document.getElementById(targetId);
+        if (target) {
+            target.style.display = target.style.display === 'none' ? 'flex' : 'none';
+        }
+    });
+});
+
+document.querySelectorAll('.reply-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        const postId = btn.dataset.postId;
+        const commentId = btn.dataset.commentId;
+        const name = btn.dataset.name;
+        const postCard = document.getElementById(`post-${postId}`);
+        if (postCard) {
+            const form = postCard.querySelector('.post-comment-form');
+            const input = form.querySelector('input[name="comment"]');
+            const parentInput = form.querySelector('input[name="parent_id"]');
+            parentInput.value = commentId;
+            input.value = `@${name} `;
+            input.focus();
+        }
+    });
+});
+
+// ===================== HİKAYE GÖRÜNTÜLEYİCİ & EDİTÖRÜ =====================
+const storyFileInput = document.getElementById('story-file-input');
+const addStoryBtn = document.getElementById('add-story-btn');
+const storyEditor = document.getElementById('storyEditor');
+const storyEditorClose = document.getElementById('storyEditorClose');
+const storyEditorCanvas = document.getElementById('storyEditorCanvas');
+const storyEditorShare = document.getElementById('storyEditorShare');
+let selectedStoryFile = null;
+
+if (addStoryBtn && storyFileInput) {
+    addStoryBtn.addEventListener('click', () => storyFileInput.click());
+    storyFileInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        selectedStoryFile = file;
+        const url = URL.createObjectURL(file);
+        storyEditorCanvas.innerHTML = '';
+        if (file.type.startsWith('video/')) {
+            const video = document.createElement('video');
+            video.src = url;
+            video.autoplay = true;
+            video.loop = true;
+            video.muted = true;
+            video.style.width = '100%';
+            video.style.height = '100%';
+            video.style.objectFit = 'cover';
+            storyEditorCanvas.appendChild(video);
+        } else {
+            const img = document.createElement('img');
+            img.src = url;
+            img.style.width = '100%';
+            img.style.height = '100%';
+            img.style.objectFit = 'cover';
+            storyEditorCanvas.appendChild(img);
+        }
+        storyEditor.classList.add('active');
+    });
+}
+
+if (storyEditorClose) {
+    storyEditorClose.addEventListener('click', () => {
+        storyEditor.classList.remove('active');
+        storyFileInput.value = '';
+    });
+}
+
+if (storyEditorShare) {
+    storyEditorShare.addEventListener('click', async () => {
+        if (!selectedStoryFile) return;
+        const formData = new FormData();
+        formData.append('media', selectedStoryFile);
+        storyEditorShare.disabled = true;
+        storyEditorShare.textContent = 'Yükleniyor...';
+        try {
+            const res = await fetch('/story/create', { method: 'POST', body: formData });
+            if (res.ok) window.location.reload();
+        } catch (e) {
+            console.error(e);
+            storyEditorShare.disabled = false;
+            storyEditorShare.textContent = 'Paylaş';
+        }
+    });
+}
+
+// Hikaye Grubu İzleme
+document.querySelectorAll('.story-item[data-user-id]').forEach(item => {
+    item.addEventListener('click', async () => {
+        const uid = item.dataset.userId;
+        try {
+            const res = await fetch(`/story/user/${uid}`);
+            const stories = await res.json();
+            if (!stories || stories.length === 0) return;
+            openStoryViewer(stories);
+        } catch (e) { console.error(e); }
+    });
+});
+
+const storyViewer = document.getElementById('storyViewer');
+const storyCloseBtn = document.getElementById('storyCloseBtn');
+const storyPrevZone = document.getElementById('storyPrevZone');
+const storyNextZone = document.getElementById('storyNextZone');
+const storyViewerAvatar = document.getElementById('storyViewerAvatar');
+const storyViewerName = document.getElementById('storyViewerName');
+const storyViewerTime = document.getElementById('storyViewerTime');
+const storyProgress = document.getElementById('storyProgress');
+const storyViewerMediaContainer = document.getElementById('storyViewerMediaContainer');
+
+let currentStories = [];
+let currentStoryIndex = 0;
+let storyTimer = null;
+
+function openStoryViewer(stories) {
+    currentStories = stories;
+    currentStoryIndex = 0;
+    storyViewer.classList.add('active');
+    renderStory();
+}
+
+function renderStory() {
+    clearTimeout(storyTimer);
+    if (currentStoryIndex >= currentStories.length) {
+        closeStoryViewer();
+        return;
+    }
+    const s = currentStories[currentStoryIndex];
+    storyViewerAvatar.src = s.profile_photo ? `/static/uploads/profiles/${s.profile_photo}` : '';
+    storyViewerName.textContent = s.full_name;
+    if (s.created_at) {
+        const storyUtc = new Date(String(s.created_at).replace(' ', 'T') + 'Z');
+        storyViewerTime.textContent = isNaN(storyUtc.getTime()) ? s.created_at : storyUtc.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Istanbul' });
+    } else {
+        storyViewerTime.textContent = '';
+    }
+    
+    // Progress barlar
+    storyProgress.innerHTML = currentStories.map((_, idx) => `
+        <div class="bar ${idx <= currentStoryIndex ? 'fill' : ''}"></div>
+    `).join('');
+
+    storyViewerMediaContainer.innerHTML = '';
+    if (s.media_type === 'video') {
+        const vid = document.createElement('video');
+        vid.src = `/static/uploads/stories/${s.media_path}`;
+        vid.autoplay = true;
+        vid.playsInline = true;
+        vid.style.width = '100%';
+        vid.style.height = '100%';
+        vid.style.objectFit = 'cover';
+        storyViewerMediaContainer.appendChild(vid);
+        vid.onended = () => { currentStoryIndex++; renderStory(); };
+    } else {
+        const img = document.createElement('img');
+        img.src = `/static/uploads/stories/${s.media_path}`;
+        img.style.width = '100%';
+        img.style.height = '100%';
+        img.style.objectFit = 'cover';
+        storyViewerMediaContainer.appendChild(img);
+        storyTimer = setTimeout(() => { currentStoryIndex++; renderStory(); }, 5000);
+    }
+
+    // View kaydet
+    fetch(`/story/${s.id}/view`, { method: 'POST' });
+}
+
+function closeStoryViewer() {
+    clearTimeout(storyTimer);
+    storyViewer.classList.remove('active');
+    storyViewerMediaContainer.innerHTML = '';
+}
+
+if (storyCloseBtn) storyCloseBtn.addEventListener('click', closeStoryViewer);
+if (storyPrevZone) storyPrevZone.addEventListener('click', () => {
+    if (currentStoryIndex > 0) { currentStoryIndex--; renderStory(); }
+});
+if (storyNextZone) storyNextZone.addEventListener('click', () => {
+    currentStoryIndex++; renderStory();
+});
+</script>
+{% endblock %}

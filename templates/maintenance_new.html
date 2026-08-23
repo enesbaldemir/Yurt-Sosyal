@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Yeni Arıza Talebi — Yurt Sosyal{% endblock %}
+{% block content %}
+
+<div class="d-flex align-items-center justify-content-between mb-4">
+    <div>
+        <span class="kicker">Teknik Destek</span>
+        <h4 class="fw-bold mb-0">Yeni Arıza / Talep Bildir</h4>
+    </div>
+    <a href="{{ url_for('maintenance_page') }}" class="btn btn-secondary btn-sm">
+        <i class="bi bi-arrow-left"></i> Taleplere Dön
+    </a>
+</div>
+
+<div class="card card-pad">
+    <form method="POST" enctype="multipart/form-data">
+        <div class="row g-3 mb-3">
+            <div class="col-md-6">
+                <label class="form-label">Oda Numarası</label>
+                <input type="text" name="room_number" class="form-control" value="{{ default_room or '' }}" placeholder="Örn: 204" required autofocus>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Kategori</label>
+                <select name="category" class="form-select" required>
+                    {% for cat in categories %}
+                    <option value="{{ cat }}">{{ cat }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Sorun Açıklaması</label>
+            <textarea name="description" class="form-control" rows="4" placeholder="Sorunu detaylı olarak açıklayınız..." required></textarea>
+        </div>
+
+        <div class="row g-3 mb-4">
+            <div class="col-md-6">
+                <label class="form-label">Fotoğraf <span class="text-muted fw-normal">(Opsiyonel)</span></label>
+                <input type="file" name="photo" class="form-control" accept="image/*">
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Aciliyet Durumu</label>
+                <select name="urgency" class="form-select" required>
+                    {% for u in urgencies %}
+                    <option value="{{ u }}" {{ 'selected' if u == 'Orta' }}>{{ u }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary w-100 py-2">
+            <i class="bi bi-send me-1"></i> Talebi Gönder
+        </button>
+    </form>
+</div>
+
+{% endblock %}

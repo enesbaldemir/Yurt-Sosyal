@@ -1,0 +1,217 @@
+{% extends "base.html" %}
+{% block title %}Ana Sayfa — Yurt Sosyal{% endblock %}
+{% block content %}
+
+<!-- Editorial Hero Greeting -->
+<div class="hero-card editorial mb-4">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+        <div>
+            <span class="kicker">Öğrenci Portalı</span>
+            <h2 class="serif-heading mb-1" style="font-size: 2rem;">Günaydın, {{ current_user.full_name.split(' ')[0] if current_user and current_user.full_name else session.username }}.</h2>
+            <p class="text-muted mb-0">Bugün yurtta neler oluyor? Etkinlikleri ve yemek menüsünü takip et.</p>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <div class="text-end d-none d-sm-block">
+                <span class="small text-muted d-block">Mevcut Seviye</span>
+                <strong class="fw-bold" style="color: var(--gold);">{{ current_xp or 0 }} XP</strong>
+            </div>
+            <a href="{{ url_for('leaderboard_page') }}" class="btn btn-secondary btn-sm">
+                <i class="bi bi-trophy"></i> Sıralama
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Bugünün Menüsü Vurgusu -->
+{% if today_menu %}
+<div class="card card-pad mb-4">
+    <div class="section-title">
+        <span class="d-flex align-items-center gap-2">
+            <i class="bi bi-cup-hot" style="color: var(--gold);"></i>
+            <span class="fw-bold">Günün Menüsü · {{ today_menu.menu_date|format_date_tr }}</span>
+            <span class="day-name-pill ms-1">{{ today_menu.menu_date|day_name_tr }}</span>
+        </span>
+        <a href="{{ url_for('menu_page') }}" class="small fw-semibold">Detay & Puanla →</a>
+    </div>
+
+    <div class="row g-3 mt-1">
+        {% if today_menu.breakfast %}
+        <div class="{% if today_menu.dinner %}col-md-6{% else %}col-12{% endif %}">
+            <div class="p-3 rounded h-100" style="background-color: var(--surface-2); border: 1px solid var(--border);">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                    <span class="small fw-bold text-uppercase text-gold" style="letter-spacing:0.06em;"><i class="bi bi-sun me-1"></i> Kahvaltı</span>
+                    <span class="text-muted" style="font-size: 0.72rem;">07:30 - 09:30</span>
+                </div>
+                <ul class="meal-mini-list mb-0">
+                    {% for item in today_menu.breakfast|split_courses %}
+                    <li>{{ item }}</li>
+                    {% else %}
+                    <li>{{ today_menu.breakfast }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if today_menu.dinner %}
+        <div class="{% if today_menu.breakfast %}col-md-6{% else %}col-12{% endif %}">
+            <div class="p-3 rounded h-100" style="background-color: var(--surface-2); border: 1px solid var(--border);">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                    <span class="small fw-bold text-uppercase text-indigo" style="letter-spacing:0.06em;"><i class="bi bi-moon-stars me-1"></i> Akşam Yemeği</span>
+                    <span class="text-muted" style="font-size: 0.72rem;">17:30 - 20:00</span>
+                </div>
+                <ul class="meal-mini-list mb-0">
+                    {% for item in today_menu.dinner|split_courses %}
+                    <li><span class="course-num-dot">{{ loop.index }}</span> {{ item }}</li>
+                    {% else %}
+                    <li>{{ today_menu.dinner }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="d-flex align-items-center justify-content-between mt-3 pt-3 border-top flex-wrap gap-2" style="border-color: var(--border) !important; font-size: 0.82rem;">
+        <div class="d-flex align-items-center gap-2">
+            <span class="text-muted">Öğrenci Memnuniyeti:</span>
+            <span class="fw-bold" style="color: var(--gold);">★ {{ today_menu.avg_rating or '—' }}</span>
+            <span class="text-muted">({{ today_menu.rating_count or 0 }} oy)</span>
+        </div>
+        <a href="{{ url_for('menu_page') }}#rating-container" class="btn btn-outline-secondary btn-sm py-1 px-3">
+            <i class="bi bi-star me-1"></i> Bugünün Menüsünü Puanla
+        </a>
+    </div>
+</div>
+{% endif %}
+
+<!-- Aktif Yoklamalar (Eğer Varsa) -->
+{% if active_attendances %}
+<div class="card card-pad mb-4">
+    <div class="section-title">
+        <span class="d-flex align-items-center gap-2">
+            <i class="bi bi-clipboard-check text-muted"></i>
+            <span>Aktif Yoklamalar</span>
+        </span>
+        <a href="{{ url_for('attendance_list') }}">Tümünü Gör →</a>
+    </div>
+    <div class="d-flex flex-column gap-2">
+        {% for a in active_attendances %}
+        <a href="{{ url_for('attendance_detail', attendance_id=a.id) }}" class="d-flex justify-content-between align-items-center p-3 rounded" style="background-color: var(--surface-2); border: 1px solid var(--border);">
+            <div>
+                <div class="fw-semibold small d-flex align-items-center gap-2">
+                    <span>{{ a.title }}</span>
+                    {% if a.is_mandatory %}<span class="mandatory-badge">Zorunlu</span>{% endif %}
+                </div>
+                <div class="text-muted" style="font-size:0.75rem;">{{ a.attendance_date }}</div>
+            </div>
+            <div>
+                {% if a.my_status == 'present' %}
+                    <span class="status-pill attendance-present"><i class="bi bi-check2"></i> Katıldım</span>
+                {% elif a.my_status == 'absent' %}
+                    <span class="status-pill attendance-absent"><i class="bi bi-x"></i> Yokum</span>
+                {% else %}
+                    <span class="status-pill" style="background: var(--surface); color: var(--gold); border-color: var(--gold);"><i class="bi bi-clock"></i> Yanıt Bekliyor</span>
+                {% endif %}
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Duyurular Bölümü -->
+{% if announcements %}
+<div class="card card-pad mb-4">
+    <div class="section-title">
+        <span class="d-flex align-items-center gap-2">
+            <i class="bi bi-megaphone text-muted"></i>
+            <span>Yurt Duyuruları</span>
+        </span>
+        <a href="{{ url_for('announcements_page') }}">Tüm Duyurular →</a>
+    </div>
+    <div class="d-flex flex-column gap-2">
+        {% for a in announcements %}
+        <a href="{{ url_for('announcements_page') }}" class="p-3 rounded d-block" style="background-color: var(--surface-2); border: 1px solid var(--border);">
+            <div class="d-flex justify-content-between align-items-baseline mb-1">
+                <strong class="small">{{ a.title }}</strong>
+                {% if a.priority == 'urgent' %}
+                <span class="badge-tag" style="color: var(--danger); border-color: rgba(179,57,57,0.3);">Acil</span>
+                {% elif a.priority == 'high' %}
+                <span class="badge-tag badge-gold">Önemli</span>
+                {% endif %}
+            </div>
+            <p class="small text-muted mb-0 text-truncate">{{ a.content }}</p>
+        </a>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Son Paylaşımlar Grid -->
+<div class="card card-pad mb-4">
+    <div class="section-title">
+        <span class="d-flex align-items-center gap-2">
+            <i class="bi bi-grid-3x3 text-muted"></i>
+            <span>Topluluk Paylaşımları</span>
+        </span>
+        <a href="{{ url_for('feed') }}">Akışa Git →</a>
+    </div>
+    {% if recent_posts %}
+    <div class="post-grid">
+        {% for p in recent_posts %}
+        <a href="{{ url_for('feed') }}#post-{{ p.id }}">
+            {% if p.media_type == 'video' %}
+                <video src="{{ url_for('static', filename='uploads/posts/' + p.media_path) }}" muted></video>
+                <i class="bi bi-camera-reels video-badge"></i>
+            {% elif p.media_type == 'image' %}
+                <img src="{{ url_for('static', filename='uploads/posts/' + p.media_path) }}" alt="" loading="lazy">
+            {% else %}
+                <div class="text-tile">{{ p.caption|truncate(60) }}</div>
+            {% endif %}
+        </a>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state py-4">
+        <i class="bi bi-camera"></i>
+        <p class="mb-2 small">Henüz bir paylaşım yapılmadı.</p>
+        <a href="{{ url_for('create_post') }}" class="btn btn-secondary btn-sm">İlk Gönderiyi Paylaş</a>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Yaklaşan Etkinlikler -->
+<div class="card card-pad mb-4">
+    <div class="section-title">
+        <span class="d-flex align-items-center gap-2">
+            <i class="bi bi-calendar3 text-muted"></i>
+            <span>Yaklaşan Etkinlikler</span>
+        </span>
+        <a href="{{ url_for('events') }}">Tümü →</a>
+    </div>
+    {% if events %}
+    <div class="d-flex flex-column gap-2">
+        {% for e in events %}
+        <a href="{{ url_for('event_detail', event_id=e.id) }}" class="d-flex justify-content-between align-items-center p-3 rounded" style="background-color: var(--surface-2); border: 1px solid var(--border);">
+            <div>
+                <div class="fw-semibold small">{{ e.title }}</div>
+                <div class="text-muted" style="font-size:0.75rem;">
+                    <i class="bi bi-geo-alt me-1"></i>{{ e.location }} · {{ e.event_date }}
+                </div>
+            </div>
+            <div class="text-muted small">
+                <i class="bi bi-people me-1"></i>{{ e.participant_count }} katılımcı
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state py-3">
+        <i class="bi bi-calendar-x"></i>
+        <p class="mb-0 small">Planlanmış etkinlik bulunmuyor.</p>
+    </div>
+    {% endif %}
+</div>
+
+{% endblock %}

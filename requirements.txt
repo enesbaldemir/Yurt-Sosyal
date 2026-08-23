@@ -1,0 +1,15 @@
+Flask==3.0.0
+Flask-SocketIO==5.3.0
+Werkzeug==3.0.0
+APScheduler==3.10.4
+
+# OPTIONAL - only needed for run_production.py (see README).
+# Not required for the default "python app.py".
+# eventlet==0.35.2
+
+openpyxl==3.1.5
+
+xlrd==2.0.1
+
+# Android/iOS PWA Web Push telefon bildirimleri
+pywebpush>=2.0.0

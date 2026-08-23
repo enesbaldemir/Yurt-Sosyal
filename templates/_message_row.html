@@ -1,0 +1,47 @@
+{% if m.is_system %}
+<div class="system-message">{{ m.content }}</div>
+{% else %}
+<div class="msg-row {{ 'mine' if m.is_mine }}" id="msg-{{ m.id }}" data-msg-id="{{ m.id }}" data-sender-id="{{ m.sender_id }}"
+     data-content="{{ (m.content or '')|e }}" data-sender-name="{{ m.sender_name|e }}"
+     ontouchstart="msgTouchStart(event, {{ m.id }})" ontouchend="msgTouchEnd(event)" ontouchmove="msgTouchEnd(event)">
+
+    {% if conversation.type == 'group' and not m.is_mine %}
+        {% if m.sender_photo %}
+            <img class="msg-avatar" src="{{ url_for('static', filename='uploads/profiles/' ~ m.sender_photo) }}" alt="">
+        {% else %}
+            <div class="msg-avatar" style="display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700;">{{ m.sender_name[:1]|upper }}</div>
+        {% endif %}
+    {% endif %}
+
+    <div class="msg-bubble-wrap">
+        {% if conversation.type == 'group' and not m.is_mine %}
+        <div class="msg-sender-name">{{ m.sender_name }}</div>
+        {% endif %}
+        <div class="msg-bubble {{ 'has-image' if (m.image and not m.content and not m.deleted) }} {{ 'msg-deleted' if m.deleted }}">
+            {% if m.reply_to %}
+            <div class="msg-reply-preview" onclick="scrollToMessage({{ m.reply_to.id }})">
+                <span class="msg-reply-sender">{{ m.reply_to.sender_name }}</span>{{ m.reply_to.content }}
+            </div>
+            {% endif %}
+            {% if m.deleted %}
+                <span>Bu mesaj silindi.</span>
+            {% else %}
+                {% if m.image %}
+                <img class="msg-image" src="{{ url_for('static', filename='uploads/messages/' ~ m.image) }}" onclick="openLightbox('{{ url_for('static', filename='uploads/messages/' ~ m.image) }}')" alt="Görsel">
+                {% endif %}
+                {% if m.content %}
+                <div class="{{ 'msg-caption' if m.image }}">{{ (m.content or '')|e|replace('\n', '<br>')|safe }}</div>
+                {% endif %}
+            {% endif %}
+        </div>
+        <div class="msg-meta-row">
+            <span>{{ m.created_at }}</span>
+            {% if m.edited and not m.deleted %}<span class="msg-edited-tag">(düzenlendi)</span>{% endif %}
+        </div>
+    </div>
+
+    {% if not m.deleted %}
+    <button class="msg-actions-btn" onclick="openMsgMenu(event, {{ m.id }})"><i class="bi bi-three-dots"></i></button>
+    {% endif %}
+</div>
+{% endif %}

@@ -1,0 +1,176 @@
+{% extends "base.html" %}
+{% block title %}{{ quiz.title }} — Quiz Oyna{% endblock %}
+{% block content %}
+
+<!-- BEKLEME EKRANI -->
+<div id="waiting-screen" class="card card-pad text-center py-5">
+    <i class="bi bi-hourglass-split fs-1 mb-2" style="color: var(--gold);"></i>
+    <h4 class="fw-bold mb-1">{{ quiz.title }}</h4>
+    <p class="small text-muted mb-3">Sunucunun yarışmayı başlatması bekleniyor...</p>
+    <div class="badge-tag">Takma Adınız: <strong>{{ participant.nickname }}</strong></div>
+</div>
+
+<!-- SORU VE CEVAP EKRANI -->
+<div id="question-screen" class="card card-pad" style="display:none;">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <span class="badge-tag badge-gold" id="p-question-index"></span>
+        <span class="badge-tag" id="p-timer" style="font-weight:700;">--</span>
+    </div>
+
+    <h4 class="fw-bold mb-3" id="p-question-text"></h4>
+    <img id="p-question-image" style="display:none; max-height: 240px; object-fit: cover; border-radius: var(--radius-sm);" class="w-100 mb-3" alt="">
+    
+    <div class="quiz-answer-grid" id="p-options"></div>
+
+    <p class="small text-muted text-center mt-3 mb-0" id="p-waiting-msg" style="display:none;">
+        <i class="bi bi-check2-circle me-1 text-success"></i> Cevabınız kaydedildi, sonuç bekleniyor...
+    </p>
+</div>
+
+<!-- SONUÇ EKRANI -->
+<div id="result-screen" class="card card-pad text-center py-5" style="display:none;">
+    <i class="bi fs-1 mb-2" id="result-icon"></i>
+    <h4 class="fw-bold mb-1" id="result-title"></h4>
+    <p class="small text-muted mb-0" id="result-points"></p>
+</div>
+
+<!-- LİDERLİK TABLOSU -->
+<div id="leaderboard-screen" class="card card-pad" style="display:none;">
+    <div class="section-title mb-3">
+        <span><i class="bi bi-trophy me-1" style="color: var(--gold);"></i> Anlık Sıralama</span>
+    </div>
+    <div id="p-leaderboard-list" class="mb-3"></div>
+    <p class="small text-muted text-center mb-0">Sonraki soru başlatılıyor...</p>
+</div>
+
+<!-- BİTİŞ EKRANI -->
+<div id="finished-screen" class="card card-pad text-center py-5" style="display:none;">
+    <i class="bi bi-trophy fs-1 mb-2" style="color: var(--gold);"></i>
+    <h4 class="fw-bold mb-3">Yarışma Bitti!</h4>
+    <div id="p-final-leaderboard" class="text-start mb-4"></div>
+    <a href="{{ url_for('quiz_list') }}" class="btn btn-primary w-100 py-2">Yarışmalara Dön</a>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const SESSION_ID = {{ quiz_session.id }};
+let currentQuestion = null;
+let questionStart = null;
+let timerInterval = null;
+let answered = false;
+
+socket.emit('quiz_join_room', { session_id: SESSION_ID });
+
+function showScreen(id) {
+    ['waiting-screen', 'question-screen', 'result-screen', 'leaderboard-screen', 'finished-screen'].forEach(s => {
+        const el = document.getElementById(s);
+        if (el) el.style.display = (s === id) ? '' : 'none';
+    });
+}
+
+const optKeys = ['option_a', 'option_b', 'option_c', 'option_d'];
+const optLabels = { option_a: 'A', option_b: 'B', option_c: 'C', option_d: 'D' };
+
+socket.on('quiz_question', function (data) {
+    currentQuestion = data.question;
+    questionStart = Date.now();
+    answered = false;
+
+    document.getElementById('p-question-index').textContent = `Soru ${data.index + 1} / ${data.total}`;
+    document.getElementById('p-question-text').textContent = data.question.question_text;
+    document.getElementById('p-waiting-msg').style.display = 'none';
+
+    const imgEl = document.getElementById('p-question-image');
+    if (data.question.image_path) {
+        imgEl.src = `/static/uploads/quiz/${data.question.image_path}`;
+        imgEl.style.display = 'block';
+    } else {
+        imgEl.style.display = 'none';
+    }
+
+    const box = document.getElementById('p-options');
+    box.innerHTML = '';
+    optKeys.forEach(key => {
+        const val = data.question[key];
+        if (!val) return;
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'quiz-answer-btn';
+        btn.innerHTML = `<span class="letter-badge">${optLabels[key]}</span> <span>${val}</span>`;
+        btn.dataset.opt = key.replace('option_', '');
+        btn.addEventListener('click', () => submitAnswer(btn.dataset.opt, btn));
+        box.appendChild(btn);
+    });
+
+    let remaining = data.question.time_limit;
+    document.getElementById('p-timer').textContent = remaining + 's';
+    clearInterval(timerInterval);
+    timerInterval = setInterval(() => {
+        remaining--;
+        document.getElementById('p-timer').textContent = Math.max(remaining, 0) + 's';
+        if (remaining <= 0) clearInterval(timerInterval);
+    }, 1000);
+
+    showScreen('question-screen');
+});
+
+function submitAnswer(opt, btnEl) {
+    if (answered) return;
+    answered = true;
+    document.querySelectorAll('.quiz-answer-btn').forEach(b => b.disabled = true);
+    btnEl.style.backgroundColor = 'var(--gold-subtle)';
+    btnEl.style.borderColor = 'var(--gold)';
+    const answerMs = Date.now() - questionStart;
+    socket.emit('quiz_answer', {
+        session_id: SESSION_ID,
+        question_id: currentQuestion.id,
+        selected_option: opt,
+        answer_ms: answerMs
+    });
+    document.getElementById('p-waiting-msg').style.display = 'block';
+}
+
+socket.on('quiz_answer_result', function (data) {
+    clearInterval(timerInterval);
+    const icon = document.getElementById('result-icon');
+    const title = document.getElementById('result-title');
+    const pts = document.getElementById('result-points');
+    if (data.is_correct) {
+        icon.className = 'bi bi-check2-circle text-success fs-1';
+        title.textContent = 'Tebrikler, Doğru Cevap!';
+        pts.textContent = `+${data.points} puan kazandınız.`;
+    } else {
+        icon.className = 'bi bi-x-circle text-danger fs-1';
+        title.textContent = 'Yanlış Cevap';
+        pts.textContent = `Doğru cevap seçeneği: ${data.correct_option.toUpperCase()}`;
+    }
+    showScreen('result-screen');
+});
+
+function renderLeaderboard(containerId, leaderboard) {
+    const box = document.getElementById(containerId);
+    if (!box) return;
+    box.innerHTML = leaderboard.map((p, i) => `
+        <div class="leaderboard-row">
+            <div class="d-flex align-items-center gap-2">
+                <span class="leaderboard-rank">#${i + 1}</span>
+                <span>${p.nickname}</span>
+            </div>
+            <strong>${p.score}</strong>
+        </div>
+    `).join('') || '<p class="small text-muted mb-0">Henüz puan kaydedilmedi.</p>';
+}
+
+socket.on('quiz_leaderboard', function (data) {
+    renderLeaderboard('p-leaderboard-list', data.leaderboard);
+    showScreen('leaderboard-screen');
+});
+
+socket.on('quiz_finished', function (data) {
+    renderLeaderboard('p-final-leaderboard', data.leaderboard);
+    showScreen('finished-screen');
+});
+</script>
+{% endblock %}

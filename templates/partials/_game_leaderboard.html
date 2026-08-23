@@ -1,0 +1,11 @@
+<div class="card card-pad mt-4">
+    <div class="section-title mb-3">
+        <span><i class="bi bi-trophy me-1" style="color: var(--gold);"></i> Lider Tablosu</span>
+        {% if my_best is not none %}
+        <span class="badge-tag badge-gold">En İyi Skorun: {{ my_best }} {{ meta.unit if meta else '' }}</span>
+        {% endif %}
+    </div>
+    <div id="game-leaderboard-list">
+        {% include 'partials/_leaderboard_rows.html' %}
+    </div>
+</div>

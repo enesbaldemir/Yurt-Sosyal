@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}Yarışmalar & Quiz — Yurt Sosyal{% endblock %}
+{% block content %}
+
+<div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+    <div>
+        <span class="kicker">Akademik & Eğlence</span>
+        <h4 class="fw-bold mb-0">Yarışmalar</h4>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="{{ url_for('quiz_join') }}" class="btn btn-secondary btn-sm">
+            <i class="bi bi-key me-1"></i> Koda Katıl
+        </a>
+        <a href="{{ url_for('quiz_create') }}" class="btn btn-primary btn-sm">
+            <i class="bi bi-plus-lg me-1"></i> Yeni Yarışma
+        </a>
+    </div>
+</div>
+
+{% if active_sessions %}
+<h6 class="fw-bold mb-3">Devam Eden Canlı Oturumlar</h6>
+<div class="card mb-4">
+    <div class="d-flex flex-column">
+        {% for s in active_sessions %}
+        <a href="{{ url_for('quiz_host_screen', session_id=s.id) }}" class="conversation-item">
+            <div class="avatar-ring">
+                <div class="avatar" style="width:44px;height:44px;background:var(--gold-subtle);color:var(--gold);"><i class="bi bi-broadcast"></i></div>
+            </div>
+            <div class="flex-fill min-w-0">
+                <div class="fw-semibold small text-truncate">{{ s.quiz_title }}</div>
+                <div class="text-muted small">Katılım Kodu: <strong>{{ s.code }}</strong> · {{ s.participant_count }} katılımcı</div>
+            </div>
+            <span class="badge-tag badge-gold">Canlı Oturum</span>
+        </a>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<h6 class="fw-bold mb-3">Oluşturduğun Yarışmalar</h6>
+<div class="card">
+    {% if my_quizzes %}
+        <div class="d-flex flex-column">
+            {% for q in my_quizzes %}
+            <a href="{{ url_for('quiz_detail', quiz_id=q.id) }}" class="conversation-item">
+                <div class="avatar-ring">
+                    <div class="avatar" style="width:44px;height:44px;"><i class="bi bi-patch-question"></i></div>
+                </div>
+                <div class="flex-fill min-w-0">
+                    <div class="fw-semibold small text-truncate">{{ q.title }}</div>
+                    <div class="text-muted small">{{ q.question_count }} soru hazırlandı</div>
+                </div>
+                <i class="bi bi-chevron-right text-muted" style="font-size:0.85rem;"></i>
+            </a>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="card-pad text-center py-5">
+            <div class="empty-state">
+                <i class="bi bi-patch-question"></i>
+                <h6 class="fw-bold mt-2">Henüz Bir Yarışma Oluşturmadın</h6>
+                <p class="small text-muted mb-3">Yurt arkadaşlarınla bilgi yarışması yapmak için sorular hazırla.</p>
+                <a href="{{ url_for('quiz_create') }}" class="btn btn-primary btn-sm">İlk Yarışmayı Oluştur</a>
+            </div>
+        </div>
+    {% endif %}
+</div>
+
+{% endblock %}

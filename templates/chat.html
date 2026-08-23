@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}Genel Sohbet — Yurt Sosyal{% endblock %}
+{% block content %}
+
+<div class="d-flex align-items-center justify-content-between mb-4">
+    <div>
+        <span class="kicker">Canlı İletişim</span>
+        <h4 class="fw-bold mb-0">Genel Yurt Sohbeti</h4>
+    </div>
+</div>
+
+<div class="card overflow-hidden">
+    <div class="p-3 border-bottom d-flex align-items-center justify-content-between" style="border-color: var(--border) !important; background-color: var(--surface);">
+        <div class="d-flex align-items-center gap-2">
+            <span class="rounded-circle" style="width:8px;height:8px;background-color:var(--success);display:inline-block;"></span>
+            <span class="small fw-semibold">Canlı Sohbet Odası</span>
+        </div>
+        <span class="text-muted small">Tüm yurt öğrencilerine açıktır</span>
+    </div>
+
+    <div class="chat-box" id="chat-box">
+        {% for m in messages %}
+        <div class="d-flex flex-column {{ 'align-items-end' if m.username == session.username else 'align-items-start' }}">
+            {% if m.username != session.username %}
+            <span class="chat-sender">{{ m.username }}</span>
+            {% endif %}
+            <div class="message-bubble {{ 'message-own' if m.username == session.username else 'message-other' }}">{{ m.message }}</div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <form class="chat-input-bar" id="chat-form">
+        <input type="text" id="chat-input" placeholder="Herkese açık bir mesaj yazın..." autocomplete="off" required>
+        <button type="submit" class="chat-send-btn" title="Gönder">
+            <i class="bi bi-arrow-up"></i>
+        </button>
+    </form>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const chatBox = document.getElementById('chat-box');
+if (chatBox) chatBox.scrollTop = chatBox.scrollHeight;
+
+const chatForm = document.getElementById('chat-form');
+if (chatForm) {
+    chatForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const input = document.getElementById('chat-input');
+        const text = input.value.trim();
+        if (!text) return;
+        socket.emit('send_message', { message: text });
+        input.value = '';
+    });
+}
+
+socket.on('new_message', function(data) {
+    const isMine = data.username === {{ session.username|tojson }};
+    const wrap = document.createElement('div');
+    wrap.className = `d-flex flex-column ${isMine ? 'align-items-end' : 'align-items-start'}`;
+
+    if (!isMine) {
+        const sender = document.createElement('span');
+        sender.className = 'chat-sender';
+        sender.textContent = data.username;
+        wrap.appendChild(sender);
+    }
+
+    const bubble = document.createElement('div');
+    bubble.className = `message-bubble ${isMine ? 'message-own' : 'message-other'}`;
+    bubble.textContent = data.message;
+    wrap.appendChild(bubble);
+
+    if (chatBox) {
+        chatBox.appendChild(wrap);
+        chatBox.scrollTop = chatBox.scrollHeight;
+    }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,271 @@
+{% import '_icons.html' as icons %}
+{% extends 'base.html' %}
+{% block title %}Çamaşırhane — Yurt Sosyal{% endblock %}
+
+{% block content %}
+<div class="laundry-page">
+  <header class="laundry-header">
+    <div>
+      <span class="laundry-kicker">YURT HİZMETİ</span>
+      <h1>Çamaşırhane</h1>
+      <p>Boş makineyi seç, uygun zamanı belirle ve rezervasyonunu tamamla.</p>
+    </div>
+    <div class="laundry-header-icon" aria-hidden="true">{{ icons.washing_machine_icon(28) }}</div>
+  </header>
+
+  {% if active_reservations %}
+  <section class="laundry-now" aria-labelledby="now-title">
+    <div class="laundry-section-title">
+      <div>
+        <span class="section-eyebrow">ŞİMDİ</span>
+        <h2 id="now-title">Çalışan makineler</h2>
+      </div>
+      <span class="status-dot-label"><i></i> Canlı durum</span>
+    </div>
+
+    <div class="laundry-now-grid">
+      {% for r in active_reservations %}
+      <article class="laundry-now-card {% if r.is_mine %}mine{% endif %}">
+        <div class="machine-line">
+          <span class="machine-icon">{{ icons.washing_machine_icon(20) }}</span>
+          <div>
+            <strong>{{ r.machine_name }}</strong>
+            <span>{{ r.start_at[11:16] }} – {{ r.end_at[11:16] }}</span>
+          </div>
+          <span class="machine-status status-busy">Kullanımda</span>
+        </div>
+        <div class="countdown-row">
+          <span data-countdown data-end="{{ r.end_iso }}">Hesaplanıyor…</span>
+          {% if r.is_mine %}<b>Senin rezervasyonun</b>{% else %}<small>Başka bir öğrenci kullanıyor</small>{% endif %}
+        </div>
+        {% if r.is_mine %}
+        <form method="POST" action="{{ url_for('laundry_finish', reservation_id=r.id) }}" onsubmit="return confirm('Makineyi gerçekten boşalttığını onaylıyor musun?');">
+          <button class="btn btn-success w-100"><i class="bi bi-check2-circle me-1"></i> Makineyi boşalttım</button>
+        </form>
+        {% endif %}
+      </article>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  <section class="laundry-main">
+    <div class="laundry-section-title">
+      <div>
+        <span class="section-eyebrow">MAKİNELER</span>
+        <h2>Hangisini kullanmak istiyorsun?</h2>
+      </div>
+      <span class="machine-count">{{ machines|length }} makine</span>
+    </div>
+
+    <div class="laundry-status-guide" aria-label="Makine durumları">
+      <span><i class="status-dot free"></i>Müsait</span>
+      <span><i class="status-dot busy"></i>Kullanımda</span>
+      <span><i class="status-dot upcoming"></i>Yakında müsait</span>
+      <span><i class="status-dot mine"></i>Benim rezervasyonum</span>
+    </div>
+
+    <div class="laundry-grid">
+      {% for m in machines %}
+      {% set my_machine = upcoming_reservations|selectattr('machine_id','equalto',m.id)|selectattr('is_mine','equalto',true)|list %}
+      {% set machine_upcoming = upcoming_reservations|selectattr('machine_id','equalto',m.id)|list %}
+      {% set current = active_reservations|selectattr('machine_id','equalto',m.id)|list %}
+      {% set first_upcoming = machine_upcoming[0] if machine_upcoming else none %}
+      <article class="machine-card laundry-machine-card
+        {% if current %}is-busy{% elif my_machine %}is-mine{% elif machine_upcoming %}is-upcoming{% else %}is-free{% endif %}"
+        data-bookings='{{ bookings_by_machine.get(m.id, [])|tojson }}'>
+
+        <div class="machine-card-head">
+          <div class="machine-name">
+            <span class="machine-icon">{{ icons.washing_machine_icon(20) }}</span>
+            <div><strong>{{ m.name }}</strong><small>Çamaşır makinesi</small></div>
+          </div>
+          {% if current %}
+            <span class="machine-status status-busy">Kullanımda</span>
+          {% elif my_machine %}
+            <span class="machine-status status-mine">Senin</span>
+          {% elif machine_upcoming %}
+            <span class="machine-status status-upcoming">Yakında</span>
+          {% else %}
+            <span class="machine-status status-free">Müsait</span>
+          {% endif %}
+        </div>
+
+        {% if current %}
+          {% set cr=current[0] %}
+          <div class="machine-state">
+            <strong data-countdown data-end="{{ cr.end_iso }}">Hesaplanıyor…</strong>
+            <span>{{ cr.end_at[11:16] }}'de boşalacak</span>
+          </div>
+          {% if not cr.is_mine %}
+          <button type="button" class="notify-btn {% if m.id in wait_ids %}active{% endif %}"
+                  onclick="{% if m.id in wait_ids %}leaveWait({{m.id}},this){% else %}joinWait({{m.id}},this){% endif %}">
+            <i class="bi {% if m.id in wait_ids %}bi-bell-slash{% else %}bi-bell{% endif %}"></i>
+            {% if m.id in wait_ids %}Bildirim açık · Kapat{% else %}Boşalınca haber ver{% endif %}
+          </button>
+          {% endif %}
+        {% elif machine_upcoming %}
+          <div class="machine-state compact">
+            <strong>{{ first_upcoming.start_at[11:16] }}</strong>
+            <span>ilk uygun saat için yaklaşan rezervasyon</span>
+          </div>
+          {% if my_machine %}
+            <div class="my-booking">
+              {% for r in my_machine %}
+              <div><span>Senin rezervasyonun</span><strong>{{ r.start_at[11:16] }}–{{ r.end_at[11:16] }}</strong></div>
+              <form method="POST" action="{{url_for('laundry_cancel',reservation_id=r.id)}}"><button type="submit">İptal</button></form>
+              {% endfor %}
+            </div>
+          {% else %}
+            <button type="button" class="notify-btn {% if m.id in wait_ids %}active{% endif %}"
+                    onclick="{% if m.id in wait_ids %}leaveWait({{m.id}},this){% else %}joinWait({{m.id}},this){% endif %}">
+              <i class="bi {% if m.id in wait_ids %}bi-bell-slash{% else %}bi-bell{% endif %}"></i>
+              {% if m.id in wait_ids %}Bildirim açık · Kapat{% else %}Boşalınca haber ver{% endif %}
+            </button>
+          {% endif %}
+        {% endif %}
+
+        <form method="POST" action="{{ url_for('laundry_reserve') }}" class="reserve-form" data-machine-id="{{m.id}}">
+          <input type="hidden" name="machine_id" value="{{ m.id }}">
+          <input type="hidden" name="start_at" class="start-hidden" value="{{ slots[0].strftime('%Y-%m-%dT%H:%M:%S') if slots else '' }}">
+
+          <div class="quick-time">
+            <div class="reserve-label">Ne zaman?</div>
+            <div class="quick-time-line">
+              <button type="button" class="time-nav" data-dir="-1" aria-label="Önceki saat"><i class="bi bi-chevron-left"></i></button>
+              <div class="selected-time">
+                <strong class="selected-time-text">Uygun saat aranıyor…</strong>
+                <small class="selected-time-date"></small>
+              </div>
+              <button type="button" class="time-nav" data-dir="1" aria-label="Sonraki saat"><i class="bi bi-chevron-right"></i></button>
+            </div>
+            <div class="time-strip" role="listbox" aria-label="Uygun başlangıç saatleri">
+              {% for slot in slots %}
+              <button type="button" class="time-chip" data-value="{{ slot.strftime('%Y-%m-%dT%H:%M:%S') }}" data-label="{{ slot.strftime('%H:%M') }}" data-date="{{ slot.strftime('%d.%m') }}">{{ slot.strftime('%H:%M') }}</button>
+              {% endfor %}
+            </div>
+          </div>
+
+          <div class="duration-row">
+            <label for="duration-{{m.id}}">Kullanım süresi</label>
+            <select id="duration-{{m.id}}" name="duration_minutes" class="duration-select" required>
+              <option value="30">30 dk</option>
+              <option value="60" selected>1 saat</option>
+              <option value="90">1 saat 30 dk</option>
+              <option value="120">2 saat</option>
+              <option value="150">2 saat 30 dk</option>
+              <option value="180">3 saat</option>
+            </select>
+          </div>
+
+          <div class="availability-hint" aria-live="polite"></div>
+          <button type="submit" class="reserve-btn">
+            <i class="bi bi-calendar-check"></i><span>Bu saati rezerve et</span>
+          </button>
+        </form>
+      </article>
+      {% else %}
+      <div class="empty-state">
+        {{ icons.washing_machine_icon(34) }}
+        <strong>Şu anda kullanılabilir makine yok.</strong>
+        <span>Yönetici yeni bir makine eklediğinde burada görünecek.</span>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <div class="laundry-tip"><i class="bi bi-bell"></i><div><strong>Dolu makineyi beklemek zorunda değilsin.</strong><span>“Boşalınca haber ver” seçeneğini aç. Makine boşaldığında sana bildirim gönderilir.</span></div></div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.laundry-page{max-width:1180px;margin:0 auto;padding-bottom:1rem}
+.laundry-header{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:20px 22px;margin-bottom:20px;border:1px solid var(--border);border-radius:20px;background:var(--surface,#fff)}
+.laundry-kicker,.section-eyebrow{display:block;font-size:.68rem;font-weight:800;letter-spacing:.1em;color:var(--muted,#6b7280);margin-bottom:5px}
+.laundry-header h1{font-size:1.65rem;font-weight:800;margin:0}.laundry-header p{margin:4px 0 0;color:var(--muted,#6b7280);font-size:.9rem}
+.laundry-header-icon{width:52px;height:52px;border-radius:15px;display:grid;place-items:center;background:var(--bs-primary-bg-subtle);color:var(--bs-primary);font-size:1.45rem;flex:0 0 auto}
+.laundry-now,.laundry-main{border:1px solid var(--border);border-radius:20px;background:var(--surface,#fff);padding:20px;margin-bottom:20px}
+.laundry-section-title{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:13px}.laundry-section-title h2{font-size:1.08rem;font-weight:800;margin:0}.machine-count{font-size:.75rem;color:var(--muted,#6b7280)}
+.status-dot-label{font-size:.72rem;color:#15803d;display:flex;align-items:center;gap:6px}.status-dot-label i{width:7px;height:7px;border-radius:50%;background:#16a34a;box-shadow:0 0 0 4px rgba(22,163,74,.1)}
+.laundry-now-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:10px}
+.laundry-now-card{border:1px solid var(--border);border-radius:15px;padding:14px;background:var(--surface,#fff)}.laundry-now-card.mine{border-color:rgba(22,163,74,.35);background:rgba(22,163,74,.025)}
+.machine-line,.machine-card-head{display:flex;align-items:center;gap:10px}.machine-line>div{min-width:0;flex:1}.machine-line strong,.machine-line span{display:block}.machine-line span:not(.machine-status){font-size:.72rem;color:var(--muted,#6b7280);margin-top:2px}.machine-icon{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;background:var(--bs-primary-bg-subtle);color:var(--bs-primary);flex:0 0 auto}
+.machine-status{font-size:.66rem;font-weight:800;padding:5px 8px;border-radius:999px;white-space:nowrap}.status-free{color:#15803d;background:rgba(22,163,74,.09)}.status-busy{color:#b91c1c;background:rgba(220,38,38,.09)}.status-upcoming{color:#a16207;background:rgba(234,179,8,.13)}.status-mine{color:#1d4ed8;background:rgba(37,99,235,.1)}
+.countdown-row{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin:13px 0 10px}.countdown-row span{font-size:1.05rem;font-weight:800}.countdown-row b{font-size:.7rem;color:#15803d}.countdown-row small{font-size:.7rem;color:var(--muted,#6b7280)}
+.laundry-status-guide{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:15px;padding:9px 11px;border-radius:12px;background:rgba(15,23,42,.025);font-size:.68rem;color:var(--muted,#6b7280)}.laundry-status-guide span{display:flex;align-items:center;gap:5px}.status-dot{width:7px;height:7px;border-radius:50%;display:inline-block}.status-dot.free{background:#16a34a}.status-dot.busy{background:#dc2626}.status-dot.upcoming{background:#eab308}.status-dot.mine{background:#2563eb}
+.laundry-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.machine-card{border:1px solid var(--border);border-radius:17px;padding:15px;min-width:0;transition:border-color .18s,box-shadow .18s}.machine-card:hover{box-shadow:0 7px 20px rgba(0,0,0,.05)}.machine-card.is-free{border-color:rgba(22,163,74,.25)}.machine-card.is-mine{border-color:rgba(37,99,235,.3)}
+.machine-name{display:flex;align-items:center;gap:9px;min-width:0;flex:1}.machine-name>div{min-width:0}.machine-name strong,.machine-name small{display:block}.machine-name strong{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.machine-name small{font-size:.68rem;color:var(--muted,#6b7280);margin-top:2px}
+.machine-state{display:flex;align-items:baseline;justify-content:space-between;gap:8px;padding:12px 0 8px}.machine-state strong{font-size:.98rem}.machine-state span{font-size:.68rem;color:var(--muted,#6b7280);text-align:right}.machine-state.compact{border-bottom:1px solid var(--border);margin-bottom:9px}.notify-btn{width:100%;border:1px solid var(--border);background:transparent;border-radius:10px;padding:8px 10px;font-size:.75rem;font-weight:700;color:var(--bs-primary);margin:2px 0 10px}.notify-btn.active{color:#64748b;background:rgba(100,116,139,.06)}
+.my-booking{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px 10px;margin:4px 0 10px;border-radius:11px;background:rgba(37,99,235,.06);font-size:.7rem}.my-booking span,.my-booking strong{display:block}.my-booking span{color:#1d4ed8}.my-booking button{border:0;background:transparent;color:#dc2626;font-size:.7rem;font-weight:700}
+.reserve-form{border-top:1px solid var(--border);padding-top:12px}.reserve-label{font-size:.7rem;font-weight:800;color:var(--muted,#6b7280);margin-bottom:7px}.quick-time-line{display:flex;align-items:center;gap:7px}.time-nav{width:32px;height:32px;border:1px solid var(--border);background:var(--surface,#fff);border-radius:9px;display:grid;place-items:center;flex:0 0 auto}.selected-time{min-width:0;flex:1;text-align:center}.selected-time strong{font-size:1rem;display:block}.selected-time small{font-size:.67rem;color:var(--muted,#6b7280)}
+.time-strip{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding:9px 1px 3px}.time-strip::-webkit-scrollbar{display:none}.time-chip{border:1px solid var(--border);background:var(--surface,#fff);border-radius:9px;padding:6px 9px;font-size:.7rem;white-space:nowrap}.time-chip.selected{border-color:var(--bs-primary);background:var(--bs-primary-bg-subtle);color:var(--bs-primary);font-weight:800}.time-chip:disabled{opacity:.3;text-decoration:line-through}
+.duration-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:8px}.duration-row label{font-size:.7rem;font-weight:700;color:var(--muted,#6b7280)}.duration-select{border:1px solid var(--border);border-radius:9px;background:var(--surface,#fff);padding:6px 8px;font-size:.72rem}.availability-hint{min-height:16px;font-size:.66rem;color:var(--muted,#6b7280);margin-top:7px}.reserve-btn{width:100%;border:0;border-radius:10px;padding:9px 12px;background:var(--bs-primary);color:#fff;font-weight:800;font-size:.75rem;margin-top:2px}.reserve-btn:disabled{opacity:.45;cursor:not-allowed}
+.laundry-tip{display:flex;align-items:flex-start;gap:10px;padding:13px 15px;border:1px solid var(--border);border-radius:15px;background:rgba(37,99,235,.035);font-size:.75rem}.laundry-tip>i{color:var(--bs-primary);font-size:1.1rem}.laundry-tip strong,.laundry-tip span{display:block}.laundry-tip span{color:var(--muted,#6b7280);margin-top:2px}
+.empty-state{grid-column:1/-1;text-align:center;padding:40px 15px;color:var(--muted,#6b7280)}.empty-state i{display:block;font-size:2rem;margin-bottom:8px}.empty-state strong,.empty-state span{display:block}.empty-state span{font-size:.75rem;margin-top:3px}
+@media(max-width:1000px){.laundry-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:680px){.laundry-page{padding-bottom:80px}.laundry-header{padding:16px;border-radius:16px}.laundry-header h1{font-size:1.35rem}.laundry-header-icon{width:44px;height:44px}.laundry-now,.laundry-main{padding:14px;border-radius:16px}.laundry-grid{grid-template-columns:1fr}.laundry-status-guide{gap:8px}.laundry-status-guide span{flex:0 0 calc(50% - 4px)}.machine-card{padding:13px}.time-strip{margin-right:-4px}.reserve-btn{min-height:44px;font-size:.78rem}.notify-btn{min-height:42px}.time-nav{width:36px;height:36px}}
+@media(max-width:420px){.laundry-header-icon{display:none}.laundry-section-title{align-items:flex-start}.laundry-status-guide{font-size:.62rem}.laundry-status-guide span{flex-basis:100%}}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function parseTR(s){return new Date(String(s).replace(' ','T')+'+03:00');}
+function tickLaundry(){document.querySelectorAll('[data-countdown]').forEach(el=>{const end=parseTR(el.dataset.end),diff=Math.max(0,end-new Date()),m=Math.floor(diff/60000),sec=Math.floor(diff%60000/1000);el.textContent=diff<=0?'Az sonra boşalıyor':`${m} dk ${String(sec).padStart(2,'0')} sn kaldı`;});}
+setInterval(tickLaundry,1000);tickLaundry();
+
+function overlaps(start,end,booking){const bs=parseTR(booking.start),be=parseTR(booking.end);return start<be&&end>bs;}
+
+document.querySelectorAll('.reserve-form').forEach(form=>{
+  const card=form.closest('.machine-card');
+  const bookings=JSON.parse(card.dataset.bookings||'[]');
+  const chips=[...form.querySelectorAll('.time-chip')];
+  const hidden=form.querySelector('.start-hidden');
+  const duration=form.querySelector('.duration-select');
+  const hint=form.querySelector('.availability-hint');
+  const chosen=form.querySelector('.selected-time-text');
+  const chosenDate=form.querySelector('.selected-time-date');
+  let selectedIndex=0;
+
+  function refresh(){
+    const mins=Number(duration.value||60);
+    let available=[];
+    chips.forEach((chip,i)=>{
+      const start=parseTR(chip.dataset.value.replace('T',' ')),end=new Date(start.getTime()+mins*60000);
+      const blocked=bookings.some(b=>overlaps(start,end,b));
+      chip.disabled=blocked;
+      if(!blocked)available.push(i);
+    });
+    if(!available.length){hint.textContent='Bu süre için uygun saat kalmadı.';form.querySelector('.reserve-btn').disabled=true;return;}
+    if(chips[selectedIndex]?.disabled){selectedIndex=available[0];}
+    if(chips[selectedIndex]?.disabled===false)select(selectedIndex,false);else select(available[0],false);
+    hint.textContent=`${available.length} uygun başlangıç saati`;
+  }
+  function select(i,scroll=true){
+    if(!chips[i]||chips[i].disabled)return;
+    selectedIndex=i;chips.forEach(c=>c.classList.remove('selected'));chips[i].classList.add('selected');
+    hidden.value=chips[i].dataset.value;chosen.textContent=chips[i].dataset.label;chosenDate.textContent=`${chips[i].dataset.date} · 30 dakikalık aralık`;
+    if(scroll)chips[i].scrollIntoView({behavior:'smooth',block:'nearest',inline:'center'});
+    form.querySelector('.reserve-btn').disabled=false;
+  }
+  chips.forEach((chip,i)=>chip.addEventListener('click',()=>select(i)));
+  form.querySelectorAll('.time-nav').forEach(btn=>btn.addEventListener('click',()=>{
+    const dir=Number(btn.dataset.dir),next=selectedIndex+dir;
+    for(let i=next;i>=0&&i<chips.length;i+=dir){if(!chips[i].disabled){select(i);break;}}
+  }));
+  duration.addEventListener('change',refresh);
+  refresh();
+});
+
+async function joinWait(id,btn){
+  btn.disabled=true;
+  try{const r=await fetch(`/laundry/wait/${id}`,{method:'POST',headers:{'X-Requested-With':'XMLHttpRequest'}});const d=await r.json();if(d.ok){btn.classList.add('active');btn.innerHTML='<i class="bi bi-bell-slash"></i> Bildirim açık · Kapat';btn.onclick=()=>leaveWait(id,btn);}else alert(d.error||'Bildirim açılamadı.');}
+  finally{btn.disabled=false;}
+}
+async function leaveWait(id,btn){
+  btn.disabled=true;
+  try{const r=await fetch(`/laundry/wait/${id}/cancel`,{method:'POST',headers:{'X-Requested-With':'XMLHttpRequest'}});const d=await r.json();if(d.ok){btn.classList.remove('active');btn.innerHTML='<i class="bi bi-bell"></i> Boşalınca haber ver';btn.onclick=()=>joinWait(id,btn);}}
+  finally{btn.disabled=false;}
+}
+</script>
+{% endblock %}

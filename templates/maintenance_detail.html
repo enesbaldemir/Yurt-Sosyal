@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Talep Detayı — Yurt Sosyal{% endblock %}
+{% block content %}
+
+<div class="d-flex align-items-center justify-content-between mb-4">
+    <div>
+        <span class="kicker">Talep Detayı</span>
+        <h4 class="fw-bold mb-0">Arıza / Bakım İnceleme</h4>
+    </div>
+    <a href="{{ url_for('maintenance_page') }}" class="btn btn-secondary btn-sm">
+        <i class="bi bi-arrow-left"></i> Taleplerime Dön
+    </a>
+</div>
+
+<div class="card card-pad mb-4">
+    <div class="d-flex justify-content-between align-items-baseline mb-2">
+        <span class="badge-tag">{{ req.category }} · Oda {{ req.room_number }}</span>
+        <span class="status-pill {{ 'attendance-present' if req.status == 'Çözüldü' else ('badge-gold' if req.status == 'İnceleniyor' else '') }}">
+            {{ req.status }}
+        </span>
+    </div>
+
+    <p class="text-muted mb-3" style="white-space: pre-line; line-height: 1.6;">{{ req.description }}</p>
+
+    {% if req.photo_path %}
+    <img src="{{ url_for('static', filename='uploads/posts/' + req.photo_path) }}" class="rounded mb-3 w-100" style="max-height: 320px; object-fit: cover;" alt="Talep Fotoğrafı">
+    {% endif %}
+
+    <div class="p-3 rounded mb-3" style="background-color: var(--surface-2); border: 1px solid var(--border); font-size: 0.82rem;">
+        <div class="d-flex justify-content-between py-1">
+            <span class="text-muted">Aciliyet Durumu:</span>
+            <strong>{{ req.urgency }}</strong>
+        </div>
+        <div class="d-flex justify-content-between py-1">
+            <span class="text-muted">Oluşturulma Tarihi:</span>
+            <span>{{ req.created_at|datetime_tr }}</span>
+        </div>
+        {% if req.updated_at and req.updated_at != req.created_at %}
+        <div class="d-flex justify-content-between py-1">
+            <span class="text-muted">Son Güncelleme:</span>
+            <span>{{ req.updated_at|datetime_tr }}</span>
+        </div>
+        {% endif %}
+    </div>
+
+    {% if req.admin_note %}
+    <div class="p-3 rounded" style="background-color: var(--surface); border: 1px solid var(--border);">
+        <strong class="text-muted d-block small mb-1" style="text-transform: uppercase;">Yönetim Yanıtı / Notu:</strong>
+        <p class="mb-0 small" style="line-height: 1.5;">{{ req.admin_note }}</p>
+    </div>
+    {% endif %}
+</div>
+
+{% endblock %}

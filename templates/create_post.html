@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% block title %}Yeni Paylaşım — Yurt Sosyal{% endblock %}
+{% block content %}
+
+<div class="d-flex align-items-center justify-content-between mb-4">
+    <div>
+        <span class="kicker">Paylaşım</span>
+        <h4 class="fw-bold mb-0">Yeni Gönderi</h4>
+    </div>
+    <a href="{{ url_for('feed') }}" class="btn btn-secondary btn-sm">
+        <i class="bi bi-arrow-left"></i> Akışa Dön
+    </a>
+</div>
+
+<div class="card card-pad">
+    <div class="auth-toggle mb-4">
+        <a href="#" class="post-mode-btn active" data-mode="media">Fotoğraf & Video</a>
+        <a href="#" class="post-mode-btn" data-mode="text">Yalnızca Metin</a>
+    </div>
+
+    <form method="POST" enctype="multipart/form-data">
+        <div id="media-mode-section">
+            <label class="dropzone p-4 text-center rounded d-block" id="dropzone" for="media-input" style="border: 2px dashed var(--border-strong); background-color: var(--surface-2); cursor: pointer;">
+                <div id="dropzone-placeholder" class="py-4">
+                    <i class="bi bi-cloud-arrow-up" style="font-size: 2.4rem; color: var(--text-muted);"></i>
+                    <div class="fw-semibold mt-2">Fotoğraf veya video seçin</div>
+                    <div class="text-muted small">Dosyayı buraya sürükleyin veya göz atmak için tıklayın</div>
+                </div>
+                <div id="media-preview" style="display:none; max-height: 360px; overflow: hidden; border-radius: var(--radius-sm);"></div>
+            </label>
+            <input type="file" id="media-input" name="media" accept="image/*,video/*" class="d-none">
+        </div>
+
+        <div id="text-mode-section" style="display:none;">
+            <div class="p-4 rounded text-center mb-3" id="text-editor-preview" style="background-color: var(--surface-2); border: 1px solid var(--border); min-height: 140px; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; font-weight: 500;">
+                <span id="text-editor-placeholder" class="text-muted">Aklından geçenleri paylaş...</span>
+            </div>
+        </div>
+
+        <div class="mt-4">
+            <label class="form-label" id="caption-label">Açıklama</label>
+            <textarea name="caption" id="caption-input" class="form-control" rows="3" placeholder="Gönderinle ilgili bir şeyler yaz..."></textarea>
+        </div>
+
+        <button type="submit" class="btn btn-primary w-100 mt-4 py-2">
+            <i class="bi bi-send me-1"></i> Gönderiyi Paylaş
+        </button>
+    </form>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const input = document.getElementById('media-input');
+const placeholder = document.getElementById('dropzone-placeholder');
+const preview = document.getElementById('media-preview');
+const modeBtns = document.querySelectorAll('.post-mode-btn');
+const mediaSection = document.getElementById('media-mode-section');
+const textSection = document.getElementById('text-mode-section');
+const captionInput = document.getElementById('caption-input');
+const captionLabel = document.getElementById('caption-label');
+const textPreview = document.getElementById('text-editor-preview');
+const textPlaceholder = document.getElementById('text-editor-placeholder');
+
+if (input) {
+    input.addEventListener('change', () => {
+        const file = input.files[0];
+        if (!file) return;
+        const url = URL.createObjectURL(file);
+        placeholder.style.display = 'none';
+        preview.style.display = 'block';
+        if (file.type.startsWith('video/')) {
+            preview.innerHTML = `<video src="${url}" controls style="max-width:100%;max-height:360px;object-fit:contain;"></video>`;
+        } else {
+            preview.innerHTML = `<img src="${url}" style="max-width:100%;max-height:360px;object-fit:contain;">`;
+        }
+    });
+}
+
+modeBtns.forEach(btn => {
+    btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        modeBtns.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const mode = btn.dataset.mode;
+        if (mode === 'text') {
+            mediaSection.style.display = 'none';
+            textSection.style.display = 'block';
+            if (input) {
+                input.removeAttribute('required');
+                input.value = '';
+            }
+            captionLabel.textContent = 'Düşünceleriniz';
+            captionInput.placeholder = 'Neler düşünüyorsun?';
+            captionInput.rows = 4;
+        } else {
+            mediaSection.style.display = 'block';
+            textSection.style.display = 'none';
+            captionLabel.textContent = 'Açıklama';
+            captionInput.placeholder = 'Gönderinle ilgili bir şeyler yaz...';
+            captionInput.rows = 3;
+        }
+    });
+});
+
+if (captionInput) {
+    captionInput.addEventListener('input', () => {
+        if (textPreview) {
+            textPreview.textContent = captionInput.value.trim() || 'Aklından geçenleri paylaş...';
+        }
+    });
+}
+</script>
+{% endblock %}

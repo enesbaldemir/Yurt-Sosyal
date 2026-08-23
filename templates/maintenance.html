@@ -1,0 +1,220 @@
+{% extends 'base.html' %}
+{% block title %}Arıza & Teknik Destek — Yurt Sosyal{% endblock %}
+{% block content %}
+
+<div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+    <div>
+        <span class="kicker">Yurt Hizmetleri</span>
+        <h4 class="fw-bold mb-0">Arıza & Bakım Masası</h4>
+    </div>
+    {% if is_staff %}
+    <span class="role-badge role-badge-gorevli" style="font-size:0.8rem; padding: 4px 10px;">
+        <i class="bi bi-tools me-1"></i>Teknik Sorumlu Yetkisi Aktif
+    </span>
+    {% endif %}
+</div>
+
+{% if is_staff %}
+<!-- ===================== YURT GÖREVLİSİ & YÖNETİM ARIZA YÖNETİM MASASI ===================== -->
+<div class="card card-pad mb-4 border-warning">
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+        <div class="section-title mb-0">
+            <span><i class="bi bi-wrench-adjustable me-1 text-warning"></i> Gelen Arıza Talepleri (Teknik Yönetim)</span>
+        </div>
+        <div class="btn-group btn-group-sm" role="group">
+            <button type="button" class="btn btn-outline-secondary active maint-filter-btn" data-filter="all">Tümü ({{ all_requests|length }})</button>
+            <button type="button" class="btn btn-outline-secondary maint-filter-btn" data-filter="pending">Bekleyen</button>
+            <button type="button" class="btn btn-outline-secondary maint-filter-btn" data-filter="in_progress">İşlemde</button>
+            <button type="button" class="btn btn-outline-secondary maint-filter-btn" data-filter="resolved">Çözüldü</button>
+        </div>
+    </div>
+
+    {% if all_requests %}
+    <div class="d-flex flex-column gap-3" id="maint-list-container">
+        {% for r in all_requests %}
+        <div class="card card-pad maint-item-card border" data-status="{{ r.status }}" style="background-color: var(--surface-1);">
+            <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-2">
+                <div>
+                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                        <strong class="text-primary">{{ r.full_name }}</strong>
+                        <span class="text-muted small">@{{ r.username }}</span>
+                        <span class="badge bg-secondary-subtle text-secondary" style="font-size:0.75rem;">
+                            <i class="bi bi-door-closed me-1"></i>{{ r.room_number or r.user_room or 'Oda Belirtilmemiş' }}
+                        </span>
+                        <span class="badge-tag">{{ r.category }}</span>
+                        {% if r.priority == 'urgent' %}
+                        <span class="badge bg-danger text-white" style="font-size:0.7rem;">Acil</span>
+                        {% elif r.priority == 'high' %}
+                        <span class="badge bg-warning text-dark" style="font-size:0.7rem;">Yüksek</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="text-muted small">
+                    <i class="bi bi-clock me-1"></i>{{ r.created_at|datetime_tr }}
+                </div>
+            </div>
+
+            <p class="mb-2" style="white-space: pre-line; line-height: 1.5; font-size:0.9rem;">{{ r.description }}</p>
+
+            {% if r.photo_path %}
+            <div class="mb-2">
+                <a href="{{ url_for('static', filename='uploads/posts/' + r.photo_path) }}" target="_blank" class="d-inline-block">
+                    <img src="{{ url_for('static', filename='uploads/posts/' + r.photo_path) }}" alt="Arıza Fotoğrafı" style="max-height: 120px; border-radius: 6px; border: 1px solid var(--border);" loading="lazy">
+                </a>
+            </div>
+            {% endif %}
+
+            <!-- Durum Güncelleme ve Not Formu -->
+            <form method="post" action="{{ url_for('update_maintenance', req_id=r.id) }}" class="p-2 rounded mt-2 border d-flex flex-wrap align-items-center gap-2" style="background-color: var(--surface-2);">
+                <div class="d-flex align-items-center gap-2 flex-fill min-w-0">
+                    <label class="form-label mb-0 small fw-semibold text-muted" style="white-space: nowrap;">Durum:</label>
+                    <select name="status" class="form-select form-select-sm" style="width: auto; min-width: 130px; font-weight: 600;">
+                        <option value="pending" {{ 'selected' if r.status == 'pending' }}>⏳ Beklemede</option>
+                        <option value="in_progress" {{ 'selected' if r.status == 'in_progress' }}>🔧 İnceleniyor / İşlemde</option>
+                        <option value="resolved" {{ 'selected' if r.status == 'resolved' }}>✅ Çözüldü</option>
+                        <option value="cancelled" {{ 'selected' if r.status == 'cancelled' }}>❌ İptal</option>
+                    </select>
+
+                    <input type="text" name="admin_note" class="form-control form-control-sm flex-fill" placeholder="Öğrenciye bilgi / teknik not yazın..." value="{{ r.admin_note or '' }}">
+                </div>
+                <button type="submit" class="btn btn-primary btn-sm px-3">
+                    <i class="bi bi-check2 me-1"></i> Güncelle
+                </button>
+            </form>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-center py-4 text-muted small">
+        <i class="bi bi-check-circle fs-3 d-block mb-1 text-success"></i>
+        Şu anda bekleyen arıza veya teknik talep bulunmuyor.
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+
+<!-- Yeni Talep Oluşturma Kartı -->
+<div class="card card-pad mb-4">
+    <div class="section-title mb-3">
+        <span><i class="bi bi-tools me-1"></i> Yeni Arıza & Bakım Talebi Bildir</span>
+    </div>
+
+    <form method="post" action="{{ url_for('create_maintenance') }}" enctype="multipart/form-data">
+        <div class="row g-3 mb-3">
+            <div class="col-md-4">
+                <label class="form-label">Kategori</label>
+                <select name="category" class="form-select" required>
+                    <option value="Elektrik">Elektrik</option>
+                    <option value="Su / Tesisat">Su / Tesisat</option>
+                    <option value="İnternet / Ağ">İnternet / Ağ</option>
+                    <option value="Mobilya / Marangoz">Mobilya / Marangoz</option>
+                    <option value="Temizlik / Hijyen">Temizlik / Hijyen</option>
+                    <option value="Diğer">Diğer</option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Oda / Konum Numarası</label>
+                <input name="room_number" class="form-control" placeholder="Örn: 204 veya Kat 2 Mutfak" value="{{ current_user.room_number if current_user and current_user.room_number else '' }}" required>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Öncelik Seviyesi</label>
+                <select name="priority" class="form-select">
+                    <option value="normal">Normal</option>
+                    <option value="high">Yüksek</option>
+                    <option value="urgent">Acil</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Sorunun Açıklaması</label>
+            <textarea name="description" class="form-control" rows="3" placeholder="Arızayı veya talebinizi detaylı olarak belirtiniz..." required></textarea>
+        </div>
+
+        <div class="mb-4">
+            <label class="form-label">Fotoğraf Ekle <span class="text-muted fw-normal">(Opsiyonel)</span></label>
+            <input type="file" name="photo" class="form-control" accept="image/*">
+        </div>
+
+        <button type="submit" class="btn btn-primary w-100 py-2">
+            <i class="bi bi-send me-1"></i> Arıza Bildirimini İlet
+        </button>
+    </form>
+</div>
+
+<!-- Geçmiş Taleplerim -->
+<div class="section-title mb-3">
+    <span><i class="bi bi-clock-history me-1"></i> Bildirdiğim Taleplerim ({{ requests|length }})</span>
+</div>
+
+{% if requests %}
+<div class="d-flex flex-column gap-3">
+    {% for r in requests %}
+    <div class="card card-pad">
+        <div class="d-flex justify-content-between align-items-baseline mb-2">
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+                <span class="badge-tag">{{ r.category }}</span>
+                {% if r.room_number %}
+                <span class="text-muted small">Oda: {{ r.room_number }}</span>
+                {% endif %}
+                {% if r.priority == 'urgent' %}
+                <span class="badge-tag" style="color: var(--danger); border-color: rgba(179,57,57,0.3);">Acil</span>
+                {% endif %}
+            </div>
+            <span class="status-pill {{ 'attendance-present' if r.status == 'resolved' or r.status == 'Çözüldü' else ('badge-gold' if r.status == 'in_progress' or r.status == 'İnceleniyor' else '') }}">
+                {{ 'Çözüldü' if r.status == 'resolved' or r.status == 'Çözüldü' else ('İnceleniyor' if r.status == 'in_progress' or r.status == 'İnceleniyor' else 'Bekliyor') }}
+            </span>
+        </div>
+
+        <p class="small text-muted mb-2" style="white-space: pre-line; line-height: 1.5;">{{ r.description }}</p>
+
+        {% if r.photo_path %}
+        <div class="mb-2">
+            <a href="{{ url_for('static', filename='uploads/posts/' + r.photo_path) }}" target="_blank">
+                <img src="{{ url_for('static', filename='uploads/posts/' + r.photo_path) }}" alt="Fotoğraf" style="max-height: 90px; border-radius: 4px; border: 1px solid var(--border);" loading="lazy">
+            </a>
+        </div>
+        {% endif %}
+
+        {% if r.admin_note %}
+        <div class="p-2 px-3 rounded mb-2" style="background-color: var(--surface-2); border: 1px solid var(--border); font-size: 0.8rem;">
+            <strong class="text-muted d-block" style="font-size: 0.72rem; text-transform: uppercase;"><i class="bi bi-chat-left-dots me-1"></i>Teknik Servis / Yönetim Notu:</strong>
+            <span>{{ r.admin_note }}</span>
+        </div>
+        {% endif %}
+
+        <div class="text-muted small" style="font-size: 0.75rem;">
+            Bildirim Tarihi: {{ r.created_at|datetime_tr }}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="card card-pad text-center py-4">
+    <div class="empty-state">
+        <i class="bi bi-check2-circle"></i>
+        <p class="small text-muted mb-0">Aktif veya geçmiş arıza talebiniz bulunmuyor.</p>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.querySelectorAll('.maint-filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('.maint-filter-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const filter = btn.dataset.filter;
+        document.querySelectorAll('.maint-item-card').forEach(card => {
+            if (filter === 'all' || card.dataset.status === filter) {
+                card.style.display = 'block';
+            } else {
+                card.style.display = 'none';
+            }
+        });
+    });
+});
+</script>
+{% endblock %}

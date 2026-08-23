@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Bildirimler — Yurt Sosyal{% endblock %}
+{% block content %}
+
+<div class="d-flex align-items-center justify-content-between mb-4">
+    <div>
+        <span class="kicker">Etkileşim</span>
+        <h4 class="fw-bold mb-0">Bildirim Merkezi</h4>
+    </div>
+    <a href="{{ url_for('mark_all_read') }}" class="btn btn-secondary btn-sm">
+        <i class="bi bi-check2-all me-1"></i> Tümünü Okundu İşaretle
+    </a>
+</div>
+
+<div class="card">
+    {% if notifications %}
+        <div class="d-flex flex-column">
+            {% for n in notifications %}
+            <a href="{{ url_for('mark_notification_read', notif_id=n.id) }}" class="conversation-item {{ 'unread' if not n.is_read }}">
+                <div class="avatar-ring">
+                    <div class="avatar" style="width:40px;height:40px;">
+                        <i class="bi {{ 'bi-bell-fill' if not n.is_read else 'bi-bell' }}" style="{{ 'color:var(--gold);' if not n.is_read else '' }}"></i>
+                    </div>
+                </div>
+                <div class="flex-fill min-w-0">
+                    <div class="d-flex justify-content-between align-items-baseline mb-1">
+                        <strong class="small text-truncate">{{ n.title }}</strong>
+                        <small class="text-muted" style="font-size:0.7rem;">{{ n.created_at|datetime_tr }}</small>
+                    </div>
+                    <p class="small text-muted mb-0" style="line-height: 1.4;">{{ n.message }}</p>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="card-pad text-center py-5">
+            <div class="empty-state">
+                <i class="bi bi-bell-slash"></i>
+                <h6 class="fw-bold mt-2">Bildirim Bulunmuyor</h6>
+                <p class="small text-muted mb-0">Yeni etkinlikler, duyurular veya mesajlar olduğunda burada görünecektir.</p>
+            </div>
+        </div>
+    {% endif %}
+</div>
+
+{% endblock %}

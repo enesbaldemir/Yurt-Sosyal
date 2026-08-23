@@ -1,0 +1,15 @@
+YURT Sosyal - Menü ve Çamaşırhane Güncellemesi
+
+1) Yemekhane saatleri
+- Varsayılan hafta içi kahvaltı: 07:00 - 09:00
+- Varsayılan hafta sonu kahvaltı: 09:00 - 11:00
+- Varsayılan akşam yemeği: 18:00 - 20:00
+- Admin > Menü & Excel > Yemekhane Saatleri bölümünden üç zaman aralığının başlangıç/bitişi değiştirilebilir.
+- Menü sayfası bugünün hafta içi/hafta sonu durumuna göre doğru kahvaltı saatini otomatik gösterir.
+
+2) Çamaşırhane
+- Üst bölümde daha belirgin, uyumlu bir çamaşır makinesi SVG illüstrasyonu eklendi.
+- Mobilde de düzgün ölçeklenir.
+
+3) PWA
+- Service Worker cache sürümü v2.1-menu-hours olarak güncellendi.

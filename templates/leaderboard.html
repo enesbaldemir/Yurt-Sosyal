@@ -1,0 +1,57 @@
+{% extends 'base.html' %}
+{% block title %}Yurt Sıralaması & Rozetler — Yurt Sosyal{% endblock %}
+{% block content %}
+
+<div class="d-flex align-items-center justify-content-between mb-4">
+    <div>
+        <span class="kicker">Akademik & Sosyal Rekabet</span>
+        <h3 class="serif-heading mb-0" style="font-size: 2rem;">Yurt Sıralaması</h3>
+    </div>
+</div>
+
+<p class="text-muted small mb-4">Oyunlar, bilgi yarışmaları, yemek değerlendirmeleri ve yurt etkinliklerine katılarak XP kazanın, sıralamada yükselin.</p>
+
+<!-- Liderlik Tablosu -->
+<div class="card mb-5">
+    <div class="p-3 border-bottom d-flex justify-content-between align-items-center" style="border-color: var(--border) !important; background-color: var(--surface-2);">
+        <span class="fw-bold small text-uppercase" style="font-size:0.75rem; letter-spacing:0.06em;">Genel Skor Tablosu</span>
+        <span class="text-muted small">İlk 50 Öğrenci</span>
+    </div>
+    <div class="d-flex flex-column">
+        {% for u in leaders %}
+        <div class="d-flex align-items-center gap-3 p-3 border-bottom {{ 'bg-surface-2' if u.id == session.user_id }}" style="border-color: var(--border) !important; {{ 'background-color: var(--gold-subtle);' if u.id == session.user_id }}">
+            <div class="d-flex align-items-center justify-content-center fw-bold" style="width:32px; height:32px; border-radius:var(--radius-xs); background: {{ 'var(--gold)' if loop.index == 1 else ('var(--surface-3)' if loop.index <= 3 else 'var(--surface-2)') }}; color: {{ '#fff' if loop.index == 1 else 'var(--text)' }}; font-size:0.85rem;">
+                {{ loop.index }}
+            </div>
+            <div class="flex-fill min-w-0">
+                <a href="{{ url_for('profile', username=u.username) }}" class="fw-semibold small d-block text-truncate">{{ u.full_name }}</a>
+                <span class="text-muted" style="font-size:0.72rem;">@{{ u.username }}</span>
+            </div>
+            <div class="text-end">
+                <strong class="fw-bold" style="color: var(--gold); font-size: 0.95rem;">{{ u.xp }} XP</strong>
+            </div>
+        </div>
+        {% else %}
+        <div class="p-4 text-center text-muted small">Henüz puan kazanan öğrenci bulunmuyor.</div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Rozetler Bölümü -->
+<div class="section-title mb-3">
+    <span><i class="bi bi-award me-1" style="color: var(--gold);"></i> Kazanılabilir Rozetler</span>
+</div>
+
+<div class="row g-3">
+    {% for b in badges %}
+    <div class="col-6 col-md-4">
+        <div class="card card-pad text-center h-100">
+            <div class="mb-2" style="font-size: 2.2rem;">{{ b.icon }}</div>
+            <h6 class="fw-bold mb-1" style="font-size: 0.9rem;">{{ b.name }}</h6>
+            <p class="text-muted mb-0" style="font-size: 0.75rem; line-height: 1.4;">{{ b.description }}</p>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+{% endblock %}

@@ -1,0 +1,277 @@
+{% extends "base.html" %}
+{% block title %}Mesajlar — Yurt Sosyal{% endblock %}
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/messages.css') }}?v=2">
+{% endblock %}
+{% block content %}
+
+<div class="msg-card">
+    <div class="conv-list-header">
+        <div>
+            <span class="kicker">İletişim</span>
+            <h5>Mesajlar</h5>
+        </div>
+        <div style="position:relative;">
+            <button class="new-chat-btn" id="newChatBtn" type="button" title="Yeni sohbet">
+                <i class="bi bi-plus-lg"></i>
+            </button>
+            <div class="new-chat-menu" id="newChatMenu">
+                <button class="ctx-menu-item" type="button" id="newDmOpenBtn">
+                    <i class="bi bi-person"></i> Yeni Özel Sohbet
+                </button>
+                <a class="ctx-menu-item" href="{{ url_for('group_new') }}">
+                    <i class="bi bi-people"></i> Yeni Grup
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="conv-search">
+        <input type="text" id="convSearchInput" placeholder="Sohbetlerde ara...">
+    </div>
+
+    <div class="conv-tabs">
+        <button class="conv-tab active" data-tab="active" type="button">Tümü</button>
+        <button class="conv-tab" data-tab="archived" type="button">Arşivlenmiş {% if archived_conversations %}({{ archived_conversations|length }}){% endif %}</button>
+    </div>
+
+    <div class="conv-items" id="convItemsActive">
+        {% if conversations %}
+            {% for c in conversations %}
+            <div class="conv-item {{ 'unread' if c.unread > 0 }}" data-conv-id="{{ c.conversation_id }}"
+                 data-title="{{ c.title|lower }}"
+                 {% if c.type == 'group' or c.other_user_id %}onclick="window.location.href='{{ url_for('group_thread', conversation_id=c.conversation_id) if c.type == 'group' else url_for('messages_thread', other_id=c.other_user_id) }}'"{% endif %}>
+                {% if c.photo %}
+                    <img class="conv-avatar" src="{{ url_for('static', filename='uploads/' ~ ('groups/' if c.type == 'group' else 'profiles/') ~ c.photo) }}" alt="">
+                {% else %}
+                    <div class="conv-avatar">{% if c.type == 'group' %}<i class="bi bi-people-fill"></i>{% else %}{{ c.title[:1]|upper }}{% endif %}</div>
+                {% endif %}
+                <div class="conv-body">
+                    <div class="conv-row1">
+                        <span class="conv-title">{% if c.is_pinned %}<i class="bi bi-pin-angle-fill conv-pin-icon"></i>{% endif %}{{ c.title }}</span>
+                        <span class="conv-time">{{ c.last_time_display }}</span>
+                    </div>
+                    <div class="conv-row2">
+                        <span class="conv-preview">
+                            {% if c.is_muted %}<i class="bi bi-bell-slash"></i>{% endif %}
+                            {% if c.is_blocked %}Engellendi{% else %}{{ c.last_message or 'Henüz mesaj yok' }}{% endif %}
+                        </span>
+                        {% if c.unread > 0 %}<span class="conv-unread-badge">{{ c.unread if c.unread < 100 else '99+' }}</span>{% endif %}
+                    </div>
+                </div>
+                <button class="conv-item-menu-btn" type="button" onclick="event.stopPropagation(); openConvMenu(event, {{ c.conversation_id }}, {{ c.is_pinned|tojson }}, {{ c.is_muted|tojson }}, {{ c.is_archived|tojson }}, {{ (c.type=='dm')|tojson }})">
+                    <i class="bi bi-three-dots"></i>
+                </button>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="conv-empty">
+                <i class="bi bi-chat-heart"></i>
+                Henüz hiç sohbetin yok.<br>Yukarıdaki <strong>+</strong> ile yeni bir sohbet başlat.
+            </div>
+        {% endif %}
+    </div>
+
+    <div class="conv-items" id="convItemsArchived" style="display:none;">
+        {% if archived_conversations %}
+            {% for c in archived_conversations %}
+            <div class="conv-item {{ 'unread' if c.unread > 0 }}" data-conv-id="{{ c.conversation_id }}"
+                 data-title="{{ c.title|lower }}"
+                 {% if c.type == 'group' or c.other_user_id %}onclick="window.location.href='{{ url_for('group_thread', conversation_id=c.conversation_id) if c.type == 'group' else url_for('messages_thread', other_id=c.other_user_id) }}'"{% endif %}>
+                {% if c.photo %}
+                    <img class="conv-avatar" src="{{ url_for('static', filename='uploads/' ~ ('groups/' if c.type == 'group' else 'profiles/') ~ c.photo) }}" alt="">
+                {% else %}
+                    <div class="conv-avatar">{% if c.type == 'group' %}<i class="bi bi-people-fill"></i>{% else %}{{ c.title[:1]|upper }}{% endif %}</div>
+                {% endif %}
+                <div class="conv-body">
+                    <div class="conv-row1">
+                        <span class="conv-title">{{ c.title }}</span>
+                        <span class="conv-time">{{ c.last_time_display }}</span>
+                    </div>
+                    <div class="conv-row2">
+                        <span class="conv-preview">{{ c.last_message or 'Henüz mesaj yok' }}</span>
+                        {% if c.unread > 0 %}<span class="conv-unread-badge">{{ c.unread }}</span>{% endif %}
+                    </div>
+                </div>
+                <button class="conv-item-menu-btn" type="button" onclick="event.stopPropagation(); openConvMenu(event, {{ c.conversation_id }}, {{ c.is_pinned|tojson }}, {{ c.is_muted|tojson }}, {{ c.is_archived|tojson }}, {{ (c.type=='dm')|tojson }})">
+                    <i class="bi bi-three-dots"></i>
+                </button>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="conv-empty"><i class="bi bi-archive"></i>Arşivlenmiş sohbet yok.</div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Yeni özel sohbet: kullanıcı seçim modalı -->
+<div class="ctx-menu-backdrop" id="newDmBackdrop" onclick="closeNewDm()"></div>
+<div class="action-sheet-backdrop" id="newDmSheetBackdrop" style="z-index:2200;">
+    <div class="action-sheet" style="max-height:80vh;">
+        <div class="d-flex align-items-center justify-content-between mb-2 px-2">
+            <strong>Yeni Özel Sohbet</strong>
+            <button class="btn-close" onclick="closeNewDm()"></button>
+        </div>
+        <div class="px-2 mb-2">
+            <input type="text" class="form-control" id="newDmSearch" placeholder="İsim veya kullanıcı adı ara...">
+        </div>
+        <div id="newDmUserList" style="max-height:50vh; overflow-y:auto;">
+            {% for u in all_users %}
+            <div class="member-pick-row new-dm-user-row" data-name="{{ (u.full_name ~ ' ' ~ u.username)|lower }}"
+                 onclick="window.location.href='{{ url_for('messages_thread', other_id=u.id) }}'">
+                {% if u.profile_photo %}
+                    <img class="avatar" src="{{ url_for('static', filename='uploads/profiles/' ~ u.profile_photo) }}" alt="">
+                {% else %}
+                    <div class="avatar">{{ u.full_name[:1]|upper }}</div>
+                {% endif %}
+                <div>
+                    <div style="font-weight:600; font-size:.88rem;">{{ u.full_name }}</div>
+                    <div style="font-size:.76rem; color:var(--text-muted);">@{{ u.username }}</div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<!-- Sohbet ⋯ menüsü -->
+<div class="ctx-menu-backdrop" id="convMenuBackdrop" onclick="closeConvMenu()"></div>
+<div class="ctx-menu" id="convMenu">
+    <button class="ctx-menu-item" type="button" data-act="read"><i class="bi bi-check2-all"></i> Okundu olarak işaretle</button>
+    <button class="ctx-menu-item" type="button" data-act="pin"><i class="bi bi-pin-angle"></i> <span id="convMenuPinLabel">Sabitle</span></button>
+    <button class="ctx-menu-item" type="button" data-act="mute"><i class="bi bi-bell-slash"></i> <span id="convMenuMuteLabel">Bildirimleri sessize al</span></button>
+    <button class="ctx-menu-item" type="button" data-act="archive"><i class="bi bi-archive"></i> <span id="convMenuArchiveLabel">Sohbeti arşivle</span></button>
+    <button class="ctx-menu-item danger" type="button" data-act="delete"><i class="bi bi-trash3"></i> Sohbeti sil</button>
+    <button class="ctx-menu-item danger" type="button" data-act="block" id="convMenuBlockBtn"><i class="bi bi-slash-circle"></i> Engelle</button>
+</div>
+
+<!-- Onay modalı -->
+<div class="modal fade" id="confirmModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-body p-4 text-center">
+                <p class="mb-4" id="confirmModalText">Emin misiniz?</p>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-soft flex-fill" data-bs-dismiss="modal">Vazgeç</button>
+                    <button class="btn btn-danger flex-fill" id="confirmModalOkBtn">Onayla</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+    const newChatBtn = document.getElementById('newChatBtn');
+    const newChatMenu = document.getElementById('newChatMenu');
+    newChatBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        newChatMenu.classList.toggle('open');
+    });
+    document.addEventListener('click', () => newChatMenu.classList.remove('open'));
+
+    document.getElementById('newDmOpenBtn').addEventListener('click', () => {
+        newChatMenu.classList.remove('open');
+        document.getElementById('newDmBackdrop').classList.add('open');
+        document.getElementById('newDmSheetBackdrop').classList.add('open');
+        document.getElementById('newDmSearch').value = '';
+        document.querySelectorAll('.new-dm-user-row').forEach(r => r.style.display = 'flex');
+    });
+    window.closeNewDm = function() {
+        document.getElementById('newDmBackdrop').classList.remove('open');
+        document.getElementById('newDmSheetBackdrop').classList.remove('open');
+    };
+    document.getElementById('newDmSearch').addEventListener('input', function() {
+        const q = this.value.trim().toLowerCase();
+        document.querySelectorAll('.new-dm-user-row').forEach(r => {
+            r.style.display = r.dataset.name.includes(q) ? 'flex' : 'none';
+        });
+    });
+
+    // Sekmeler (Tümü / Arşivlenmiş)
+    document.querySelectorAll('.conv-tab').forEach(tab => {
+        tab.addEventListener('click', function() {
+            document.querySelectorAll('.conv-tab').forEach(t => t.classList.remove('active'));
+            this.classList.add('active');
+            const isArchived = this.dataset.tab === 'archived';
+            document.getElementById('convItemsActive').style.display = isArchived ? 'none' : '';
+            document.getElementById('convItemsArchived').style.display = isArchived ? '' : 'none';
+        });
+    });
+
+    // Sohbet içi arama
+    document.getElementById('convSearchInput').addEventListener('input', function() {
+        const q = this.value.trim().toLowerCase();
+        document.querySelectorAll('.conv-item').forEach(item => {
+            item.style.display = item.dataset.title.includes(q) ? 'flex' : 'none';
+        });
+    });
+
+    // Sohbet ⋯ menüsü
+    let activeConvId = null, activeConvIsDm = false;
+    window.openConvMenu = function(evt, convId, isPinned, isMuted, isArchived, isDm) {
+        activeConvId = convId;
+        activeConvIsDm = isDm;
+        document.getElementById('convMenuPinLabel').textContent = isPinned ? 'Sabitlemeyi kaldır' : 'Sabitle';
+        document.getElementById('convMenuMuteLabel').textContent = isMuted ? 'Bildirimleri aç' : 'Bildirimleri sessize al';
+        document.getElementById('convMenuArchiveLabel').textContent = isArchived ? 'Arşivden çıkar' : 'Sohbeti arşivle';
+        document.getElementById('convMenuBlockBtn').style.display = isDm ? 'flex' : 'none';
+        const menu = document.getElementById('convMenu');
+        const rect = evt.target.closest('button').getBoundingClientRect();
+        menu.style.top = Math.min(rect.bottom + 4, window.innerHeight - 260) + 'px';
+        menu.style.left = Math.min(rect.left - 150, window.innerWidth - 210) + 'px';
+        menu.classList.add('open');
+        document.getElementById('convMenuBackdrop').classList.add('open');
+    };
+    window.closeConvMenu = function() {
+        document.getElementById('convMenu').classList.remove('open');
+        document.getElementById('convMenuBackdrop').classList.remove('open');
+    };
+
+    document.querySelectorAll('#convMenu .ctx-menu-item').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const act = this.dataset.act;
+            closeConvMenu();
+            if (!activeConvId) return;
+            if (act === 'delete') {
+                showConfirm('Bu sohbeti silmek istediğinize emin misiniz? Bu işlem yalnızca sizin görünümünüzü etkiler.', () => runConvAction('delete'));
+            } else if (act === 'block') {
+                showConfirm('Bu kullanıcıyı engellemek istediğinize emin misiniz?', () => runConvAction('block'));
+            } else {
+                runConvAction(act);
+            }
+        });
+    });
+
+    function runConvAction(act) {
+        const url = act === 'block' ? `/messages/conversation/${activeConvId}/block` : `/messages/conversation/${activeConvId}/${act}`;
+        fetch(url, { method: 'POST' })
+            .then(r => r.json())
+            .then(() => window.location.reload())
+            .catch(() => showToast('İşlem başarısız oldu.'));
+    }
+
+    let confirmCallback = null;
+    window.showConfirm = function(text, cb) {
+        document.getElementById('confirmModalText').textContent = text;
+        confirmCallback = cb;
+        new bootstrap.Modal(document.getElementById('confirmModal')).show();
+    };
+    document.getElementById('confirmModalOkBtn').addEventListener('click', function() {
+        bootstrap.Modal.getInstance(document.getElementById('confirmModal')).hide();
+        if (confirmCallback) confirmCallback();
+    });
+
+    window.showToast = function(msg) {
+        const t = document.createElement('div');
+        t.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:90px;z-index:9999;padding:10px 18px;border-radius:14px;background:var(--surface);color:var(--text);border:1px solid var(--border);box-shadow:0 12px 30px rgba(0,0,0,.15);font-size:.84rem;';
+        t.textContent = msg;
+        document.body.appendChild(t);
+        setTimeout(() => t.remove(), 2500);
+    };
+})();
+</script>
+{% endblock %}

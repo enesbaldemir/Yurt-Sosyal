@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Yarışmaya Katıl — Yurt Sosyal{% endblock %}
+{% block content %}
+
+<div class="d-flex align-items-center justify-content-between mb-4">
+    <div class="d-flex align-items-center gap-2">
+        <a href="{{ url_for('quiz_list') }}" class="icon-btn" title="Yarışmalara Dön">
+            <i class="bi bi-arrow-left"></i>
+        </a>
+        <div>
+            <span class="kicker">Canlı Katılım</span>
+            <h4 class="fw-bold mb-0">Yarışmaya Katıl</h4>
+        </div>
+    </div>
+</div>
+
+<div class="card card-pad text-center mx-auto" style="max-width: 440px;">
+    <form method="POST">
+        <div class="mb-4">
+            <label class="form-label text-uppercase text-muted" style="font-size:0.75rem; letter-spacing:0.08em;">6 Haneli PIN / Kod</label>
+            <input type="text" name="code" class="form-control text-center py-2" style="font-size:2rem; letter-spacing:8px; font-weight:800; font-family: var(--font-display);"
+                   maxlength="6" pattern="[0-9]{6}" placeholder="000000" required autofocus>
+        </div>
+
+        <div class="mb-4 text-start">
+            <label class="form-label">Yarışmadaki Adın / Takma Ad</label>
+            <input type="text" name="nickname" class="form-control" placeholder="{{ session.username }}" value="{{ session.username }}">
+        </div>
+
+        <button type="submit" class="btn btn-primary w-100 py-2">
+            <i class="bi bi-play-circle me-1"></i> Odaya Katıl
+        </button>
+    </form>
+</div>
+
+{% endblock %}

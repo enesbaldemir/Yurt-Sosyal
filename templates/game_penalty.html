@@ -1,0 +1,77 @@
+{% extends 'base.html' %}
+{% block title %}Penaltı Atışları — Oyunlar{% endblock %}
+{% block content %}
+
+<div class="d-flex align-items-center justify-content-between mb-4">
+    <div class="d-flex align-items-center gap-2">
+        <a href="{{ url_for('games_hub') }}" class="icon-btn" title="Oyunlara Dön">
+            <i class="bi bi-arrow-left"></i>
+        </a>
+        <div>
+            <span class="kicker">Spor Arcade</span>
+            <h4 class="fw-bold mb-0">Penaltı Atışları</h4>
+        </div>
+    </div>
+    <span class="badge-tag badge-gold fs-6" id="score">0 / 10 Gol</span>
+</div>
+
+<div class="card card-pad text-center">
+    <p class="text-muted small mb-4">10 atış hakkınız var. Kalecinin uzanamayacağı köşeyi seçin!</p>
+    
+    <div class="p-4 rounded mx-auto mb-4" style="max-width: 480px; background-color: var(--surface-2); border: 2px solid var(--border);">
+        <div id="keeper" class="mb-4" style="font-size: 3.5rem; transition: transform 0.2s ease;">
+            🧤
+        </div>
+        
+        <div class="d-grid" style="grid-template-columns: repeat(3, 1fr); gap: 10px; max-width: 280px; margin: 0 auto;">
+            {% for d in ['↖','↑','↗','←','•','→','↙','↓','↘'] %}
+            <button type="button" class="btn btn-secondary py-3 fs-5" onclick="shoot('{{d}}')">{{d}}</button>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div id="msg" class="fw-bold fs-5 mb-3" style="min-height: 32px; color: var(--gold);"></div>
+    <div>
+        <button class="btn btn-secondary btn-sm" onclick="location.reload()">
+            <i class="bi bi-arrow-clockwise me-1"></i> Baştan Başla
+        </button>
+    </div>
+</div>
+
+{% include 'partials/_game_leaderboard.html' %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let n = 0, g = 0;
+function shoot(d) {
+    if (n >= 10) return;
+    n++;
+    const keeperEl = document.getElementById('keeper');
+    const msgEl = document.getElementById('msg');
+    let k = ['↖','↑','↗','←','•','→','↙','↓','↘'][Math.floor(Math.random() * 9)];
+    
+    if (d !== k) {
+        g++;
+        msgEl.textContent = 'GOOOL!';
+        msgEl.style.color = 'var(--success)';
+    } else {
+        msgEl.textContent = 'KURTARDI!';
+        msgEl.style.color = 'var(--danger)';
+    }
+    
+    document.getElementById('score').textContent = g + ' / ' + n + ' Gol';
+    
+    if (n === 10) {
+        fetch('{{ url_for("submit_game_score", game_key="penalty") }}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ score: g })
+        });
+        msgEl.textContent = 'Oyun Bitti! Toplam Başarı: ' + g + ' / 10';
+        msgEl.style.color = 'var(--text)';
+    }
+}
+</script>
+{% endblock %}

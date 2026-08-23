@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% block title %}Refleks Testi — Oyunlar{% endblock %}
+{% block content %}
+
+<div class="d-flex align-items-center justify-content-between mb-4">
+    <div class="d-flex align-items-center gap-2">
+        <a href="{{ url_for('games_hub') }}" class="icon-btn" title="Oyunlara Dön">
+            <i class="bi bi-arrow-left"></i>
+        </a>
+        <div>
+            <span class="kicker">Hız & Tepki</span>
+            <h4 class="fw-bold mb-0">Refleks Testi</h4>
+        </div>
+    </div>
+</div>
+
+<div class="card card-pad text-center">
+    <div id="reflex-box" class="p-5 rounded d-flex flex-column align-items-center justify-content-center" style="min-height: 260px; background-color: var(--surface-2); border: 1px solid var(--border); cursor: pointer; user-select: none; transition: background-color 0.15s ease;">
+        <i class="bi bi-hand-index-thumb mb-2" style="font-size: 2.2rem; color: var(--text-muted);"></i>
+        <h5 class="fw-bold mb-1" id="reflex-msg">Başlamak için dokunun</h5>
+        <p class="small text-muted mb-0" id="reflex-result">Kutu yeşile döndüğünde en hızlı şekilde tıklayın.</p>
+    </div>
+</div>
+
+{% include 'partials/_game_leaderboard.html' %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const CURRENT_USER_ID = {{ session.user_id }};
+const box = document.getElementById('reflex-box');
+const msg = document.getElementById('reflex-msg');
+const resultEl = document.getElementById('reflex-result');
+
+let state = 'idle'; // idle -> waiting -> ready -> done
+let waitTimeout = null;
+let startTime = null;
+
+if (box) {
+    box.addEventListener('click', () => {
+        if (state === 'idle' || state === 'done') {
+            startRound();
+        } else if (state === 'waiting') {
+            clearTimeout(waitTimeout);
+            state = 'done';
+            box.style.backgroundColor = 'var(--danger-bg)';
+            box.style.borderColor = 'var(--danger)';
+            msg.textContent = 'Çok Erken!';
+            resultEl.textContent = 'Yeşil rengi beklemeniz gerekiyordu. Tekrar denemek için dokunun.';
+        } else if (state === 'ready') {
+            const reactionMs = Date.now() - startTime;
+            state = 'done';
+            box.style.backgroundColor = 'var(--surface-2)';
+            box.style.borderColor = 'var(--border)';
+            msg.textContent = reactionMs + ' ms';
+            resultEl.textContent = 'Harika! Tekrar denemek için dokunun.';
+            submitScore(reactionMs);
+        }
+    });
+}
+
+function startRound() {
+    state = 'waiting';
+    box.style.backgroundColor = 'var(--warning-bg)';
+    box.style.borderColor = 'var(--warning)';
+    msg.textContent = 'Bekleyin...';
+    resultEl.textContent = 'Yeşil olunca hemen dokunun!';
+    const delay = 1000 + Math.random() * 3000;
+    waitTimeout = setTimeout(() => {
+        state = 'ready';
+        box.style.backgroundColor = 'var(--success-bg)';
+        box.style.borderColor = 'var(--success)';
+        msg.textContent = 'ŞİMDİ DOKUNUN!';
+        startTime = Date.now();
+    }, delay);
+}
+
+async function submitScore(score) {
+    try {
+        const res = await fetch('{{ url_for("submit_game_score", game_key="reflex") }}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ score })
+        });
+        const data = await res.json();
+        if (data.ok) renderLeaderboard(data.leaderboard);
+    } catch (e) {}
+}
+
+function renderLeaderboard(list) {
+    const box2 = document.getElementById('game-leaderboard-list');
+    if (!box2) return;
+    if (!list.length) {
+        box2.innerHTML = '<p class="small text-muted mb-0">Henüz skor yapılmadı.</p>';
+        return;
+    }
+    box2.innerHTML = list.map((p, i) => `
+        <div class="leaderboard-row ${p.user_id === CURRENT_USER_ID ? 'me' : ''}">
+            <div class="d-flex align-items-center gap-2">
+                <span class="leaderboard-rank">#${i + 1}</span>
+                ${p.profile_photo
+                    ? `<img src="/static/uploads/profiles/${p.profile_photo}" class="leaderboard-avatar">`
+                    : `<span class="leaderboard-avatar leaderboard-avatar-fallback">${p.full_name[0].toUpperCase()}</span>`}
+                <span>${p.full_name}</span>
+            </div>
+            <strong>${p.best_score} ms</strong>
+        </div>
+    `).join('');
+}
+</script>
+{% endblock %}

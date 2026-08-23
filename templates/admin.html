@@ -1,0 +1,686 @@
+{% import '_icons.html' as icons %}
+{% extends "base.html" %}
+{% block title %}Yönetim Paneli — Yurt Sosyal{% endblock %}
+{% block shell_class %}full-width{% endblock %}
+{% block context_panel %}{% endblock %}
+{% block content %}
+
+<div class="d-flex align-items-center justify-content-between mb-4">
+    <div>
+        <span class="kicker">Yönetim & Moderasyon</span>
+        <h3 class="serif-heading mb-0" style="font-size: 2rem;">Yönetim Paneli</h3>
+    </div>
+    <span class="badge-tag badge-gold"><i class="bi bi-shield-check me-1"></i> Admin Yetkisi</span>
+</div>
+
+<!-- ===================== NOTION/LINEAR STİLİ METRİK KARTLARI ===================== -->
+<div class="admin-metric-grid">
+    <div class="admin-metric-card">
+        <div class="lbl">Kayıtlı Öğrenci</div>
+        <div class="num">{{ stats.total_users }}</div>
+    </div>
+    <div class="admin-metric-card">
+        <div class="lbl">Etkinlikler</div>
+        <div class="num">{{ stats.total_events }}</div>
+    </div>
+    <div class="admin-metric-card">
+        <div class="lbl">Yoklamalar</div>
+        <div class="num">{{ stats.total_attendances }}</div>
+    </div>
+    <div class="admin-metric-card">
+        <div class="lbl">Sohbet Mesajları</div>
+        <div class="num">{{ stats.total_messages }}</div>
+    </div>
+    <div class="admin-metric-card">
+        <div class="lbl">Menü Günleri</div>
+        <div class="num">{{ stats.total_menu }}</div>
+    </div>
+    <div class="admin-metric-card">
+        <div class="lbl">Paylaşılan Gönderi</div>
+        <div class="num">{{ stats.total_posts }}</div>
+    </div>
+</div>
+
+<!-- ===================== SEKMELER ===================== -->
+<ul class="nav nav-tabs mb-4" id="adminTabs" role="tablist">
+    <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-attendance" type="button"><i class="bi bi-clipboard-check me-1"></i> Yoklamalar</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-users" type="button"><i class="bi bi-people me-1"></i> Öğrenciler</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-events" type="button"><i class="bi bi-calendar3 me-1"></i> Etkinlikler</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-menu" type="button"><i class="bi bi-cup-hot me-1"></i> Menü & Excel</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-announce" type="button"><i class="bi bi-megaphone me-1"></i> Duyurular</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-maint" type="button"><i class="bi bi-tools me-1"></i> Talepler</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-laundry" type="button">{{ icons.washing_machine_icon(16, 'me-1') }} Çamaşırhane</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-messages" type="button"><i class="bi bi-chat-dots me-1"></i> Mesajlar</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-analytics" type="button"><i class="bi bi-bar-chart me-1"></i> Analitik & Rapor</button></li>
+</ul>
+
+<div class="tab-content">
+    <!-- 1. YOKLAMALAR -->
+    <div class="tab-pane fade show active" id="tab-attendance">
+        <div class="card card-pad mb-3">
+            <div class="d-flex align-items-center justify-content-between gap-3 flex-wrap">
+                <div>
+                    <span class="kicker">Otomasyon</span>
+                    <h5 class="fw-bold mb-1">Otomatik Yoklama</h5>
+                    <p class="small text-muted mb-0">Her gün Türkiye saatine göre seçtiğin saatte otomatik zorunlu yoklama açılır ve tüm kullanıcılara bildirim gönderilir.</p>
+                </div>
+                <form method="POST" action="{{ url_for('update_attendance_schedule') }}" class="d-flex align-items-end gap-2 flex-wrap">
+                    <div>
+                        <label class="form-label small mb-1">Saat</label>
+                        <input type="time" name="auto_attendance_time" value="{{ attendance_auto_time }}" class="form-control form-control-sm" required>
+                    </div>
+                    <div class="form-check mb-1">
+                        <input class="form-check-input" type="checkbox" name="auto_attendance_enabled" value="1" id="autoAttendanceEnabled" {{ 'checked' if attendance_auto_enabled else '' }}>
+                        <label class="form-check-label small" for="autoAttendanceEnabled">Her gün otomatik aç</label>
+                    </div>
+                    <button class="btn btn-primary btn-sm" type="submit"><i class="bi bi-clock me-1"></i> Kaydet</button>
+                </form>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Yoklama Başlığı</th>
+                            <th>Tarih</th>
+                            <th>Durum</th>
+                            <th>Yurtta (Var)</th>
+                            <th>Yurtta değil (Yok)</th>
+                            <th class="text-end">İşlemler</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for att in attendances %}
+                        <tr>
+                            <td class="text-muted small">#{{ att.id }}</td>
+                            <td>
+                                <strong>{{ att.title }}</strong>
+                                {% if att.is_mandatory %}<span class="mandatory-badge ms-1">Zorunlu</span>{% endif %}
+                            </td>
+                            <td class="text-muted small">{{ att.attendance_date }}</td>
+                            <td>
+                                {% if att.is_active %}
+                                <span class="badge-tag badge-gold">Aktif</span>
+                                {% else %}
+                                <span class="badge-tag">Kapalı</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-success fw-bold">{{ att.present_count }}</td>
+                            <td class="text-danger fw-bold">{{ att.absent_count }}</td>
+                            <td class="text-end">
+                                <a href="{{ url_for('attendance_detail', attendance_id=att.id) }}" class="btn btn-secondary btn-sm"><i class="bi bi-eye"></i> İncele</a>
+                                <a href="{{ url_for('delete_attendance', attendance_id=att.id) }}" class="btn btn-soft-danger btn-sm" onclick="return confirm('Bu yoklamayı silmek istediğinize emin misiniz?')"><i class="bi bi-trash3"></i></a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. KULLANICILAR / ÖĞRENCİLER -->
+    <div class="tab-pane fade" id="tab-users">
+        <div class="card">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0 align-middle">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Kullanıcı</th>
+                            <th>Kullanıcı Adı</th>
+                            <th>Oda</th>
+                            <th>Yurt Durumu</th>
+                            <th>Atanmış Rol & Yetki</th>
+                            <th class="text-end">İşlemler</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for user in users %}
+                        {% set u_role_key = user.role or ('yurt_muduru' if user.is_admin else 'ogrenci') %}
+                        {% set u_role = user_roles.get(u_role_key, user_roles['ogrenci']) %}
+                        <tr>
+                            <td class="text-muted small">#{{ user.id }}</td>
+                            <td>
+                                <div>
+                                    <a href="{{ url_for('profile', username=user.username) }}" class="fw-bold text-decoration-none d-block">{{ user.full_name }}</a>
+                                    <span class="role-badge {{ u_role.class }}" style="font-size:0.68rem; padding:1px 6px;">
+                                        <i class="bi {{ u_role.icon }} me-1"></i>{{ u_role.badge }}
+                                    </span>
+                                </div>
+                            </td>
+                            <td class="text-muted small">@{{ user.username }}</td>
+                            <td>{{ user.room_number or '-' }}</td>
+                            <td>
+                                <a href="{{ url_for('toggle_in_dorm', user_id=user.id) }}" class="text-decoration-none">
+                                    {% if user.in_dorm %}
+                                    <span class="badge-dorm"><i class="bi bi-check2"></i> Yurtta</span>
+                                    {% else %}
+                                    <span class="badge-tag">Yurtta değil</span>
+                                    {% endif %}
+                                </a>
+                            </td>
+                            <td>
+                                <form method="POST" action="{{ url_for('set_user_role', user_id=user.id) }}" class="d-flex align-items-center gap-2">
+                                    <select name="role" class="form-select form-select-sm" onchange="this.form.submit()" style="min-width:180px; font-size:0.78rem; font-weight:600;">
+                                        {% for key, r_info in user_roles.items() %}
+                                        <option value="{{ key }}" {{ 'selected' if u_role_key == key }}>{{ r_info.title }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </form>
+                            </td>
+                            <td class="text-end">
+                                <a href="{{ url_for('profile', username=user.username) }}" class="btn btn-secondary btn-sm me-1" title="Profili Gör"><i class="bi bi-person"></i></a>
+                                {% if user.id != session.user_id %}
+                                <a href="{{ url_for('delete_user', user_id=user.id) }}" class="btn btn-soft-danger btn-sm" onclick="return confirm('Bu kullanıcı hesabını kalıcı olarak silmek istediğinizden emin misiniz?')" title="Kullanıcıyı Sil">
+                                    <i class="bi bi-trash3"></i>
+                                </a>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3. ETKİNLİKLER -->
+    <div class="tab-pane fade" id="tab-events">
+        <div class="card">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Etkinlik Başlığı</th>
+                            <th>Tür</th>
+                            <th>Konum</th>
+                            <th>Tarih</th>
+                            <th>Katılımcı</th>
+                            <th class="text-end">İşlem</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for event in events %}
+                        <tr>
+                            <td class="text-muted small">#{{ event.id }}</td>
+                            <td><strong>{{ event.title }}</strong></td>
+                            <td><span class="badge-tag">{{ event.event_type }}</span></td>
+                            <td class="text-muted small">{{ event.location }}</td>
+                            <td class="text-muted small">{{ event.event_date }}</td>
+                            <td><strong>{{ event.participant_count }}</strong></td>
+                            <td class="text-end">
+                                <a href="{{ url_for('event_detail', event_id=event.id) }}" class="btn btn-secondary btn-sm me-1"><i class="bi bi-eye"></i></a>
+                                <a href="{{ url_for('delete_event', event_id=event.id) }}" class="btn btn-soft-danger btn-sm" onclick="return confirm('Etkinliği silmek istediğinizden emin misiniz?')"><i class="bi bi-trash3"></i></a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- 4. MENÜ & EXCEL AKTARIMI -->
+    <div class="tab-pane fade" id="tab-menu">
+        <div class="row g-4 mb-4">
+            <!-- EXCEL YÜKLEME -->
+            <div class="col-lg-6">
+                <div class="card card-pad h-100">
+                    <div class="section-title mb-3">
+                        <span><i class="bi bi-file-earmark-excel me-1" style="color: var(--success);"></i> Aylık Excel Menü Yükle</span>
+                    </div>
+                    <p class="small text-muted mb-3">
+                        Gelen <strong>.xls / .xlsx / .xlsm</strong> menü dosyalarını sisteme aktarın. Kahvaltı ve akşam menüleri ayrı yüklendiğinde birbirini ezmez, aynı tarihler akıllıca birleştirilir.
+                    </p>
+
+                    <form method="post" action="{{ url_for('upload_menu') }}" enctype="multipart/form-data">
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold">Menü Öğünü</label>
+                            <select name="meal_type" class="form-select form-select-sm">
+                                <option value="dinner">🌙 Akşam Yemeği Menüsü</option>
+                                <option value="breakfast">☀️ Kahvaltı Menüsü</option>
+                                <option value="auto">🔄 Otomatik Tespit</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold">Excel Dosyası Seçin</label>
+                            <input type="file" name="menu_file" class="form-control form-control-sm" accept=".xls,.xlsx,.xlsm" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-sm w-100 py-2">
+                            <i class="bi bi-upload me-1"></i> Excel Menüsünü İçe Aktar
+                        </button>
+                    </form>
+
+                    <hr class="my-4" style="border-color: var(--border);">
+
+                    <form method="post" action="{{ url_for('delete_menu') }}" onsubmit="return confirm('Yayınlanan TÜM menü kayıtları ve puanlamalar silinsin mi?')">
+                        <button type="submit" class="btn btn-soft-danger btn-sm w-100">
+                            <i class="bi bi-trash3 me-1"></i> Tüm Menü Kayıtlarını Sıfırla
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- MANUEL GÜNLÜK MENÜ DÜZENLE / EKLE -->
+            <div class="col-lg-6">
+                <div class="card card-pad h-100">
+                    <div class="section-title mb-3">
+                        <span><i class="bi bi-pencil-square me-1 text-gold"></i> Manuel Menü Düzenle / Ekle</span>
+                    </div>
+                    <p class="small text-muted mb-3">
+                        Günübirlik değişen yemekleri veya özel menüleri el ile kolayca güncelleyebilirsiniz.
+                    </p>
+
+                    <form method="post" action="{{ url_for('save_menu_manual') }}">
+                        <div class="mb-2">
+                            <label class="form-label small fw-semibold">Tarih</label>
+                            <input type="date" name="menu_date" id="admin-manual-date" class="form-control form-control-sm" required value="{{ today }}">
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label small fw-semibold text-gold"><i class="bi bi-sun me-1"></i> Kahvaltı</label>
+                            <textarea name="breakfast" id="admin-manual-breakfast" class="form-control form-control-sm" rows="2" placeholder="Örn: Haşlanmış Yumurta • Beyaz Peynir • Siyah Zeytin • Çay"></textarea>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label small fw-semibold text-indigo"><i class="bi bi-moon-stars me-1"></i> Akşam Yemeği</label>
+                            <textarea name="dinner" id="admin-manual-dinner" class="form-control form-control-sm" rows="2" placeholder="Örn: Mercimek Çorba • İzmir Köfte • Pirinç Pilavı • Mevsim Salata"></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold"><i class="bi bi-cup-hot me-1 text-gold"></i> İkram (Opsiyonel)</label>
+                            <input type="text" name="snack" id="admin-manual-snack" class="form-control form-control-sm" placeholder="Örn: Çay & Kek">
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-sm w-100">
+                            <i class="bi bi-check2 me-1"></i> Günlük Menüyü Kaydet / Güncelle
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- YEMEKHANE SAATLERİ -->
+        <div class="card card-pad mb-4">
+            <div class="d-flex align-items-center justify-content-between gap-3 flex-wrap mb-3">
+                <div>
+                    <span class="kicker">Servis Planı</span>
+                    <h6 class="fw-bold mb-1">Yemekhane Saatleri</h6>
+                    <p class="small text-muted mb-0">Hafta içi ve hafta sonu kahvaltısını ayrı, akşam yemeğini tek ayardan belirleyin.</p>
+                </div>
+                <i class="bi bi-clock-history fs-4 text-muted"></i>
+            </div>
+            <form method="post" action="{{ url_for('update_meal_schedule') }}">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <div class="border rounded-3 p-3 h-100">
+                            <div class="fw-semibold mb-2"><i class="bi bi-briefcase me-1"></i>Hafta İçi Kahvaltı</div>
+                            <div class="row g-2">
+                                <div class="col-6"><label class="form-label small">Başlangıç</label><input type="time" name="meal_breakfast_weekday_start" value="{{ meal_schedule_admin.weekday_breakfast_start }}" class="form-control form-control-sm" required></div>
+                                <div class="col-6"><label class="form-label small">Bitiş</label><input type="time" name="meal_breakfast_weekday_end" value="{{ meal_schedule_admin.weekday_breakfast_end }}" class="form-control form-control-sm" required></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="border rounded-3 p-3 h-100">
+                            <div class="fw-semibold mb-2"><i class="bi bi-calendar-heart me-1"></i>Hafta Sonu Kahvaltı</div>
+                            <div class="row g-2">
+                                <div class="col-6"><label class="form-label small">Başlangıç</label><input type="time" name="meal_breakfast_weekend_start" value="{{ meal_schedule_admin.weekend_breakfast_start }}" class="form-control form-control-sm" required></div>
+                                <div class="col-6"><label class="form-label small">Bitiş</label><input type="time" name="meal_breakfast_weekend_end" value="{{ meal_schedule_admin.weekend_breakfast_end }}" class="form-control form-control-sm" required></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="border rounded-3 p-3 h-100">
+                            <div class="fw-semibold mb-2"><i class="bi bi-moon-stars me-1"></i>Akşam Yemeği</div>
+                            <div class="row g-2">
+                                <div class="col-6"><label class="form-label small">Başlangıç</label><input type="time" name="meal_dinner_start" value="{{ meal_schedule_admin.dinner_start }}" class="form-control form-control-sm" required></div>
+                                <div class="col-6"><label class="form-label small">Bitiş</label><input type="time" name="meal_dinner_end" value="{{ meal_schedule_admin.dinner_end }}" class="form-control form-control-sm" required></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="d-flex align-items-center justify-content-between gap-2 flex-wrap mt-3">
+                    <span class="small text-muted"><i class="bi bi-info-circle me-1"></i>Varsayılan: hafta içi 07:00–09:00, hafta sonu 09:00–11:00, akşam 18:00–20:00.</span>
+                    <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-check2 me-1"></i>Saatleri Kaydet</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- MEVCUT GÜNLÜK MENÜLER LİSTESİ -->
+        <div class="card card-pad">
+            <div class="section-title mb-3">
+                <span class="fw-bold"><i class="bi bi-list-check me-1"></i> Yayındaki Menü Kayıtları</span>
+                <span class="text-muted small">Son 60 Gün</span>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0" style="font-size: 0.82rem;">
+                    <thead>
+                        <tr class="text-muted" style="border-bottom: 2px solid var(--border);">
+                            <th>Tarih</th>
+                            <th>Kahvaltı</th>
+                            <th>Akşam Yemeği</th>
+                            <th>İkram</th>
+                            <th class="text-end">İşlem</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for m in all_menus %}
+                        <tr>
+                            <td>
+                                <strong>{{ m.menu_date|format_date_tr }}</strong>
+                                <div class="text-muted" style="font-size: 0.7rem;">{{ m.menu_date|day_name_tr }}</div>
+                            </td>
+                            <td><div class="text-truncate" style="max-width: 200px;">{{ m.breakfast or '—' }}</div></td>
+                            <td><div class="text-truncate fw-medium" style="max-width: 250px;">{{ m.dinner or '—' }}</div></td>
+                            <td><div class="text-muted">{{ m.snack or '—' }}</div></td>
+                            <td class="text-end">
+                                <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2 me-1" onclick="loadMenuToAdminForm('{{ m.menu_date }}', '{{ m.breakfast|replace('\'', '\\\'')|replace('\n', ' ') }}', '{{ m.dinner|replace('\'', '\\\'')|replace('\n', ' ') }}', '{{ m.snack|replace('\'', '\\\'') if m.snack else '' }}')">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                                <form method="post" action="{{ url_for('delete_single_day_menu', menu_id=m.id) }}" class="d-inline" onsubmit="return confirm('Bu günün menüsü silinsin mi?')">
+                                    <button type="submit" class="btn btn-outline-danger btn-sm py-0 px-2"><i class="bi bi-trash"></i></button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="5" class="text-center text-muted py-4">Kayıtlı menü bulunmuyor.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- 5. DUYURULAR -->
+    <div class="tab-pane fade" id="tab-announce">
+        <div class="card card-pad mb-4">
+            <div class="section-title mb-3">
+                <span><i class="bi bi-plus-circle me-1"></i> Yeni Duyuru Yayınla</span>
+            </div>
+            <form method="post" action="{{ url_for('create_announcement') }}">
+                <div class="row g-3 mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label small">Başlık</label>
+                        <input name="title" class="form-control form-control-sm" placeholder="Örn: Yurt Genel Toplantısı" required>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label small">Öncelik</label>
+                        <select name="priority" class="form-select form-select-sm">
+                            <option value="normal">Normal Bilgi</option>
+                            <option value="high">Önemli Duyuru</option>
+                            <option value="urgent">Acil / Kritik</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label small">Son Geçerlilik Tarihi</label>
+                        <input type="date" name="expires_at" class="form-control form-control-sm">
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small">Duyuru Metni</label>
+                    <textarea name="content" class="form-control form-control-sm" rows="3" placeholder="Duyurunun detaylarını yazın..." required></textarea>
+                </div>
+                <button type="submit" class="btn btn-primary btn-sm">
+                    <i class="bi bi-send me-1"></i> Duyuruyu Yayınla
+                </button>
+            </form>
+        </div>
+
+        <div class="section-title mb-3">
+            <span>Yayındaki Duyurular ({{ announcement_list|length }})</span>
+        </div>
+        <div class="d-flex flex-column gap-2">
+            {% for a in announcement_list %}
+            <div class="card card-pad-sm">
+                <div class="d-flex justify-content-between align-items-baseline mb-1">
+                    <div class="d-flex align-items-center gap-2">
+                        <strong>{{ a.title }}</strong>
+                        {% if a.priority == 'urgent' %}
+                        <span class="badge-tag" style="color:var(--danger);">Acil</span>
+                        {% elif a.priority == 'high' %}
+                        <span class="badge-tag badge-gold">Önemli</span>
+                        {% endif %}
+                    </div>
+                    <form method="post" action="{{ url_for('delete_announcement', announcement_id=a.id) }}" onsubmit="return confirm('Duyuruyu kaldırmak istiyor musunuz?')">
+                        <button type="submit" class="btn btn-soft-danger btn-sm py-0 px-2" style="font-size:0.75rem;">Sil</button>
+                    </form>
+                </div>
+                <p class="small text-muted mb-0 text-truncate">{{ a.content }}</p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- 6. ARIZA & TALEPLER -->
+    <div class="tab-pane fade" id="tab-maint">
+        <div class="card">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>Öğrenci</th>
+                            <th>Kategori</th>
+                            <th>Oda</th>
+                            <th>Açıklama</th>
+                            <th>Öncelik</th>
+                            <th>Durum & Yönetim Notu</th>
+                            <th>Tarih</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for r in maintenance %}
+                        <tr>
+                            <td><strong>{{ r.full_name }}</strong></td>
+                            <td><span class="badge-tag">{{ r.category }}</span></td>
+                            <td>{{ r.room_number or '-' }}</td>
+                            <td class="small text-muted" style="max-width: 200px;">{{ r.description }}</td>
+                            <td>
+                                {% if r.priority == 'urgent' %}
+                                <span class="badge-tag" style="color:var(--danger);">Acil</span>
+                                {% else %}
+                                <span class="badge-tag">{{ r.priority }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <form method="post" action="{{ url_for('update_maintenance', req_id=r.id) }}" class="d-flex gap-1 align-items-center">
+                                    <select name="status" class="form-select form-select-sm" style="font-size:0.75rem; width:110px;">
+                                        <option value="pending" {{ 'selected' if r.status=='pending' }}>Bekliyor</option>
+                                        <option value="in_progress" {{ 'selected' if r.status=='in_progress' }}>İnceleniyor</option>
+                                        <option value="resolved" {{ 'selected' if r.status=='resolved' }}>Çözüldü</option>
+                                    </select>
+                                    <input name="admin_note" class="form-control form-control-sm" placeholder="Not..." value="{{ r.admin_note or '' }}" style="font-size:0.75rem; width:120px;">
+                                    <button type="submit" class="btn btn-secondary btn-sm py-1 px-2" title="Kaydet">✓</button>
+                                </form>
+                            </td>
+                            <td class="text-muted small">{{ r.created_at|datetime_tr }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- 7. MESAJ MODERASYONU -->
+    <!-- ÇAMAŞIRHANE -->
+    <div class="tab-pane fade" id="tab-laundry">
+        <div class="row g-4">
+            <div class="col-lg-5">
+                <div class="card card-pad h-100">
+                    <span class="kicker">Makine Yönetimi</span>
+                    <h5 class="fw-bold mb-1">Çamaşırhane Makineleri</h5>
+                    <p class="small text-muted">Makine adlarını buradan ekleyebilir veya geçici olarak kapatabilirsin. Rezervasyon süresi 60 dakikadır.</p>
+                    <form method="POST" action="{{ url_for('admin_laundry_machine_add') }}" class="d-flex gap-2 mb-3">
+                        <input class="form-control form-control-sm" name="name" placeholder="Örn. Çamaşır Makinesi 7" required>
+                        <button class="btn btn-primary btn-sm"><i class="bi bi-plus-lg"></i> Ekle</button>
+                    </form>
+                    <div class="list-group list-group-flush">
+                    {% for m in laundry_machines %}
+                        <div class="list-group-item px-0 d-flex align-items-center justify-content-between gap-2">
+                            <div><strong>{{ m.name }}</strong><div class="small text-muted">{{ 'Aktif' if m.enabled else 'Kapalı' }} · {{ m.slot_minutes }} dk</div></div>
+                            <form method="POST" action="{{ url_for('admin_laundry_machine_toggle', machine_id=m.id) }}"><button class="btn btn-sm {{ 'btn-outline-danger' if m.enabled else 'btn-outline-success' }}">{{ 'Kapat' if m.enabled else 'Aç' }}</button></form>
+                        </div>
+                    {% endfor %}
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-7">
+                <div class="card">
+                    <div class="card-body">
+                        <span class="kicker">Canlı Rezervasyonlar</span>
+                        <h5 class="fw-bold mb-3">Yaklaşan Rezervasyonlar</h5>
+                        <div class="table-responsive">
+                            <table class="table table-sm align-middle mb-0">
+                                <thead><tr><th>Makine</th><th>Öğrenci</th><th>Saat</th><th>Durum</th></tr></thead>
+                                <tbody>
+                                {% for r in laundry_reservations %}
+                                    <tr><td><strong>{{ r.machine_name }}</strong></td><td>{{ r.user_name }}</td><td>{{ r.start_at[11:16] }}–{{ r.end_at[11:16] }}</td><td><span class="badge-tag">Rezerve</span></td></tr>
+                                {% else %}<tr><td colspan="4" class="text-muted text-center py-4">Yaklaşan rezervasyon yok.</td></tr>{% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="tab-pane fade" id="tab-messages">
+        <div class="card">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Kullanıcı</th>
+                            <th>Mesaj</th>
+                            <th>Tarih</th>
+                            <th class="text-end">İşlem</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for msg in messages %}
+                        <tr>
+                            <td class="text-muted small">#{{ msg.id }}</td>
+                            <td><strong>@{{ msg.username }}</strong></td>
+                            <td class="small">{{ msg.message }}</td>
+                            <td class="text-muted small">{{ msg.created_at|datetime_tr }}</td>
+                            <td class="text-end">
+                                <a href="{{ url_for('delete_message', msg_id=msg.id) }}" class="btn btn-soft-danger btn-sm" onclick="return confirm('Mesajı silmek istediğinize emin misiniz?')">
+                                    <i class="bi bi-trash3"></i>
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- 8. ANALİTİK VE GERİ BİLDİRİM RAPORU -->
+    <div class="tab-pane fade" id="tab-analytics">
+        <div class="card card-pad mb-4">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div>
+                    <span class="kicker">Yemekhane Kalite Denetimi</span>
+                    <h5 class="fw-bold mb-0">Yemek Menü Puanları (Son 31 Gün)</h5>
+                </div>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>Tarih</th>
+                            <th>Genel Ortalama</th>
+                            <th>Kahvaltı Puanı</th>
+                            <th>Akşam Puanı</th>
+                            <th>Toplam Oy</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for r in menu_rating_summary %}
+                        <tr>
+                            <td><strong>{{ r.menu_date }}</strong></td>
+                            <td>
+                                <strong style="color: var(--gold);">
+                                    {% if r.avg_rating %}★ {{ r.avg_rating }}{% else %}—{% endif %}
+                                </strong>
+                            </td>
+                            <td class="text-muted">{{ r.avg_breakfast or '—' }}</td>
+                            <td class="text-muted">{{ r.avg_dinner or '—' }}</td>
+                            <td><span class="badge-tag">{{ r.rating_count }} öğrenci</span></td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="5" class="text-center text-muted py-4">Henüz puanlama verisi bulunmamaktadır.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="row g-4">
+            <div class="col-lg-6">
+                <div class="card card-pad">
+                    <div class="section-title mb-3">
+                        <span><i class="bi bi-trophy me-1" style="color: var(--gold);"></i> En Aktif Öğrenciler</span>
+                    </div>
+                    <div class="d-flex flex-column gap-2">
+                        {% for p in top_players %}
+                        <div class="d-flex justify-content-between align-items-center py-2 border-bottom" style="border-color: var(--border) !important;">
+                            <div>
+                                <span class="fw-bold me-2">{{ loop.index }}.</span>
+                                <span>{{ p.full_name }}</span>
+                            </div>
+                            <strong style="color: var(--gold);">{{ p.xp }} XP</strong>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-6">
+                <div class="card card-pad">
+                    <div class="section-title mb-3">
+                        <span><i class="bi bi-lightning-charge me-1"></i> Son XP Hareketleri</span>
+                    </div>
+                    <div class="d-flex flex-column gap-2">
+                        {% for x in recent_xp %}
+                        <div class="d-flex justify-content-between align-items-center py-2 border-bottom" style="border-color: var(--border) !important;">
+                            <div>
+                                <strong class="small d-block">{{ x.full_name }}</strong>
+                                <span class="text-muted" style="font-size:0.72rem;">{{ x.reason }}</span>
+                            </div>
+                            <span class="badge-tag" style="color:var(--success);">+{{ x.amount }} XP</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function loadMenuToAdminForm(date, b, d, s) {
+    const dInput = document.getElementById('admin-manual-date');
+    const bInput = document.getElementById('admin-manual-breakfast');
+    const dinInput = document.getElementById('admin-manual-dinner');
+    const sInput = document.getElementById('admin-manual-snack');
+    if (dInput) dInput.value = date;
+    if (bInput) bInput.value = b || '';
+    if (dinInput) dinInput.value = d || '';
+    if (sInput) sInput.value = s || '';
+    if (dInput) dInput.scrollIntoView({ behavior: 'smooth' });
+}
+</script>
+{% endblock %}

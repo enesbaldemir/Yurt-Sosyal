@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}{{ profile_user.full_name }} — Bağlantılar{% endblock %}
+{% block content %}
+
+<div class="d-flex align-items-center justify-content-between mb-4">
+    <div>
+        <span class="kicker">Topluluk</span>
+        <h4 class="fw-bold mb-0">Bağlantılar · {{ profile_user.full_name }}</h4>
+    </div>
+    <a href="{{ url_for('profile', username=profile_user.username) }}" class="btn btn-secondary btn-sm">
+        <i class="bi bi-arrow-left"></i> Profile Dön
+    </a>
+</div>
+
+<div class="card">
+    {% if people %}
+        <div class="d-flex flex-column">
+            {% for u in people %}
+            <a href="{{ url_for('profile', username=u.username) }}" class="conversation-item">
+                <div class="avatar-ring">
+                    {% if u.profile_photo %}
+                    <img src="{{ url_for('static', filename='uploads/profiles/' + u.profile_photo) }}" class="avatar" width="42" height="42" alt="" style="width:42px;height:42px;">
+                    {% else %}
+                    <div class="avatar" style="width:42px;height:42px;">{{ u.full_name[0]|upper }}</div>
+                    {% endif %}
+                </div>
+                <div class="flex-fill min-w-0">
+                    <div class="fw-semibold small text-truncate">{{ u.full_name }}</div>
+                    <div class="text-muted small text-truncate">@{{ u.username }}{% if u.bio %} · {{ u.bio }}{% endif %}</div>
+                </div>
+                <i class="bi bi-chevron-right text-muted" style="font-size:0.8rem;"></i>
+            </a>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="card-pad text-center py-5">
+            <div class="empty-state">
+                <i class="bi bi-people"></i>
+                <p class="small text-muted mb-0">Listelenecek kullanıcı bulunamadı.</p>
+            </div>
+        </div>
+    {% endif %}
+</div>
+
+{% endblock %}

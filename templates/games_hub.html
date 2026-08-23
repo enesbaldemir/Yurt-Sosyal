@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Oyun Merkezi — Yurt Sosyal{% endblock %}
+{% block content %}
+
+<div class="d-flex align-items-center justify-content-between mb-4">
+    <div>
+        <span class="kicker">Eğlence & Rekabet</span>
+        <h4 class="fw-bold mb-0">Oyun Merkezi</h4>
+    </div>
+    <a href="{{ url_for('leaderboard_page') }}" class="btn btn-secondary btn-sm">
+        <i class="bi bi-trophy me-1"></i> Genel Sıralama
+    </a>
+</div>
+
+<p class="text-muted small mb-4">Yurt arkadaşlarınla yarış, en yüksek skorları elde et ve haftalık lider tablosuna adını yazdır.</p>
+
+<div class="games-grid">
+    {% for g in games %}
+    <a href="{{ url_for('game_play', game_key=g.key) }}" class="game-card">
+        <div class="game-card-icon">
+            <i class="bi {{ g.icon }}"></i>
+        </div>
+        <div class="game-card-body">
+            <div class="fw-bold text-truncate">{{ g.name }}</div>
+            <div class="text-muted small text-truncate mb-2">{{ g.desc }}</div>
+            <div class="d-flex flex-wrap gap-1">
+                {% if g.top_player %}
+                <span class="badge-tag badge-gold">
+                    <i class="bi bi-trophy-fill"></i> {{ g.top_player.full_name.split(' ')[0] }}: {{ g.top_player.best_score }} {{ g.unit }}
+                </span>
+                {% else %}
+                <span class="badge-tag">İlk skoru sen yap!</span>
+                {% endif %}
+
+                {% if g.my_best is not none %}
+                <span class="badge-tag">En İyin: {{ g.my_best }} {{ g.unit }}</span>
+                {% endif %}
+            </div>
+        </div>
+        <i class="bi bi-chevron-right text-muted" style="font-size:0.85rem;"></i>
+    </a>
+    {% endfor %}
+</div>
+
+{% endblock %}

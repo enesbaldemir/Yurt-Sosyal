@@ -1,0 +1,94 @@
+{
+  "name": "YURT. Sosyal & Yaşam Platformu",
+  "short_name": "YurtSosyal",
+  "description": "Öğrenci yurdu menüleri, yoklama, arıza talepleri, duyurular ve sosyal akış platformu.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0f172a",
+  "theme_color": "#1e293b",
+  "icons": [
+    {
+      "src": "/static/img/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/static/img/icons/icon-maskable.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/static/img/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Günün Menüsü",
+      "short_name": "Menü",
+      "description": "Yemekhane menüsünü gör ve puanla",
+      "url": "/menu",
+      "icons": [
+        {
+          "src": "/static/img/icons/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Gece Yoklaması",
+      "short_name": "Yoklama",
+      "description": "Yoklama durumunu bildir",
+      "url": "/attendance",
+      "icons": [
+        {
+          "src": "/static/img/icons/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Sosyal Akış",
+      "short_name": "Akış",
+      "description": "Gönderileri ve hikayeleri incele",
+      "url": "/feed",
+      "icons": [
+        {
+          "src": "/static/img/icons/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Arıza & Talep",
+      "short_name": "Arıza",
+      "description": "Teknik arıza ve talep bildirimi",
+      "url": "/maintenance",
+      "icons": [
+        {
+          "src": "/static/img/icons/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
+  ],
+  "categories": [
+    "social",
+    "lifestyle",
+    "productivity",
+    "utilities"
+  ],
+  "id": "/",
+  "lang": "tr",
+  "dir": "ltr",
+  "display_override": [
+    "standalone"
+  ],
+  "prefer_related_applications": false
+}

@@ -1,0 +1,119 @@
+{% extends 'base.html' %}
+{% block title %}Hafıza Kartları — Oyunlar{% endblock %}
+{% block content %}
+
+<div class="d-flex align-items-center justify-content-between mb-4">
+    <div class="d-flex align-items-center gap-2">
+        <a href="{{ url_for('games_hub') }}" class="icon-btn" title="Oyunlara Dön">
+            <i class="bi bi-arrow-left"></i>
+        </a>
+        <div>
+            <span class="kicker">Zeka & Hafıza</span>
+            <h4 class="fw-bold mb-0">Hafıza Kartları</h4>
+        </div>
+    </div>
+    <span class="badge-tag badge-gold fs-6">Süre: <strong id="time">0</strong> sn</span>
+</div>
+
+<div class="card card-pad text-center">
+    <p class="text-muted small mb-4">Tüm sembol çiftlerini en kısa sürede bularak hafıza skorunuzu kaydedin.</p>
+    
+    <div id="board" class="memory-board mx-auto mb-3" style="max-width: 440px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;"></div>
+    
+    <div class="mt-3">
+        <button class="btn btn-secondary btn-sm" onclick="location.reload()">
+            <i class="bi bi-arrow-clockwise me-1"></i> Yeni Oyun
+        </button>
+    </div>
+</div>
+
+{% include 'partials/_game_leaderboard.html' %}
+
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.cardx {
+    aspect-ratio: 1 / 1;
+    border: 1px solid var(--border);
+    background-color: var(--surface-2);
+    border-radius: var(--radius-sm);
+    font-size: 1.8rem;
+    color: transparent;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.15s ease, transform 0.1s ease;
+}
+.cardx:hover {
+    background-color: var(--hover);
+}
+.cardx.open, .cardx.done {
+    color: var(--text);
+    background-color: var(--surface);
+    border-color: var(--gold);
+}
+.cardx.done {
+    opacity: 0.6;
+    border-color: var(--success);
+    cursor: default;
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const vals = ['🏛️','🏛️','📚','📚','☕','☕','⚽','⚽','🎯','🎯','🏆','🏆','🌟','🌟','🔔','🔔'].sort(() => Math.random() - 0.5);
+let first = null, lock = false, done = 0, sec = 0;
+const b = document.getElementById('board');
+
+vals.forEach((v, i) => {
+    let x = document.createElement('button');
+    x.className = 'cardx';
+    x.dataset.v = v;
+    x.textContent = v;
+    x.onclick = () => flip(x);
+    b.appendChild(x);
+});
+
+const timerId = setInterval(() => {
+    if (done < 16) {
+        sec++;
+        document.getElementById('time').textContent = sec;
+    }
+}, 1000);
+
+function flip(x) {
+    if (lock || x.classList.contains('done') || x === first) return;
+    x.classList.add('open');
+    if (!first) {
+        first = x;
+        return;
+    }
+    lock = true;
+    if (first.dataset.v === x.dataset.v) {
+        first.classList.add('done');
+        x.classList.add('done');
+        done += 2;
+        lock = false;
+        first = null;
+        if (done === 16) {
+            clearInterval(timerId);
+            fetch('{{ url_for("submit_game_score", game_key="memory") }}', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ score: sec })
+            });
+        }
+    } else {
+        setTimeout(() => {
+            first.classList.remove('open');
+            x.classList.remove('open');
+            first = null;
+            lock = false;
+        }, 600);
+    }
+}
+</script>
+{% endblock %}

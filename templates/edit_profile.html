@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}Profili Düzenle — Yurt Sosyal{% endblock %}
+{% block content %}
+
+<div class="d-flex align-items-center justify-content-between mb-4">
+    <div>
+        <span class="kicker">Hesap Ayarları</span>
+        <h4 class="fw-bold mb-0">Profili Düzenle</h4>
+    </div>
+    <a href="{{ url_for('profile', username=session.username) }}" class="btn btn-secondary btn-sm">
+        <i class="bi bi-arrow-left"></i> Profile Dön
+    </a>
+</div>
+
+<div class="card card-pad">
+    <form method="POST" enctype="multipart/form-data">
+        <!-- Profil Fotoğrafı Seçimi -->
+        <div class="text-center mb-4 pb-3 border-bottom" style="border-color: var(--border) !important;">
+            <label for="photo-input" style="cursor:pointer;" class="d-inline-block position-relative">
+                <div class="avatar-ring">
+                    {% if user.profile_photo %}
+                    <img id="photo-preview" src="{{ url_for('static', filename='uploads/profiles/' + user.profile_photo) }}" class="avatar" width="96" height="96" style="width:96px;height:96px;">
+                    {% else %}
+                    <img id="photo-preview" class="avatar" width="96" height="96" style="width:96px;height:96px;display:none;">
+                    <div id="photo-fallback" class="avatar" style="width:96px;height:96px;font-size:2rem;">{{ user.full_name[0]|upper }}</div>
+                    {% endif %}
+                    <span class="position-absolute bottom-0 end-0 icon-btn" style="width:28px;height:28px;font-size:0.75rem;background:var(--accent);color:var(--accent-contrast);border:none;">
+                        <i class="bi bi-camera"></i>
+                    </span>
+                </div>
+            </label>
+            <input type="file" id="photo-input" name="profile_photo" accept="image/*" class="d-none">
+            <div class="text-muted small mt-2">Fotoğrafı güncellemek için dokunun</div>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Ad Soyad</label>
+            <input type="text" name="full_name" class="form-control" value="{{ user.full_name }}" required>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Hakkımda</label>
+            <textarea name="bio" class="form-control" rows="3" placeholder="Kendinizi kısaca tanıtın...">{{ user.bio or '' }}</textarea>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Oda Numarası</label>
+            <input type="text" name="room_number" class="form-control" value="{{ user.room_number or '' }}" placeholder="Örn: 304">
+        </div>
+
+        <div class="form-check mb-4">
+            <input class="form-check-input" type="checkbox" name="in_dorm" id="in_dorm" {{ 'checked' if user.in_dorm }}>
+            <label class="form-check-label small" for="in_dorm">Şu anda yurtta kalıyorum</label>
+        </div>
+
+        <hr class="my-4" style="border-color: var(--border);">
+
+        <div class="mb-4">
+            <label class="form-label">Yeni Şifre <span class="text-muted fw-normal">(Değiştirmek istemiyorsanız boş bırakın)</span></label>
+            <input type="password" name="new_password" class="form-control" minlength="4" placeholder="••••••••" autocomplete="new-password">
+        </div>
+
+        <button type="submit" class="btn btn-primary w-100 py-2">
+            <i class="bi bi-check2 me-1"></i> Değişiklikleri Kaydet
+        </button>
+    </form>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const photoInput = document.getElementById('photo-input');
+if (photoInput) {
+    photoInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const url = URL.createObjectURL(file);
+        const preview = document.getElementById('photo-preview');
+        const fallback = document.getElementById('photo-fallback');
+        if (preview) {
+            preview.src = url;
+            preview.style.display = 'inline-flex';
+        }
+        if (fallback) fallback.style.display = 'none';
+    });
+}
+</script>
+{% endblock %}

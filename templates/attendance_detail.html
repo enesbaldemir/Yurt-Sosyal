@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+{% block title %}{{ attendance.title }} — Yoklama Detayı{% endblock %}
+{% block content %}
+
+<div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+    <div>
+        <span class="kicker">Yoklama Detayı</span>
+        <h4 class="fw-bold mb-0">{{ attendance.title }}</h4>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+        {% if can_manage and attendance.is_active %}
+        <a href="{{ url_for('close_attendance', attendance_id=attendance.id) }}" class="btn btn-outline-warning btn-sm" onclick="return confirm('Yoklamayı kapatmak istediğinize emin misiniz?')">
+            <i class="bi bi-lock me-1"></i> Yoklamayı Sonlandır
+        </a>
+        {% endif %}
+        {% if can_manage %}
+        <a href="{{ url_for('delete_attendance', attendance_id=attendance.id) }}" class="btn btn-soft-danger btn-sm" onclick="return confirm('Yoklamayı kalıcı olarak silmek istediğinize emin misiniz?')">
+            <i class="bi bi-trash3"></i>
+        </a>
+        {% endif %}
+        <a href="{{ url_for('attendance_list') }}" class="btn btn-secondary btn-sm">
+            <i class="bi bi-arrow-left"></i> Listeye Dön
+        </a>
+    </div>
+</div>
+
+<div class="card card-pad mb-4">
+    <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
+        <div class="d-flex align-items-center gap-2">
+            {% if attendance.is_active %}
+            <span class="badge-tag badge-gold"><i class="bi bi-broadcast"></i> Aktif</span>
+            {% else %}
+            <span class="badge-tag">Kapalı</span>
+            {% endif %}
+            {% if attendance.is_mandatory %}
+            <span class="mandatory-badge">Zorunlu</span>
+            {% endif %}
+        </div>
+        <span class="text-muted small"><i class="bi bi-calendar3 me-1"></i>{{ attendance.attendance_date }}</span>
+    </div>
+
+    <h3 class="fw-bold mb-1">{{ attendance.title }}</h3>
+    <div class="text-muted small mb-3">Başlatan: <strong>{{ attendance.creator_name }}</strong></div>
+
+    {% if attendance.description %}
+    <p class="text-muted small mb-4" style="white-space: pre-line;">{{ attendance.description }}</p>
+    {% endif %}
+
+    <!-- Öğrenci Yoklama Yanıt Alanı -->
+    {% if not can_manage %}
+        {% if attendance.is_active %}
+            {% if my_status %}
+                <div class="alert alert-success border mb-3">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="bi bi-check2-circle fs-5"></i>
+                        <div>
+                            <strong>Yoklama Durumunuz: {{ 'Yurttayım' if my_status.status == 'present' else 'Yurtta değilim' }}</strong>
+                            <div class="small opacity-75">İsterseniz aşağıdaki iki seçenekten birine dokunarak durumunuzu değiştirebilirsiniz.</div>
+                        </div>
+                    </div>
+                </div>
+            {% else %}
+                <div class="alert alert-warning border mb-3">
+                    <i class="bi bi-exclamation-triangle me-1"></i> Lütfen bu yoklama için durumunuzu bildirin.
+                </div>
+            {% endif %}
+
+            <form method="POST" action="{{ url_for('mark_attendance', attendance_id=attendance.id) }}" class="d-flex gap-2">
+                <button type="submit" name="status" value="present" class="btn btn-primary flex-fill py-3">
+                    <i class="bi bi-check2 fs-5 d-block mb-1"></i>
+                    <strong>Yurttayım</strong>
+                </button>
+                <button type="submit" name="status" value="absent" class="btn btn-secondary flex-fill py-3">
+                    <i class="bi bi-x fs-5 d-block mb-1"></i>
+                    <strong>Yurtta değilim</strong>
+                </button>
+            </form>
+        {% else %}
+            <div class="alert alert-secondary border mb-0">
+                <i class="bi bi-lock me-1"></i> Bu yoklama süresi dolduğu için kapatılmıştır.
+            </div>
+        {% endif %}
+    {% endif %}
+</div>
+
+<!-- Yetkili (Kat Sorumlusu & Admin) İstatistikleri & Listeler -->
+{% if can_manage %}
+<div class="row g-3 mb-4">
+    <div class="col-4">
+        <div class="admin-metric-card text-center">
+            <div class="lbl">Yurtta Olanlar</div>
+            <div class="num text-success">{{ records|selectattr('status', 'equalto', 'present')|list|length }}</div>
+        </div>
+    </div>
+    <div class="col-4">
+        <div class="admin-metric-card text-center">
+            <div class="lbl">Dışarıda Olanlar</div>
+            <div class="num text-danger">{{ records|selectattr('status', 'equalto', 'absent')|list|length }}</div>
+        </div>
+    </div>
+    <div class="col-4">
+        <div class="admin-metric-card text-center">
+            <div class="lbl">Yanıtlamayanlar</div>
+            <div class="num" style="color: var(--warning);">{{ unmarked_users|length }}</div>
+        </div>
+    </div>
+</div>
+
+<div class="card card-pad mb-4">
+    <div class="section-title mb-3">
+        <span><i class="bi bi-check2-circle me-1"></i> Yoklamaya Katılanlar ({{ records|length }})</span>
+    </div>
+    {% if records %}
+    <div class="table-responsive">
+        <table class="table table-hover mb-0 align-middle">
+            <thead>
+                <tr>
+                    <th>Öğrenci</th>
+                    <th>Oda</th>
+                    <th>Durum</th>
+                    <th>Bildirim Saati</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for r in records %}
+                <tr>
+                    <td>
+                        <strong>{{ r.full_name }}</strong>
+                        <span class="text-muted small d-block">@{{ r.username }}</span>
+                    </td>
+                    <td>{{ r.room_number or '-' }}</td>
+                    <td>
+                        <span class="status-pill {{ 'attendance-present' if r.status == 'present' else 'attendance-absent' }}">
+                            {{ 'Var' if r.status == 'present' else 'Yok' }}
+                        </span>
+                    </td>
+                    <td class="text-muted small">{{ r.marked_at[11:16] if r.marked_at|length > 10 else r.marked_at }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="text-muted small mb-0">Henüz yanıt kaydedilmedi.</p>
+    {% endif %}
+</div>
+
+<div class="card card-pad">
+    <div class="section-title mb-3">
+        <span style="color: var(--warning);"><i class="bi bi-exclamation-triangle me-1"></i> Henüz Yanıtlamayanlar ({{ unmarked_users|length }})</span>
+    </div>
+    {% if unmarked_users %}
+    <div class="d-flex flex-column">
+        {% for u in unmarked_users %}
+        <div class="d-flex justify-content-between align-items-center py-2 border-bottom" style="border-color: var(--border) !important;">
+            <div>
+                <strong class="small">{{ u.full_name }}</strong>
+                <span class="text-muted small d-block">@{{ u.username }}</span>
+            </div>
+            {% if u.room_number %}
+            <span class="badge-tag">Oda: {{ u.room_number }}</span>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="text-success small mb-0"><i class="bi bi-check2-all me-1"></i> Tüm kayıtlı öğrenciler yoklamayı tamamladı.</p>
+    {% endif %}
+</div>
+{% endif %}
+
+{% endblock %}

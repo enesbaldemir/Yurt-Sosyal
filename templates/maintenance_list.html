@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Taleplerim — Yurt Sosyal{% endblock %}
+{% block content %}
+
+<div class="d-flex align-items-center justify-content-between mb-4">
+    <div>
+        <span class="kicker">Teknik Destek</span>
+        <h4 class="fw-bold mb-0">Arıza & Bakım Taleplerim</h4>
+    </div>
+    <a href="{{ url_for('create_maintenance_request') if 'create_maintenance_request' in app.view_functions else url_for('maintenance_page') }}" class="btn btn-primary btn-sm">
+        <i class="bi bi-plus-lg me-1"></i> Yeni Talep
+    </a>
+</div>
+
+{% if requests %}
+<div class="d-flex flex-column gap-3">
+    {% for r in requests %}
+    <a href="{{ url_for('maintenance_detail', req_id=r.id) }}" class="card card-pad card-interactive d-block">
+        <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
+            <div>
+                <span class="badge-tag mb-1">{{ r.category }} · Oda {{ r.room_number }}</span>
+                <h6 class="fw-bold mb-1">{{ r.description[:80] }}{% if r.description|length > 80 %}…{% endif %}</h6>
+            </div>
+            <span class="status-pill {{ 'attendance-present' if r.status == 'Çözüldü' else ('badge-gold' if r.status == 'İnceleniyor' else '') }}">
+                {{ r.status }}
+            </span>
+        </div>
+        <div class="d-flex justify-content-between align-items-center mt-3 pt-3 border-top text-muted small" style="border-color: var(--border) !important; font-size: 0.75rem;">
+            <span><i class="bi bi-exclamation-circle me-1"></i>Aciliyet: {{ r.urgency }}</span>
+            <span>{{ r.created_at|datetime_tr }}</span>
+        </div>
+    </a>
+    {% endfor %}
+</div>
+{% else %}
+<div class="card card-pad text-center py-5">
+    <div class="empty-state">
+        <i class="bi bi-tools"></i>
+        <h6 class="fw-bold mt-2">Kayıtlı Talep Yok</h6>
+        <p class="small text-muted mb-3">Odanız veya ortak alanlarla ilgili bir arıza olduğunda talep oluşturabilirsiniz.</p>
+        <a href="{{ url_for('create_maintenance_request') if 'create_maintenance_request' in app.view_functions else url_for('maintenance_page') }}" class="btn btn-primary btn-sm">Yeni Talep Oluştur</a>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}

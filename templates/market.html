@@ -1,0 +1,102 @@
+{% extends 'base.html' %}
+{% block title %}Yurt Pazarı — İkinci El Topluluk Pazarı{% endblock %}
+{% block content %}
+
+<div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+    <div>
+        <span class="kicker">Topluluk Pazarı</span>
+        <h4 class="fw-bold mb-0">Yurt İçi İlanlar</h4>
+    </div>
+    <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#newItem">
+        <i class="bi bi-plus-lg me-1"></i> Yeni İlan Ver
+    </button>
+</div>
+
+<p class="text-muted small mb-4">Ders kitapları, elektronik eşyalar, oda gereçleri ve yurt içi ikinci el eşya alışverişi.</p>
+
+<div class="row g-3">
+{% for i in items %}
+    <div class="col-md-6 col-lg-4">
+        <div class="card card-pad h-100 d-flex flex-column">
+            <div class="d-flex justify-content-between align-items-baseline mb-2">
+                <span class="badge-tag">{{ i.category }}</span>
+                <span class="text-muted small">@{{ i.username }}</span>
+            </div>
+
+            <h6 class="fw-bold mb-2">{{ i.title }}</h6>
+            
+            {% if i.description %}
+            <p class="small text-muted flex-fill mb-3" style="line-height: 1.45;">{{ i.description }}</p>
+            {% else %}
+            <div class="flex-fill"></div>
+            {% endif %}
+
+            <div class="d-flex justify-content-between align-items-center pt-3 border-top" style="border-color: var(--border) !important;">
+                <strong class="fs-6" style="color: var(--gold);">
+                    {% if i.price %}{{ '%.2f'|format(i.price)|replace('.00','') }} ₺{% else %}Ücretsiz / Takas{% endif %}
+                </strong>
+                <a href="{{ url_for('profile', username=i.username) }}" class="btn btn-secondary btn-sm">
+                    İletişime Geç
+                </a>
+            </div>
+        </div>
+    </div>
+{% else %}
+    <div class="col-12">
+        <div class="card card-pad text-center py-5">
+            <div class="empty-state">
+                <i class="bi bi-bag"></i>
+                <h6 class="fw-bold mt-2">Henüz İlan Verilmemiş</h6>
+                <p class="small text-muted mb-3">Kullanmadığın eşyaları veya kitaplarını yurt arkadaşlarına satmak için ilan ver.</p>
+                <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#newItem">
+                    İlk İlanı Yayınla
+                </button>
+            </div>
+        </div>
+    </div>
+{% endfor %}
+</div>
+
+<!-- Yeni İlan Verme Modalı -->
+<div class="modal fade" id="newItem" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Yeni İlan Yayınla</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Kapat"></button>
+            </div>
+            <form method="post" action="{{ url_for('market_create') }}">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Ürün Başlığı</label>
+                        <input name="title" class="form-control" placeholder="Örn: Algoritma Ders Kitabı" required autofocus>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Kategori</label>
+                        <select name="category" class="form-select" required>
+                            <option value="Kitap">Kitap & Kırtasiye</option>
+                            <option value="Elektronik">Elektronik & Bilgisayar</option>
+                            <option value="Kıyafet">Giyim & Aksesuar</option>
+                            <option value="Aksesuar">Oda & Yaşam Eşyası</option>
+                            <option value="Diğer">Diğer</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Fiyat (TL) <span class="text-muted fw-normal">(Ücretsiz ise boş bırakın)</span></label>
+                        <input name="price" type="number" step="0.01" min="0" class="form-control" placeholder="Örn: 150">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Açıklama & İletişim Notu</label>
+                        <textarea name="description" class="form-control" rows="3" placeholder="Ürünün durumu, teslim edilebileceği oda/kat bilgisi..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Vazgeç</button>
+                    <button type="submit" class="btn btn-primary btn-sm">İlanı Yayınla</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

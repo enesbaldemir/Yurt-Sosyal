@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% block title %}Yoklama Sistemi — Yurt Sosyal{% endblock %}
+{% block content %}
+
+<div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+    <div>
+        <span class="kicker">Yurt Düzeni</span>
+        <h4 class="fw-bold mb-0">Yoklama Sistemi</h4>
+    </div>
+    {% if can_manage %}
+    <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#createAttendanceModal">
+        <i class="bi bi-plus-lg"></i> Yeni Yoklama Başlat
+    </button>
+    {% endif %}
+</div>
+
+<div class="p-3 mb-4 rounded" style="background-color: var(--surface-2); border: 1px solid var(--border); font-size: 0.85rem;">
+    <i class="bi bi-info-circle me-1 text-muted"></i>
+    <span>Yoklama açıldığında telefonunuza bildirim gelir. <strong>Yurttayım</strong> veya <strong>Yurtta değilim</strong> seçeneğine tek dokunuşla durumunuzu bildirin.</span>
+</div>
+
+{% if attendances %}
+<div class="d-flex flex-column gap-3">
+    {% for att in attendances %}
+    <div class="card card-pad card-interactive d-block">
+        <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
+            <div>
+                <div class="d-flex align-items-center gap-2 mb-1">
+                    {% if att.is_active %}
+                    <span class="badge-tag badge-gold"><i class="bi bi-broadcast"></i> Aktif</span>
+                    {% else %}
+                    <span class="badge-tag">Kapalı</span>
+                    {% endif %}
+                    {% if att.is_mandatory %}
+                    <span class="mandatory-badge">Zorunlu</span>
+                    {% endif %}
+                </div>
+                <a href="{{ url_for('attendance_detail', attendance_id=att.id) }}" class="text-decoration-none text-reset d-inline-block">
+                    <h5 class="fw-bold mb-1">{{ att.title }}</h5>
+                </a>
+                <span class="text-muted small"><i class="bi bi-calendar3 me-1"></i>{{ att.attendance_date }}</span>
+            </div>
+            {% if not can_manage and att.my_status %}
+            <span class="status-pill {{ 'attendance-present' if att.my_status == 'present' else 'attendance-absent' }}">
+                <i class="bi {{ 'bi-check2' if att.my_status == 'present' else 'bi-x' }}"></i>
+                {{ 'Yurttayım' if att.my_status == 'present' else 'Yurtta değilim' }}
+            </span>
+            {% endif %}
+        </div>
+
+        {% if not can_manage and att.is_active %}
+        <div class="row g-2 mt-3 pt-3 border-top" style="border-color: var(--border) !important;">
+            <div class="col-6">
+                <form method="POST" action="{{ url_for('mark_attendance', attendance_id=att.id) }}">
+                    <button type="submit" name="status" value="present" class="btn btn-success w-100 py-2" onclick="event.stopPropagation();">
+                        <i class="bi bi-house-check me-1"></i> Yurttayım
+                    </button>
+                </form>
+            </div>
+            <div class="col-6">
+                <form method="POST" action="{{ url_for('mark_attendance', attendance_id=att.id) }}">
+                    <button type="submit" name="status" value="absent" class="btn btn-outline-secondary w-100 py-2" onclick="event.stopPropagation();">
+                        <i class="bi bi-house-x me-1"></i> Yurtta değilim
+                    </button>
+                </form>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if can_manage %}
+        <div class="row text-center mt-3 pt-3 border-top g-2" style="border-color: var(--border) !important;">
+            <div class="col-6">
+                <div class="p-2 rounded attendance-present">
+                    <span class="fw-bold fs-5">{{ att.present_count }}</span>
+                    <span class="small d-block text-muted">Var</span>
+                </div>
+            </div>
+            <div class="col-6">
+                <div class="p-2 rounded attendance-absent">
+                    <span class="fw-bold fs-5">{{ att.absent_count }}</span>
+                    <span class="small d-block text-muted">Yok</span>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="card card-pad text-center py-5">
+    <div class="empty-state">
+        <i class="bi bi-clipboard-check"></i>
+        <h6 class="fw-bold mt-2">Kayıtlı Yoklama Yok</h6>
+        <p class="small text-muted mb-0">Henüz yayınlanmış bir yoklama bulunmuyor.</p>
+    </div>
+</div>
+{% endif %}
+
+{% if can_manage %}
+<div class="modal fade" id="createAttendanceModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Yeni Yoklama Başlat</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Kapat"></button>
+            </div>
+            <form method="POST" action="{{ url_for('create_attendance') }}">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Yoklama Başlığı</label>
+                        <input type="text" name="title" class="form-control" placeholder="Örn: Gece Yoklaması" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Açıklama / Not</label>
+                        <textarea name="description" class="form-control" rows="2" placeholder="Örn: Saat 23:00'e kadar tamamlanması gerekmektedir."></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Tarih & Saat</label>
+                        <input type="datetime-local" name="attendance_date" class="form-control" required>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="is_mandatory" id="is_mandatory" checked>
+                        <label class="form-check-label small" for="is_mandatory">Yurtta kalanlar için zorunlu yap</label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Vazgeç</button>
+                    <button type="submit" class="btn btn-primary btn-sm">
+                        <i class="bi bi-broadcast me-1"></i> Yoklamayı Başlat
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}

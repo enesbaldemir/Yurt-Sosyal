@@ -1,0 +1,269 @@
+{% extends 'base.html' %}
+{% block title %}Oda Arkadaşı Bul — Yurt Sosyal{% endblock %}
+
+{% block content %}
+<div class="roommate-page">
+  <header class="roommate-header">
+    <div>
+      <span class="roommate-kicker">YURT HİZMETİ · EŞLEŞTİRME</span>
+      <h1>Oda arkadaşını daha kolay bul.</h1>
+      <p>Önce günlük hayatta en çok fark yaratan 4 tercihi seç. İstersen sonra diğer ayrıntıları da kişiselleştir.</p>
+    </div>
+    <div class="roommate-header-icon" aria-hidden="true"><i class="bi bi-people"></i></div>
+  </header>
+
+  <div class="roommate-layout">
+    <main class="roommate-main-card">
+      <form method="POST" action="{{ url_for('roommate_matching') }}" id="roommate-form" novalidate>
+        <div class="wizard-head">
+          <div>
+            <span class="wizard-kicker" id="step-label">Hızlı başlangıç · 1 / 4</span>
+            <h2 id="question-title">Önce en önemli tercihlerini belirleyelim</h2>
+            <p id="question-help">Her soruda sana en yakın seçeneğe dokunman yeterli.</p>
+          </div>
+          <div class="progress-circle" id="progress-ring"><span>25%</span></div>
+        </div>
+        <div class="wizard-progress"><span id="progress-bar"></span></div>
+
+        {% set core_keys = ['sleep_time','noise','cleanliness','social'] %}
+        {% set core_traits = traits|selectattr('key','in',core_keys)|list %}
+        {% set advanced_traits = traits|rejectattr('key','in',core_keys)|list %}
+
+        <div id="core-steps">
+          {% for trait in core_traits %}
+          <section class="roommate-step" data-index="{{ loop.index0 }}" data-key="{{ trait.key }}" data-title="{{ trait.label }}">
+            <div class="trait-icon"><i class="bi {{ trait.icon }}"></i></div>
+            <span class="trait-count">Günlük uyum · {{ loop.index }} / {{ core_traits|length }}</span>
+            <h3>{{ trait.label }}</h3>
+            <p class="step-description">
+              {% if trait.key == 'sleep_time' %}Gece ve sabah düzeninizin birbirini ne kadar etkileyeceğini belirler.{% elif trait.key == 'noise' %}Oda içinde rahat etmek için istediğin ses seviyesini seç.{% elif trait.key == 'cleanliness' %}Ortak yaşam alanında ne kadar düzen beklediğini belirt.{% else %}Oda arkadaşınla ne kadar sosyal bir ortam istediğini seç.{% endif %}
+            </p>
+
+            <div class="choice-list">
+              {% for value, label in trait.options %}
+              <label class="choice-card">
+                <input class="core-radio" type="radio" name="{{ trait.key }}_value" value="{{ value }}" {% if roommate_profile[trait.key].value == value %}checked{% endif %}>
+                <span><i class="bi bi-check-circle-fill"></i>{{ label }}</span>
+              </label>
+              {% endfor %}
+            </div>
+
+            <div class="importance-inline">
+              <div class="importance-inline-head">
+                <span>Bu konu senin için önemli mi?</span>
+                <strong class="importance-current-label" data-key="{{ trait.key }}">{{ importance_labels.get(roommate_profile[trait.key].importance, 'Orta') }}</strong>
+              </div>
+              <div class="importance-mini" data-key="{{ trait.key }}">
+                {% for val, label in importance_options %}
+                <label title="{{ label }}">
+                  <input type="radio" name="{{ trait.key }}_importance" value="{{ val }}" data-label="{{ label }}" {% if roommate_profile[trait.key].importance == val %}checked{% endif %}>
+                  <span>{{ val }}</span>
+                </label>
+                {% endfor %}
+              </div>
+              <div class="importance-scale-hint"><span>Düşük</span><span>Çok önemli</span></div>
+            </div>
+          </section>
+          {% endfor %}
+        </div>
+
+        <section class="advanced-step" id="advanced-step" hidden>
+          <div class="advanced-heading">
+            <div class="trait-icon small"><i class="bi bi-sliders"></i></div>
+            <div>
+              <span class="trait-count">İSTEĞE BAĞLI</span>
+              <h3>Diğer tercihlerin</h3>
+              <p>İstersen eşleşmeni daha da kişiselleştir. Değiştirmediğin seçenekler mevcut tercihinle gönderilir.</p>
+            </div>
+          </div>
+
+          <div class="advanced-grid">
+            {% for trait in advanced_traits %}
+            <article class="advanced-item" data-key="{{ trait.key }}">
+              <div class="advanced-item-head">
+                <div><i class="bi {{ trait.icon }}"></i><strong>{{ trait.label }}</strong></div>
+                <span class="advanced-importance-label">{{ importance_labels.get(roommate_profile[trait.key].importance, 'Orta') }}</span>
+              </div>
+              <div class="advanced-options">
+                {% for value, label in trait.options %}
+                <label>
+                  <input type="radio" name="{{ trait.key }}_value" value="{{ value }}" {% if roommate_profile[trait.key].value == value %}checked{% endif %}>
+                  <span>{{ label }}</span>
+                </label>
+                {% endfor %}
+              </div>
+              <div class="advanced-importance">
+                <span>Önem</span>
+                {% for val, label in importance_options %}
+                <label title="{{ label }}">
+                  <input type="radio" name="{{ trait.key }}_importance" value="{{ val }}" {% if roommate_profile[trait.key].importance == val %}checked{% endif %}>
+                  <span>{{ val }}</span>
+                </label>
+                {% endfor %}
+              </div>
+            </article>
+            {% endfor %}
+          </div>
+        </section>
+
+        <div class="wizard-actions">
+          <button type="button" class="wizard-back" id="prev-btn"><i class="bi bi-arrow-left"></i><span>Geri</span></button>
+          <button type="button" class="wizard-next" id="next-btn"><span>Devam et</span><i class="bi bi-arrow-right"></i></button>
+          <button type="submit" class="wizard-submit" id="submit-btn"><i class="bi bi-stars"></i><span>Eşleşmeleri bul</span></button>
+        </div>
+      </form>
+    </main>
+
+    <aside class="roommate-side">
+      <section class="side-card">
+        <div class="side-title"><span class="side-icon"><i class="bi bi-lightning-charge"></i></span><div><strong>Nasıl çalışıyor?</strong><small>En önemli uyum noktalarını karşılaştırıyoruz.</small></div></div>
+        <div class="side-step"><b>1</b><span><strong>Tercihlerini seç</strong><small>4 kısa seçimle başlayabilirsin.</small></span></div>
+        <div class="side-step"><b>2</b><span><strong>Eşleşmeleri gör</strong><small>Uyum yüzdesi ve ortak noktalar öne çıkar.</small></span></div>
+        <div class="side-step"><b>3</b><span><strong>İstersen detaylandır</strong><small>Ek tercihleri sonradan değiştirebilirsin.</small></span></div>
+      </section>
+
+      {% if completed %}
+      <section class="side-card match-summary">
+        <div class="side-title"><span class="side-icon success"><i class="bi bi-stars"></i></span><div><strong>{{ matches|length }} eşleşme bulundu</strong><small>Tercihlerin kaydedildi.</small></div></div>
+        <a href="#matches" class="view-matches">Eşleşmelerime git <i class="bi bi-arrow-down"></i></a>
+      </section>
+      {% else %}
+      <section class="side-card privacy-note">
+        <i class="bi bi-shield-check"></i>
+        <div><strong>Tercihlerin kontrolünde</strong><span>Karşı tarafa yalnızca eşleşme için gerekli özet bilgiler gösterilir.</span></div>
+      </section>
+      {% endif %}
+    </aside>
+  </div>
+
+  {% if completed %}
+  <section class="matches-section" id="matches">
+    <div class="matches-heading">
+      <div><span class="roommate-kicker">SONUÇLAR</span><h2>Sana en uygun kişiler</h2><p>Önce en yüksek uyumlu adayları gösteriyoruz.</p></div>
+      <span class="result-count">{{ matches|length }} kişi</span>
+    </div>
+
+    {% if matches %}
+    <div class="matches-grid">
+      {% for match in matches %}
+      <article class="match-result">
+        <div class="match-top">
+          {% if match.profile_photo %}
+          <img src="{{ url_for('static', filename='uploads/profiles/' + match.profile_photo) }}" alt="" class="match-avatar">
+          {% else %}
+          <div class="match-avatar fallback">{{ match.full_name[0]|upper }}</div>
+          {% endif %}
+          <div class="match-person">
+            <strong>{{ match.full_name }}</strong>
+            <span>@{{ match.username }}{% if match.room_number %} · Oda {{ match.room_number }}{% endif %}</span>
+          </div>
+          <div class="match-score"><strong>%{{ match.score }}</strong><span>uyum</span></div>
+        </div>
+
+        <div class="match-bar"><span style="width:{{ match.score }}%"></span></div>
+
+        {% if match.reasons %}
+        <div class="match-points">
+          {% for reason in match.reasons[:3] %}<span><i class="bi bi-check2"></i>{{ reason }}</span>{% endfor %}
+        </div>
+        {% endif %}
+
+        {% if match.mismatches %}
+        <div class="match-difference"><i class="bi bi-info-circle"></i><span><strong>Farklı olabilecek nokta:</strong> {{ match.mismatches[:2]|join(', ') }}</span></div>
+        {% endif %}
+
+        <div class="match-actions">
+          <a href="{{ url_for('profile', username=match.username) }}" class="secondary-action">Profili gör</a>
+          <a href="{{ url_for('messages_thread', other_id=match.id) }}" class="primary-action">Mesaj gönder</a>
+        </div>
+      </article>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="no-match"><i class="bi bi-search"></i><strong>Henüz uygun bir eşleşme yok.</strong><span>Diğer öğrenciler tercihlerini tamamladıkça yeni eşleşmeler burada görünecek.</span></div>
+    {% endif %}
+  </section>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.roommate-page{max-width:1180px;margin:0 auto;padding-bottom:1rem}
+.roommate-header{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:21px 22px;margin-bottom:20px;border:1px solid var(--border);border-radius:20px;background:var(--surface,#fff)}
+.roommate-kicker,.wizard-kicker,.trait-count{display:block;font-size:.67rem;font-weight:800;letter-spacing:.09em;color:var(--muted,#6b7280);margin-bottom:5px}.roommate-header h1{font-size:1.6rem;font-weight:800;margin:0}.roommate-header p{margin:5px 0 0;color:var(--muted,#6b7280);font-size:.88rem;max-width:720px}.roommate-header-icon{width:54px;height:54px;border-radius:16px;display:grid;place-items:center;background:var(--bs-primary-bg-subtle);color:var(--bs-primary);font-size:1.5rem;flex:0 0 auto}
+.roommate-layout{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:16px;align-items:start}.roommate-main-card,.side-card,.matches-section{border:1px solid var(--border);border-radius:20px;background:var(--surface,#fff)}
+.roommate-main-card{padding:22px}.wizard-head{display:flex;align-items:center;justify-content:space-between;gap:15px}.wizard-head h2{font-size:1.2rem;font-weight:800;margin:0}.wizard-head p{font-size:.78rem;color:var(--muted,#6b7280);margin:4px 0 0}.progress-circle{width:50px;height:50px;border-radius:50%;display:grid;place-items:center;background:conic-gradient(var(--bs-primary) var(--progress,25%),var(--border) 0);position:relative;flex:0 0 auto}.progress-circle:after{content:"";position:absolute;inset:5px;border-radius:50%;background:var(--surface,#fff)}.progress-circle span{position:relative;z-index:1;font-size:.68rem;font-weight:800}.wizard-progress{height:5px;border-radius:99px;background:var(--border);overflow:hidden;margin:16px 0 24px}.wizard-progress span{display:block;height:100%;width:25%;background:var(--bs-primary);transition:width .2s}
+.roommate-step{display:none}.roommate-step.active{display:block;animation:roommateFade .2s ease}.trait-icon{width:48px;height:48px;border-radius:14px;display:grid;place-items:center;background:var(--bs-primary-bg-subtle);color:var(--bs-primary);font-size:1.2rem;margin-bottom:12px}.trait-icon.small{margin:0;flex:0 0 auto}.roommate-step .trait-count{margin-bottom:7px}.roommate-step h3,.advanced-heading h3{font-size:1.3rem;font-weight:800;margin:0}.step-description{font-size:.82rem;color:var(--muted,#6b7280);margin:5px 0 18px;max-width:650px}
+.choice-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.choice-card{cursor:pointer}.choice-card input{position:absolute;opacity:0}.choice-card span{display:flex;align-items:center;gap:9px;min-height:58px;padding:11px 13px;border:1px solid var(--border);border-radius:13px;font-size:.8rem;font-weight:700;background:var(--surface,#fff);transition:.15s}.choice-card span i{color:var(--muted,#94a3b8);font-size:1.05rem}.choice-card input:checked+span{border-color:var(--bs-primary);background:var(--bs-primary-bg-subtle);color:var(--bs-primary)}.choice-card input:checked+span i{color:var(--bs-primary)}
+.importance-inline{display:flex;flex-direction:column;gap:8px;margin-top:18px;padding:11px 12px;border-radius:12px;background:rgba(15,23,42,.025);font-size:.72rem;color:var(--muted,#6b7280)}.importance-inline-head{display:flex;align-items:center;justify-content:space-between;gap:10px}.importance-current-label{color:var(--bs-primary);font-size:.74rem}.importance-mini{display:flex;gap:4px}.importance-mini label{cursor:pointer}.importance-mini input{position:absolute;opacity:0}.importance-mini span{width:28px;height:28px;border:1px solid var(--border);border-radius:8px;display:grid;place-items:center;background:var(--surface,#fff);font-size:.68rem;font-weight:800}.importance-mini input:checked+span{border-color:var(--bs-primary);background:var(--bs-primary-bg-subtle);color:var(--bs-primary)}.importance-scale-hint{display:flex;justify-content:space-between;font-size:.62rem;color:var(--muted,#9ca3af);padding:0 1px}
+.advanced-step{animation:roommateFade .2s ease}.advanced-heading{display:flex;gap:12px;align-items:flex-start;margin-bottom:18px}.advanced-heading p{font-size:.76rem;color:var(--muted,#6b7280);margin:4px 0 0}.advanced-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.advanced-item{border:1px solid var(--border);border-radius:13px;padding:11px}.advanced-item-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}.advanced-item-head>div{display:flex;align-items:center;gap:7px;font-size:.75rem}.advanced-item-head i{color:var(--bs-primary)}.advanced-importance-label{font-size:.62rem;color:var(--muted,#6b7280)}.advanced-options{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none}.advanced-options::-webkit-scrollbar{display:none}.advanced-options label{cursor:pointer;flex:1}.advanced-options input,.advanced-importance input{position:absolute;opacity:0}.advanced-options span{display:block;padding:7px 6px;border:1px solid var(--border);border-radius:8px;text-align:center;font-size:.62rem;white-space:nowrap}.advanced-options input:checked+span{border-color:var(--bs-primary);background:var(--bs-primary-bg-subtle);color:var(--bs-primary);font-weight:700}.advanced-importance{display:flex;align-items:center;gap:4px;margin-top:8px}.advanced-importance>span{font-size:.62rem;color:var(--muted,#6b7280);margin-right:auto}.advanced-importance label{cursor:pointer}.advanced-importance label>span{display:grid;place-items:center;width:23px;height:23px;border:1px solid var(--border);border-radius:6px;font-size:.6rem}.advanced-importance input:checked+span{border-color:var(--bs-primary);background:var(--bs-primary-bg-subtle);color:var(--bs-primary)}
+.wizard-actions{display:flex;align-items:center;gap:8px;margin-top:24px;padding-top:15px;border-top:1px solid var(--border)}.wizard-back,.wizard-next,.wizard-submit{border:0;border-radius:10px;min-height:42px;padding:9px 14px;font-size:.76rem;font-weight:800}.wizard-back{background:var(--surface,#fff);border:1px solid var(--border);color:var(--muted,#6b7280)}.wizard-back:disabled{opacity:.4}.wizard-next,.wizard-submit{margin-left:auto;background:var(--bs-primary);color:#fff}.wizard-submit{display:none}.wizard-next i,.wizard-back i,.wizard-submit i{margin:0 2px}
+.roommate-side{display:flex;flex-direction:column;gap:12px}.side-card{padding:16px}.side-title{display:flex;align-items:center;gap:9px;margin-bottom:13px}.side-icon{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;background:var(--bs-primary-bg-subtle);color:var(--bs-primary);flex:0 0 auto}.side-icon.success{color:#15803d;background:rgba(22,163,74,.08)}.side-title strong,.side-title small{display:block}.side-title strong{font-size:.82rem}.side-title small{font-size:.67rem;color:var(--muted,#6b7280);margin-top:2px}.side-step{display:flex;gap:9px;padding:10px 0;border-top:1px solid var(--border)}.side-step>b{width:23px;height:23px;border-radius:50%;background:var(--bs-primary-bg-subtle);color:var(--bs-primary);display:grid;place-items:center;font-size:.65rem;flex:0 0 auto}.side-step strong,.side-step small{display:block}.side-step strong{font-size:.72rem}.side-step small{font-size:.65rem;color:var(--muted,#6b7280);margin-top:2px}.view-matches{display:flex;align-items:center;justify-content:space-between;color:var(--bs-primary);font-size:.72rem;font-weight:800;text-decoration:none}.privacy-note{display:flex;gap:10px;font-size:.72rem}.privacy-note>i{color:#15803d;font-size:1.2rem}.privacy-note strong,.privacy-note span{display:block}.privacy-note span{color:var(--muted,#6b7280);font-size:.67rem;margin-top:2px}.matches-section{margin-top:16px;padding:20px}.matches-heading{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:13px}.matches-heading h2{font-size:1.15rem;font-weight:800;margin:0}.matches-heading p{font-size:.72rem;color:var(--muted,#6b7280);margin:4px 0 0}.result-count{font-size:.7rem;color:var(--muted,#6b7280)}.matches-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.match-result{border:1px solid var(--border);border-radius:15px;padding:14px}.match-top{display:flex;align-items:center;gap:10px}.match-avatar{width:44px;height:44px;border-radius:50%;object-fit:cover;display:grid;place-items:center;background:var(--bs-primary-bg-subtle);color:var(--bs-primary);font-weight:800;flex:0 0 auto}.match-person{min-width:0;flex:1}.match-person strong,.match-person span{display:block}.match-person strong{font-size:.8rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.match-person span{font-size:.67rem;color:var(--muted,#6b7280);margin-top:2px}.match-score{text-align:right}.match-score strong{display:block;font-size:1.05rem;color:#15803d}.match-score span{font-size:.6rem;color:var(--muted,#6b7280)}.match-bar{height:5px;background:var(--border);border-radius:99px;overflow:hidden;margin:12px 0 9px}.match-bar span{display:block;height:100%;background:var(--bs-primary);border-radius:99px}.match-points{display:flex;flex-wrap:wrap;gap:4px}.match-points span{font-size:.62rem;padding:5px 7px;border-radius:999px;background:rgba(22,163,74,.07);color:#15803d}.match-difference{display:flex;gap:6px;margin-top:8px;font-size:.65rem;color:var(--muted,#6b7280)}.match-difference i{margin-top:1px}.match-actions{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:12px}.secondary-action,.primary-action{text-align:center;padding:8px;border-radius:9px;text-decoration:none;font-size:.7rem;font-weight:800}.secondary-action{border:1px solid var(--border);color:var(--muted,#6b7280)}.primary-action{background:var(--bs-primary);color:#fff}.no-match{text-align:center;padding:38px 15px;color:var(--muted,#6b7280)}.no-match i{font-size:1.8rem;display:block;margin-bottom:7px}.no-match strong,.no-match span{display:block}.no-match span{font-size:.7rem;margin-top:3px}
+@keyframes roommateFade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+@media(max-width:900px){.roommate-layout{grid-template-columns:1fr}.roommate-side{display:grid;grid-template-columns:1fr 1fr}.matches-grid{grid-template-columns:1fr}}
+@media(max-width:620px){.roommate-page{padding-bottom:70px}.roommate-header{padding:16px;border-radius:16px}.roommate-header h1{font-size:1.35rem}.roommate-header-icon{width:44px;height:44px}.roommate-main-card{padding:15px;border-radius:16px}.choice-list{grid-template-columns:1fr}.importance-inline{align-items:flex-start;flex-direction:column}.importance-mini{width:100%;justify-content:space-between}.importance-mini label{flex:1}.importance-mini span{width:100%;height:34px}.roommate-side{display:flex}.advanced-grid{grid-template-columns:1fr}.matches-section{padding:15px;border-radius:16px}.matches-heading{align-items:flex-start}.match-actions{grid-template-columns:1fr}.wizard-head h2{font-size:1.05rem}.progress-circle{width:44px;height:44px}.wizard-actions{position:sticky;bottom:8px;z-index:5;background:var(--surface,#fff);margin-left:-4px;margin-right:-4px;padding:10px 4px;border:1px solid var(--border);border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.08)}.wizard-next,.wizard-submit,.wizard-back{min-height:46px}}
+@media(max-width:390px){.roommate-header-icon{display:none}.roommate-header h1{font-size:1.2rem}.roommate-header p{font-size:.8rem}}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function(){
+  const form=document.getElementById('roommate-form');
+  if(!form)return;
+  const steps=[...document.querySelectorAll('.roommate-step')];
+  const advanced=document.getElementById('advanced-step');
+  const prev=document.getElementById('prev-btn'),next=document.getElementById('next-btn'),submit=document.getElementById('submit-btn');
+  const label=document.getElementById('step-label'),title=document.getElementById('question-title'),help=document.getElementById('question-help'),bar=document.getElementById('progress-bar'),ring=document.getElementById('progress-ring');
+  let current=0, advancedOpen=false;
+  const total=steps.length+1;
+
+  function show(i){
+    current=Math.max(0,Math.min(steps.length,i));
+    steps.forEach((s,n)=>s.classList.toggle('active',n===current));
+    const isAdvanced=current===steps.length;
+    advanced.hidden=!isAdvanced;
+    const pct=Math.round(((current+1)/total)*100);
+    label.textContent=isAdvanced?'Detaylar · İsteğe bağlı':`Hızlı başlangıç · ${current+1} / ${steps.length}`;
+    title.textContent=isAdvanced?'İstersen eşleşmeni daha da kişiselleştir':steps[current].dataset.title;
+    help.textContent=isAdvanced?'Bu alanları değiştirmek zorunda değilsin. Mevcut seçimlerin aynen kullanılacak.':'Sana en yakın seçeneğe dokun. Bir sonraki adıma geçmek için başka bir şey yapmana gerek yok.';
+    bar.style.width=pct+'%';ring.style.setProperty('--progress',pct+'%');ring.querySelector('span').textContent=pct+'%';
+    prev.disabled=current===0;
+    next.style.display=isAdvanced?'none':'inline-flex';
+    submit.style.display=isAdvanced?'inline-flex':'none';
+    window.scrollTo({top:Math.max(0,form.getBoundingClientRect().top+window.scrollY-85),behavior:'smooth'});
+  }
+
+  function selected(step){return !!step.querySelector('input[name$="_value"]:checked');}
+  function validateAll(){
+    for(const step of steps){if(!selected(step)){show(Number(step.dataset.index));return false;}}
+    return true;
+  }
+
+  next.addEventListener('click',()=>{
+    if(!selected(steps[current])){
+      const grid=steps[current].querySelector('.choice-list');
+      grid.animate([{transform:'translateX(-5px)'},{transform:'translateX(5px)'},{transform:'translateX(0)'}],{duration:180});
+      return;
+    }
+    show(current+1);
+  });
+  prev.addEventListener('click',()=>show(current-1));
+  form.addEventListener('submit',e=>{if(!validateAll())e.preventDefault();});
+
+  document.querySelectorAll('.importance-mini').forEach(group=>{
+    const key=group.dataset.key;
+    const label=document.querySelector(`.importance-current-label[data-key="${key}"]`);
+    if(!label)return;
+    group.querySelectorAll('input').forEach(input=>input.addEventListener('change',()=>{label.textContent=input.dataset.label||'Orta';}));
+  });
+
+  document.querySelectorAll('.advanced-item').forEach(item=>{
+    const label=item.querySelector('.advanced-importance-label');
+    item.querySelectorAll('.advanced-importance input').forEach(input=>input.addEventListener('change',()=>{label.textContent=['','Hiç','Az','Orta','Önemli','Çok önemli'][Number(input.value)]||'Orta';}));
+  });
+  show(0);
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Etkinlikler — Yurt Sosyal{% endblock %}
+{% block content %}
+
+<div class="d-flex align-items-center justify-content-between mb-4">
+    <div>
+        <span class="kicker">Sosyal Yaşam</span>
+        <h4 class="fw-bold mb-0">Yurt Etkinlikleri</h4>
+    </div>
+    <a href="{{ url_for('create_event') }}" class="btn btn-primary btn-sm">
+        <i class="bi bi-plus-lg"></i> Etkinlik Oluştur
+    </a>
+</div>
+
+{% if events %}
+<div class="d-flex flex-column gap-3">
+    {% for e in events %}
+    <a href="{{ url_for('event_detail', event_id=e.id) }}" class="card card-pad card-interactive d-block">
+        {% if e.image_path %}<img src="{{ url_for('static', filename='uploads/events/' + e.image_path) }}" alt="{{ e.title }}" class="w-100 mb-3" style="height:180px;object-fit:cover;border-radius:14px;">{% endif %}
+        <div class="d-flex justify-content-between align-items-start gap-3">
+            <div>
+                <span class="kicker">{{ e.event_type }}</span>
+                <h5 class="fw-bold mb-1">{{ e.title }}</h5>
+                <div class="text-muted small mb-2">
+                    <i class="bi bi-geo-alt me-1"></i>{{ e.location }}
+                </div>
+                <div class="text-muted small">
+                    <i class="bi bi-calendar3 me-1"></i>{{ e.event_date }}
+                </div>
+            </div>
+            {% if e.id in my_event_ids %}
+            <span class="status-pill attendance-present"><i class="bi bi-check2"></i> Katıldın</span>
+            {% endif %}
+        </div>
+
+        <div class="d-flex justify-content-between align-items-center mt-3 pt-3 border-top" style="border-color: var(--border) !important; font-size: 0.78rem;">
+            <span class="text-muted">
+                <i class="bi bi-people me-1"></i>{{ e.participant_count }}{% if e.max_participants %} / {{ e.max_participants }}{% endif %} Katılımcı
+            </span>
+            <span class="text-muted">Düzenleyen: <strong>{{ e.creator_name }}</strong></span>
+        </div>
+    </a>
+    {% endfor %}
+</div>
+{% else %}
+<div class="card card-pad text-center py-5">
+    <div class="empty-state">
+        <i class="bi bi-calendar-x"></i>
+        <h6 class="fw-bold mt-2">Henüz Etkinlik Yok</h6>
+        <p class="small text-muted mb-3">Futbol turnuvası, film gecesi veya ders çalışma grubu oluşturun.</p>
+        <a href="{{ url_for('create_event') }}" class="btn btn-primary btn-sm">İlk Etkinliği Oluştur</a>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}

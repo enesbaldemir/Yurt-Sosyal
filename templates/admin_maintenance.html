@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Arıza / Talep Yönetimi — Yurt Sosyal{% endblock %}
+{% block shell_class %}full-width{% endblock %}
+{% block context_panel %}{% endblock %}
+{% block content %}
+
+<div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+    <div>
+        <span class="kicker">Yönetim & Moderasyon</span>
+        <h4 class="fw-bold mb-0">Arıza / Talep Yönetimi</h4>
+    </div>
+    <a href="{{ url_for('admin_panel') }}" class="btn btn-secondary btn-sm">
+        <i class="bi bi-arrow-left me-1"></i> Admin Paneline Dön
+    </a>
+</div>
+
+<div class="d-flex gap-2 mb-4" style="overflow-x: auto; padding-bottom: 4px;">
+    <a href="{{ url_for('admin_maintenance_list') }}" class="btn btn-sm {{ 'btn-primary' if not active_status else 'btn-secondary' }}">Tüm Talepler</a>
+    {% for st in statuses %}
+    <a href="{{ url_for('admin_maintenance_list', status=st) }}" class="btn btn-sm {{ 'btn-primary' if active_status == st else 'btn-secondary' }}">{{ st }}</a>
+    {% endfor %}
+</div>
+
+{% if requests %}
+<div class="d-flex flex-column gap-3">
+    {% for r in requests %}
+    <div class="card card-pad">
+        <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
+            <div>
+                <span class="badge-tag mb-1">{{ r.category }} · Oda {{ r.room_number }} · {{ r.user_name }} (@{{ r.username }})</span>
+                <p class="mb-0 small fw-semibold" style="line-height: 1.5;">{{ r.description }}</p>
+            </div>
+            <span class="status-pill {{ 'badge-danger' if r.urgency == 'Yüksek' or r.urgency == 'urgent' else ('badge-gold' if r.urgency == 'Orta' or r.urgency == 'high' else '') }}">
+                {{ r.urgency }}
+            </span>
+        </div>
+
+        {% if r.photo_path %}
+        <img src="{{ url_for('static', filename='uploads/posts/' + r.photo_path) }}" class="rounded mb-3" style="max-height: 200px; max-width: 320px; object-fit: cover;" alt="">
+        {% endif %}
+
+        <form method="POST" action="{{ url_for('update_maintenance_request', req_id=r.id) }}" class="d-flex flex-wrap gap-2 align-items-center pt-2 border-top" style="border-color: var(--border) !important;">
+            <select name="status" class="form-select form-select-sm" style="max-width: 140px; font-size: 0.8rem;">
+                {% for st in statuses %}
+                <option value="{{ st }}" {{ 'selected' if r.status == st }}>{{ st }}</option>
+                {% endfor %}
+            </select>
+            <input type="text" name="admin_note" class="form-control form-control-sm" style="max-width: 300px; font-size: 0.8rem;" placeholder="Yönetici notu ekle..." value="{{ r.admin_note or '' }}">
+            <button type="submit" class="btn btn-primary btn-sm">
+                <i class="bi bi-check2 me-1"></i> Güncelle
+            </button>
+            <span class="text-muted small ms-auto" style="font-size: 0.72rem;">{{ r.created_at|datetime_tr }}</span>
+        </form>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="card card-pad text-center py-5">
+    <div class="empty-state">
+        <i class="bi bi-tools"></i>
+        <p class="small text-muted mb-0">Filtreye uygun arıza veya talep bulunamadı.</p>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}
