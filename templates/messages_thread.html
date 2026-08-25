@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}{{ conversation.name if conversation.type == 'group' else other.full_name }} — Mesajlar{% endblock %}
 {% block extra_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/messages.css') }}?v=5">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/messages.css') }}?v=6">
 {% endblock %}
 {% block content %}
 

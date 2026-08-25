@@ -5190,14 +5190,16 @@ def _laundry_parse_dt(value):
     except Exception:
         return None
 
+LAUNDRY_SLOT_MINUTES = 10  # Rezervasyon başlangıçları bu dakikanın katlarında seçilebilir.
+
+
 def _laundry_slot_start(dt):
-    """Bir sonraki 30 dakikalık rezervasyon başlangıcını verir."""
+    """Bir sonraki 10 dakikalık rezervasyon başlangıcını verir."""
     dt = dt.astimezone(ISTANBUL_TZ).replace(second=0, microsecond=0)
-    if dt.minute == 0:
+    remainder = dt.minute % LAUNDRY_SLOT_MINUTES
+    if remainder == 0:
         return dt
-    if dt.minute <= 30:
-        return dt.replace(minute=30)
-    return (dt + timedelta(hours=1)).replace(minute=0)
+    return dt + timedelta(minutes=LAUNDRY_SLOT_MINUTES - remainder)
 
 
 def _laundry_cleanup_overlaps(conn):
@@ -5248,9 +5250,10 @@ def laundry_page():
         elif start and start > now: upcoming.append(rd)
     wait=conn.execute('SELECT machine_id FROM laundry_waitlist WHERE user_id=? AND notified_at IS NULL',(session['user_id'],)).fetchall()
     wait_ids={r['machine_id'] for r in wait}
-    # Önümüzdeki 24 saat için 30 dakikalık başlangıç seçenekleri.
+    # Önümüzdeki 24 saat için LAUNDRY_SLOT_MINUTES dakikalık başlangıç seçenekleri.
     first_slot=_laundry_slot_start(now)
-    slots=[first_slot+timedelta(minutes=30*i) for i in range(48)]
+    slot_count=(24*60)//LAUNDRY_SLOT_MINUTES
+    slots=[first_slot+timedelta(minutes=LAUNDRY_SLOT_MINUTES*i) for i in range(slot_count)]
     bookings_by_machine={}
     for r in reservations:
         bookings_by_machine.setdefault(r['machine_id'], []).append({
@@ -5275,8 +5278,8 @@ def laundry_reserve():
     now=now_tr()
     if start < _laundry_slot_start(now):
         flash('Geçmiş bir saat için rezervasyon yapılamaz.','danger'); return redirect(url_for('laundry_page'))
-    if start.minute not in (0, 30) or start.second != 0:
-        flash('Rezervasyon başlangıcı 30 dakikalık aralıklarda seçilebilir.','danger'); return redirect(url_for('laundry_page'))
+    if start.minute % LAUNDRY_SLOT_MINUTES != 0 or start.second != 0:
+        flash(f'Rezervasyon başlangıcı {LAUNDRY_SLOT_MINUTES} dakikalık aralıklarda seçilebilir.','danger'); return redirect(url_for('laundry_page'))
     duration_raw=request.form.get('duration_minutes','60').strip()
     try:
         duration=int(duration_raw)

@@ -244,7 +244,7 @@ document.querySelectorAll('.reserve-form').forEach(form=>{
   function select(i,scroll=true){
     if(!chips[i]||chips[i].disabled)return;
     selectedIndex=i;chips.forEach(c=>c.classList.remove('selected'));chips[i].classList.add('selected');
-    hidden.value=chips[i].dataset.value;chosen.textContent=chips[i].dataset.label;chosenDate.textContent=`${chips[i].dataset.date} · 30 dakikalık aralık`;
+    hidden.value=chips[i].dataset.value;chosen.textContent=chips[i].dataset.label;chosenDate.textContent=`${chips[i].dataset.date} · 10 dakikalık aralık`;
     if(scroll)chips[i].scrollIntoView({behavior:'smooth',block:'nearest',inline:'center'});
     form.querySelector('.reserve-btn').disabled=false;
   }
