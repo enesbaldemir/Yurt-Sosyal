@@ -42,21 +42,62 @@
 </div>
 
 <!-- ===================== SEKMELER ===================== -->
+{% set _has_any_tab = can_manage_attendance or can_manage_users or can_manage_events or can_manage_menu or can_manage_announcements or can_manage_maintenance or can_manage_laundry or can_manage_messages or can_view_analytics %}
+{% set _first_tab_set = namespace(done=false) %}
 <ul class="nav nav-tabs mb-4" id="adminTabs" role="tablist">
-    <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-attendance" type="button"><i class="bi bi-clipboard-check me-1"></i> Yoklamalar</button></li>
-    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-users" type="button"><i class="bi bi-people me-1"></i> Öğrenciler</button></li>
-    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-events" type="button"><i class="bi bi-calendar3 me-1"></i> Etkinlikler</button></li>
-    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-menu" type="button"><i class="bi bi-cup-hot me-1"></i> Menü & Excel</button></li>
-    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-announce" type="button"><i class="bi bi-megaphone me-1"></i> Duyurular</button></li>
-    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-maint" type="button"><i class="bi bi-tools me-1"></i> Talepler</button></li>
-    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-laundry" type="button">{{ icons.washing_machine_icon(16, 'me-1') }} Çamaşırhane</button></li>
-    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-messages" type="button"><i class="bi bi-chat-dots me-1"></i> Mesajlar</button></li>
-    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-analytics" type="button"><i class="bi bi-bar-chart me-1"></i> Analitik & Rapor</button></li>
+    {% if can_manage_attendance %}
+    <li class="nav-item"><button class="nav-link {{ 'active' if not _first_tab_set.done }}" data-bs-toggle="tab" data-bs-target="#tab-attendance" type="button"><i class="bi bi-clipboard-check me-1"></i> Yoklamalar</button></li>
+    {% set _first_tab_set.done = true %}
+    {% endif %}
+    {% if can_manage_users %}
+    <li class="nav-item"><button class="nav-link {{ 'active' if not _first_tab_set.done }}" data-bs-toggle="tab" data-bs-target="#tab-users" type="button"><i class="bi bi-people me-1"></i> Öğrenciler</button></li>
+    {% set _first_tab_set.done = true %}
+    {% endif %}
+    {% if can_manage_events %}
+    <li class="nav-item"><button class="nav-link {{ 'active' if not _first_tab_set.done }}" data-bs-toggle="tab" data-bs-target="#tab-events" type="button"><i class="bi bi-calendar3 me-1"></i> Etkinlikler</button></li>
+    {% set _first_tab_set.done = true %}
+    {% endif %}
+    {% if can_manage_menu %}
+    <li class="nav-item"><button class="nav-link {{ 'active' if not _first_tab_set.done }}" data-bs-toggle="tab" data-bs-target="#tab-menu" type="button"><i class="bi bi-cup-hot me-1"></i> Menü & Excel</button></li>
+    {% set _first_tab_set.done = true %}
+    {% endif %}
+    {% if can_manage_announcements %}
+    <li class="nav-item"><button class="nav-link {{ 'active' if not _first_tab_set.done }}" data-bs-toggle="tab" data-bs-target="#tab-announce" type="button"><i class="bi bi-megaphone me-1"></i> Duyurular</button></li>
+    {% set _first_tab_set.done = true %}
+    {% endif %}
+    {% if can_manage_maintenance %}
+    <li class="nav-item"><button class="nav-link {{ 'active' if not _first_tab_set.done }}" data-bs-toggle="tab" data-bs-target="#tab-maint" type="button"><i class="bi bi-tools me-1"></i> Talepler</button></li>
+    {% set _first_tab_set.done = true %}
+    {% endif %}
+    {% if can_manage_laundry %}
+    <li class="nav-item"><button class="nav-link {{ 'active' if not _first_tab_set.done }}" data-bs-toggle="tab" data-bs-target="#tab-laundry" type="button">{{ icons.washing_machine_icon(16, 'me-1') }} Çamaşırhane</button></li>
+    {% set _first_tab_set.done = true %}
+    {% endif %}
+    {% if can_manage_messages %}
+    <li class="nav-item"><button class="nav-link {{ 'active' if not _first_tab_set.done }}" data-bs-toggle="tab" data-bs-target="#tab-messages" type="button"><i class="bi bi-chat-dots me-1"></i> Mesajlar</button></li>
+    {% set _first_tab_set.done = true %}
+    {% endif %}
+    {% if can_view_analytics %}
+    <li class="nav-item"><button class="nav-link {{ 'active' if not _first_tab_set.done }}" data-bs-toggle="tab" data-bs-target="#tab-analytics" type="button"><i class="bi bi-bar-chart me-1"></i> Analitik & Rapor</button></li>
+    {% set _first_tab_set.done = true %}
+    {% endif %}
+    {% if can_manage_roles %}
+    <li class="nav-item"><button class="nav-link {{ 'active' if not _first_tab_set.done }}" data-bs-toggle="tab" data-bs-target="#tab-roles" type="button"><i class="bi bi-person-gear me-1"></i> Roller & Yetkiler</button></li>
+    {% set _first_tab_set.done = true %}
+    {% endif %}
 </ul>
 
 <div class="tab-content">
+    {% if not _has_any_tab and not can_manage_roles %}
+    <div class="card card-pad text-center py-5">
+        <i class="bi bi-shield-lock" style="font-size:2rem; color: var(--text-muted);"></i>
+        <p class="text-muted mt-2 mb-0">Şu anda hiçbir yönetim alanına erişim yetkiniz bulunmuyor. Bir yöneticiden rolünüze yetki eklemesini isteyin.</p>
+    </div>
+    {% endif %}
+
     <!-- 1. YOKLAMALAR -->
-    <div class="tab-pane fade show active" id="tab-attendance">
+    {% if can_manage_attendance %}
+    <div class="tab-pane fade" id="tab-attendance">
         <div class="card card-pad mb-3">
             <div class="d-flex align-items-center justify-content-between gap-3 flex-wrap">
                 <div>
@@ -121,8 +162,11 @@
             </div>
         </div>
     </div>
+    {% endif %}
+
 
     <!-- 2. KULLANICILAR / ÖĞRENCİLER -->
+    {% if can_manage_users %}
     <div class="tab-pane fade" id="tab-users">
         <div class="card">
             <div class="table-responsive">
@@ -187,8 +231,11 @@
             </div>
         </div>
     </div>
+    {% endif %}
+
 
     <!-- 3. ETKİNLİKLER -->
+    {% if can_manage_events %}
     <div class="tab-pane fade" id="tab-events">
         <div class="card">
             <div class="table-responsive">
@@ -224,8 +271,11 @@
             </div>
         </div>
     </div>
+    {% endif %}
+
 
     <!-- 4. MENÜ & EXCEL AKTARIMI -->
+    {% if can_manage_menu %}
     <div class="tab-pane fade" id="tab-menu">
         <div class="row g-4 mb-4">
             <!-- EXCEL YÜKLEME -->
@@ -394,8 +444,11 @@
             </div>
         </div>
     </div>
+    {% endif %}
+
 
     <!-- 5. DUYURULAR -->
+    {% if can_manage_announcements %}
     <div class="tab-pane fade" id="tab-announce">
         <div class="card card-pad mb-4">
             <div class="section-title mb-3">
@@ -454,8 +507,11 @@
             {% endfor %}
         </div>
     </div>
+    {% endif %}
+
 
     <!-- 6. ARIZA & TALEPLER -->
+    {% if can_manage_maintenance %}
     <div class="tab-pane fade" id="tab-maint">
         <div class="card">
             <div class="table-responsive">
@@ -504,9 +560,12 @@
             </div>
         </div>
     </div>
+    {% endif %}
+
 
     <!-- 7. MESAJ MODERASYONU -->
     <!-- ÇAMAŞIRHANE -->
+    {% if can_manage_laundry %}
     <div class="tab-pane fade" id="tab-laundry">
         <div class="row g-4">
             <div class="col-lg-5">
@@ -548,7 +607,10 @@
             </div>
         </div>
     </div>
+    {% endif %}
 
+
+    {% if can_manage_messages %}
     <div class="tab-pane fade" id="tab-messages">
         <div class="card">
             <div class="table-responsive">
@@ -581,8 +643,11 @@
             </div>
         </div>
     </div>
+    {% endif %}
+
 
     <!-- 8. ANALİTİK VE GERİ BİLDİRİM RAPORU -->
+    {% if can_view_analytics %}
     <div class="tab-pane fade" id="tab-analytics">
         <div class="card card-pad mb-4">
             <div class="d-flex justify-content-between align-items-center mb-3">
@@ -665,12 +730,137 @@
             </div>
         </div>
     </div>
+    {% endif %}
+
+    {% if can_manage_roles %}
+    <!-- 9. ROLLER & YETKİLER -->
+    <div class="tab-pane fade" id="tab-roles">
+        <div class="d-flex align-items-center justify-content-between gap-3 flex-wrap mb-3">
+            <div>
+                <span class="kicker">Yetkilendirme</span>
+                <h5 class="fw-bold mb-1">Roller & Yetkiler</h5>
+                <p class="small text-muted mb-0">Yeni rol oluştur, mevcut rolleri düzenle ve her role hangi yönetim alanlarına erişebileceğini/düzenleyebileceğini seç.</p>
+            </div>
+            <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#roleCreateModal">
+                <i class="bi bi-plus-lg me-1"></i> Yeni Rol Ekle
+            </button>
+        </div>
+
+        <div class="card">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0 align-middle">
+                    <thead>
+                        <tr>
+                            <th>Rol</th>
+                            <th>Kullanıcı</th>
+                            <th>Yetkiler</th>
+                            <th class="text-end">İşlemler</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for r_key, r in roles.items() %}
+                        <tr>
+                            <td>
+                                <span class="role-badge {{ r.class }}">
+                                    <i class="bi {{ r.icon }} me-1"></i>{{ r.badge }}
+                                </span>
+                                {% if r.is_system %}<span class="text-muted ms-1" style="font-size:0.68rem;" title="Sistem rolü — silinemez">· sistem</span>{% endif %}
+                                {% if r.desc %}<div class="text-muted small mt-1" style="font-size:0.72rem; max-width:260px;">{{ r.desc }}</div>{% endif %}
+                            </td>
+                            <td class="text-muted small">{{ role_user_counts.get(r_key, 0) }} kişi</td>
+                            <td>
+                                {% if r.permissions.get('full_admin') %}
+                                <span class="badge-tag badge-gold" style="font-size:0.68rem;">Tam Yönetici</span>
+                                {% else %}
+                                <div class="d-flex flex-wrap gap-1" style="max-width:340px;">
+                                    {% for p_key, p_info in permissions_catalog.items() if p_key != 'full_admin' and r.permissions.get(p_key) %}
+                                    <span class="badge-tag" style="font-size:0.66rem;"><i class="bi {{ p_info.icon }} me-1"></i>{{ p_info.label }}</span>
+                                    {% else %}
+                                    <span class="text-muted small">—</span>
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+                            </td>
+                            <td class="text-end">
+                                <button type="button" class="btn btn-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#roleEditModal-{{ r_key }}" title="Düzenle">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                                {% if not r.is_system %}
+                                <form method="POST" action="{{ url_for('delete_role', role_key=r_key) }}" class="d-inline" onsubmit="return confirm('“{{ r.title }}” rolünü silmek istediğinize emin misiniz?')">
+                                    <button type="submit" class="btn btn-soft-danger btn-sm" title="Sil" {{ 'disabled' if role_user_counts.get(r_key, 0) > 0 }}>
+                                        <i class="bi bi-trash3"></i>
+                                    </button>
+                                </form>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- YENİ ROL EKLE MODALI -->
+    <div class="modal fade" id="roleCreateModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <form method="POST" action="{{ url_for('create_role') }}">
+                    <div class="modal-header">
+                        <h5 class="modal-title"><i class="bi bi-person-plus me-2"></i>Yeni Rol Oluştur</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Kapat"></button>
+                    </div>
+                    <div class="modal-body">
+                        {% include '_role_form_fields.html' with context %}
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Vazgeç</button>
+                        <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-check2 me-1"></i> Rolü Oluştur</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- ROL DÜZENLEME MODALLARI -->
+    {% for r_key, r in roles.items() %}
+    <div class="modal fade" id="roleEditModal-{{ r_key }}" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <form method="POST" action="{{ url_for('update_role', role_key=r_key) }}">
+                    <div class="modal-header">
+                        <h5 class="modal-title"><i class="bi bi-pencil-square me-2"></i>{{ r.title }} — Düzenle</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Kapat"></button>
+                    </div>
+                    <div class="modal-body">
+                        {% include '_role_form_fields.html' with context %}
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Vazgeç</button>
+                        <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-check2 me-1"></i> Değişiklikleri Kaydet</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+    {% endif %}
+
 </div>
 
 {% endblock %}
 
 {% block extra_js %}
 <script>
+// Yetkiye göre gizli/görünür sekmelerden ilk görünen olanı varsayılan olarak aktif yap.
+document.addEventListener('DOMContentLoaded', function () {
+    var activeLink = document.querySelector('#adminTabs .nav-link.active');
+    if (activeLink) {
+        var target = document.querySelector(activeLink.getAttribute('data-bs-target'));
+        if (target) { target.classList.add('show', 'active'); }
+    }
+});
+
 function loadMenuToAdminForm(date, b, d, s) {
     const dInput = document.getElementById('admin-manual-date');
     const bInput = document.getElementById('admin-manual-breakfast');

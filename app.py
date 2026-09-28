@@ -305,151 +305,211 @@ def _migrate_posts_allow_text(conn):
 
 PROFILE_THEMES = {'default': 'Standart'}
 
-# Sistem Rolleri ve Yetkilendirme Haritası
-USER_ROLES = {
-    'yurt_muduru': {
-        'key': 'yurt_muduru',
-        'title': 'Yurt Müdürü',
-        'badge': 'Yurt Müdürü',
+# ==================== ROL & YETKİ SİSTEMİ ====================
+# Roller artık veritabanında (roles tablosu) tutulur; admin panelinden yeni rol
+# eklenebilir, mevcut roller düzenlenebilir ve her role hangi yönetim
+# alanlarına erişebileceği/düzenleyebileceği (izinler) tek tek atanabilir.
+# Aşağıdaki liste sadece İLK KURULUMDA veritabanına yazılacak varsayılan
+# (sistem) rollerini tanımlar; kod içinde artık USER_ROLES DOĞRUDAN burada
+# değil, load_user_roles_from_db() ile veritabanından okunur.
+
+# Panelde seçilebilecek yetkiler. 'full_admin' diğer tüm yetkileri kapsayan
+# joker bir yetkidir (Tam Yönetici).
+PERMISSIONS = OrderedDict([
+    ('full_admin', {
+        'label': 'Tam Yönetici Yetkisi',
+        'desc': 'Yönetim panelinin tüm alanlarına ve tüm işlemlere erişim verir (aşağıdaki tüm yetkileri kapsar).',
         'icon': 'bi-shield-shaded',
-        'class': 'role-badge-mudur',
-        'color': '#ef4444',
-        'is_admin': True,
-        'can_maintenance': True,
-        'can_attendance': True,
-        'desc': 'Yurt genel yöneticisi (Tam yetki)'
-    },
-    'yurt_mudur_yardimcisi': {
-        'key': 'yurt_mudur_yardimcisi',
-        'title': 'Yurt Müdür Yardımcısı',
-        'badge': 'Yurt Müdür Yrd.',
-        'icon': 'bi-shield-check',
-        'class': 'role-badge-mudur-yrd',
-        'color': '#f97316',
-        'is_admin': True,
-        'can_maintenance': True,
-        'can_attendance': True,
-        'desc': 'Yurt müdür yardımcısı (İdari yetki)'
-    },
-    'yurt_memuru': {
-        'key': 'yurt_memuru',
-        'title': 'Yurt Memuru',
-        'badge': 'Yurt Memuru',
-        'icon': 'bi-person-badge',
-        'class': 'role-badge-memur',
-        'color': '#3b82f6',
-        'is_admin': True,
-        'can_maintenance': True,
-        'can_attendance': True,
-        'desc': 'İdari işler ve kayıt sorumlusu'
-    },
-    'yurt_temsilcisi': {
-        'key': 'yurt_temsilcisi',
-        'title': 'Yurt Temsilcisi',
-        'badge': 'Yurt Temsilcisi',
-        'icon': 'bi-award',
-        'class': 'role-badge-temsilci',
-        'color': '#8b5cf6',
-        'is_admin': True,
-        'can_maintenance': True,
-        'can_attendance': True,
-        'desc': 'Öğrenci temsilcisi ve etkinlik koordinatörü'
-    },
-    'yurt_gorevlisi': {
-        'key': 'yurt_gorevlisi',
-        'title': 'Yurt Görevlisi',
-        'badge': 'Yurt Görevlisi',
+    }),
+    ('manage_roles', {
+        'label': 'Rol Yönetimi',
+        'desc': 'Yeni rol oluşturma, mevcut rolleri düzenleme/silme ve rollere yetki atama.',
+        'icon': 'bi-person-gear',
+    }),
+    ('manage_users', {
+        'label': 'Kullanıcı Yönetimi',
+        'desc': 'Kullanıcılara rol atama, yurt durumunu değiştirme ve kullanıcı silme.',
+        'icon': 'bi-people',
+    }),
+    ('manage_events', {
+        'label': 'Etkinlik Yönetimi',
+        'desc': 'Etkinlikleri görüntüleme ve silme.',
+        'icon': 'bi-calendar3',
+    }),
+    ('manage_announcements', {
+        'label': 'Duyuru Yönetimi',
+        'desc': 'Duyuru oluşturma ve silme.',
+        'icon': 'bi-megaphone',
+    }),
+    ('manage_maintenance', {
+        'label': 'Arıza / Bakım Talepleri',
+        'desc': 'Arıza-bakım taleplerini görüntüleme ve yönetme.',
         'icon': 'bi-tools',
-        'class': 'role-badge-gorevli',
-        'color': '#eab308',
-        'is_admin': False,
-        'can_maintenance': True,
-        'can_attendance': False,
-        'desc': 'Arıza ve teknik taleplerden sorumlu'
-    },
-    'kat_1_sorumlusu': {
-        'key': 'kat_1_sorumlusu',
-        'title': '1. Kat Sorumlusu',
-        'badge': '1. Kat Sorumlusu',
-        'icon': 'bi-building',
-        'class': 'role-badge-kat',
-        'color': '#10b981',
-        'is_admin': False,
-        'can_maintenance': False,
-        'can_attendance': True,
-        'floor': 1,
-        'desc': '1. Kat düzeni ve yoklama sorumlusu'
-    },
-    'kat_2_sorumlusu': {
-        'key': 'kat_2_sorumlusu',
-        'title': '2. Kat Sorumlusu',
-        'badge': '2. Kat Sorumlusu',
-        'icon': 'bi-building',
-        'class': 'role-badge-kat',
-        'color': '#10b981',
-        'is_admin': False,
-        'can_maintenance': False,
-        'can_attendance': True,
-        'floor': 2,
-        'desc': '2. Kat düzeni ve yoklama sorumlusu'
-    },
-    'kat_3_sorumlusu': {
-        'key': 'kat_3_sorumlusu',
-        'title': '3. Kat Sorumlusu',
-        'badge': '3. Kat Sorumlusu',
-        'icon': 'bi-building',
-        'class': 'role-badge-kat',
-        'color': '#10b981',
-        'is_admin': False,
-        'can_maintenance': False,
-        'can_attendance': True,
-        'floor': 3,
-        'desc': '3. Kat düzeni ve yoklama sorumlusu'
-    },
-    'kat_4_sorumlusu': {
-        'key': 'kat_4_sorumlusu',
-        'title': '4. Kat Sorumlusu',
-        'badge': '4. Kat Sorumlusu',
-        'icon': 'bi-building',
-        'class': 'role-badge-kat',
-        'color': '#10b981',
-        'is_admin': False,
-        'can_maintenance': False,
-        'can_attendance': True,
-        'floor': 4,
-        'desc': '4. Kat düzeni ve yoklama sorumlusu'
-    },
-    'ogrenci': {
-        'key': 'ogrenci',
-        'title': 'Öğrenci',
-        'badge': 'Öğrenci',
-        'icon': 'bi-person',
-        'class': 'role-badge-ogrenci',
-        'color': '#6b7280',
-        'is_admin': False,
-        'can_maintenance': False,
-        'can_attendance': False,
-        'desc': 'Yurt sakini öğrenci'
-    }
-}
+    }),
+    ('manage_attendance', {
+        'label': 'Yoklama Yönetimi',
+        'desc': 'Yoklama oluşturma, düzenleme ve otomatik yoklama ayarları.',
+        'icon': 'bi-clipboard-check',
+    }),
+    ('manage_menu', {
+        'label': 'Yemekhane Menüsü',
+        'desc': 'Menü ekleme, Excel ile aktarım ve menü silme.',
+        'icon': 'bi-cup-hot',
+    }),
+    ('manage_laundry', {
+        'label': 'Çamaşırhane Yönetimi',
+        'desc': 'Çamaşır makinesi ekleme ve aktif/pasif etme.',
+        'icon': 'bi-droplet',
+    }),
+    ('manage_messages', {
+        'label': 'Mesaj Moderasyonu',
+        'desc': 'Sohbet mesajlarını görüntüleme ve silme.',
+        'icon': 'bi-chat-dots',
+    }),
+    ('view_analytics', {
+        'label': 'Analitik & Raporlar',
+        'desc': 'İstatistikleri, liderlik tablosunu ve raporları görüntüleme.',
+        'icon': 'bi-bar-chart',
+    }),
+])
+
+# Yeni rol oluştururken seçilebilecek renk paleti (mevcut CSS sınıflarıyla uyumlu).
+ROLE_COLOR_PALETTE = [
+    {'class': 'role-badge-mudur', 'color': '#b8860b', 'label': 'Altın'},
+    {'class': 'role-badge-mudur-yrd', 'color': '#2b547e', 'label': 'İndigo'},
+    {'class': 'role-badge-memur', 'color': '#1a7a4f', 'label': 'Zümrüt'},
+    {'class': 'role-badge-temsilci', 'color': '#0d6efd', 'label': 'Mavi'},
+    {'class': 'role-badge-gorevli', 'color': '#d97706', 'label': 'Bakır'},
+    {'class': 'role-badge-kat', 'color': '#7c3aed', 'label': 'Mor'},
+    {'class': 'role-badge-rose', 'color': '#e11d48', 'label': 'Gül'},
+    {'class': 'role-badge-teal', 'color': '#0d9488', 'label': 'Teal'},
+    {'class': 'role-badge-slate', 'color': '#475569', 'label': 'Grafit'},
+    {'class': 'role-badge-lime', 'color': '#65a30d', 'label': 'Zeytin'},
+    {'class': 'role-badge-cyan', 'color': '#0891b2', 'label': 'Camgöbeği'},
+    {'class': 'role-badge-ogrenci', 'color': '#6b7280', 'label': 'Nötr Gri'},
+]
+ROLE_ICON_CHOICES = [
+    'bi-shield-shaded', 'bi-shield-check', 'bi-person-badge', 'bi-award',
+    'bi-tools', 'bi-building', 'bi-person', 'bi-star', 'bi-briefcase',
+    'bi-mortarboard', 'bi-people', 'bi-flag', 'bi-emoji-smile', 'bi-gem',
+    'bi-clipboard-check', 'bi-megaphone', 'bi-cup-hot', 'bi-droplet',
+]
+
+DEFAULT_ROLES_SEED = [
+    {'key': 'yurt_muduru', 'title': 'Yurt Müdürü', 'badge': 'Yurt Müdürü', 'icon': 'bi-shield-shaded',
+     'class': 'role-badge-mudur', 'color': '#b8860b', 'is_admin': True, 'sort_order': 1,
+     'desc': 'Yurt genel yöneticisi (Tam yetki)', 'permissions': {'full_admin': True}},
+    {'key': 'yurt_mudur_yardimcisi', 'title': 'Yurt Müdür Yardımcısı', 'badge': 'Yurt Müdür Yrd.', 'icon': 'bi-shield-check',
+     'class': 'role-badge-mudur-yrd', 'color': '#2b547e', 'is_admin': True, 'sort_order': 2,
+     'desc': 'Yurt müdür yardımcısı (İdari yetki)', 'permissions': {'full_admin': True}},
+    {'key': 'yurt_memuru', 'title': 'Yurt Memuru', 'badge': 'Yurt Memuru', 'icon': 'bi-person-badge',
+     'class': 'role-badge-memur', 'color': '#1a7a4f', 'is_admin': True, 'sort_order': 3,
+     'desc': 'İdari işler ve kayıt sorumlusu', 'permissions': {'full_admin': True}},
+    {'key': 'yurt_temsilcisi', 'title': 'Yurt Temsilcisi', 'badge': 'Yurt Temsilcisi', 'icon': 'bi-award',
+     'class': 'role-badge-temsilci', 'color': '#0d6efd', 'is_admin': True, 'sort_order': 4,
+     'desc': 'Öğrenci temsilcisi ve etkinlik koordinatörü', 'permissions': {'full_admin': True}},
+    {'key': 'yurt_gorevlisi', 'title': 'Yurt Görevlisi', 'badge': 'Yurt Görevlisi', 'icon': 'bi-tools',
+     'class': 'role-badge-gorevli', 'color': '#d97706', 'is_admin': False, 'sort_order': 5,
+     'desc': 'Arıza ve teknik taleplerden sorumlu', 'permissions': {'manage_maintenance': True}},
+    {'key': 'kat_1_sorumlusu', 'title': '1. Kat Sorumlusu', 'badge': '1. Kat Sorumlusu', 'icon': 'bi-building',
+     'class': 'role-badge-kat', 'color': '#7c3aed', 'is_admin': False, 'sort_order': 6,
+     'desc': '1. Kat düzeni ve yoklama sorumlusu', 'permissions': {'manage_attendance': True}},
+    {'key': 'kat_2_sorumlusu', 'title': '2. Kat Sorumlusu', 'badge': '2. Kat Sorumlusu', 'icon': 'bi-building',
+     'class': 'role-badge-kat', 'color': '#7c3aed', 'is_admin': False, 'sort_order': 7,
+     'desc': '2. Kat düzeni ve yoklama sorumlusu', 'permissions': {'manage_attendance': True}},
+    {'key': 'kat_3_sorumlusu', 'title': '3. Kat Sorumlusu', 'badge': '3. Kat Sorumlusu', 'icon': 'bi-building',
+     'class': 'role-badge-kat', 'color': '#7c3aed', 'is_admin': False, 'sort_order': 8,
+     'desc': '3. Kat düzeni ve yoklama sorumlusu', 'permissions': {'manage_attendance': True}},
+    {'key': 'kat_4_sorumlusu', 'title': '4. Kat Sorumlusu', 'badge': '4. Kat Sorumlusu', 'icon': 'bi-building',
+     'class': 'role-badge-kat', 'color': '#7c3aed', 'is_admin': False, 'sort_order': 9,
+     'desc': '4. Kat düzeni ve yoklama sorumlusu', 'permissions': {'manage_attendance': True}},
+    {'key': 'ogrenci', 'title': 'Öğrenci', 'badge': 'Öğrenci', 'icon': 'bi-person',
+     'class': 'role-badge-ogrenci', 'color': '#6b7280', 'is_admin': False, 'sort_order': 10,
+     'desc': 'Yurt sakini öğrenci (varsayılan rol)', 'permissions': {}},
+]
+
+# Çalışma zamanında veritabanından yüklenen roller. init_db() çağrısından sonra
+# reload_user_roles() ile doldurulur; roller admin panelinden değiştirildiğinde
+# tekrar çağrılır.
+USER_ROLES = {}
+
+
+def _row_to_role_dict(row):
+    d = dict(row)
+    try:
+        d['permissions'] = json.loads(d.get('permissions') or '{}')
+    except (ValueError, TypeError):
+        d['permissions'] = {}
+    d['is_admin'] = bool(d.get('is_admin'))
+    d['is_system'] = bool(d.get('is_system'))
+    return d
+
+
+def load_user_roles_from_db():
+    conn = get_db()
+    rows = conn.execute('SELECT * FROM roles ORDER BY sort_order ASC, title ASC').fetchall()
+    conn.close()
+    roles = OrderedDict()
+    for row in rows:
+        d = _row_to_role_dict(row)
+        roles[d['key']] = d
+    if not roles:
+        # Güvenlik ağı: tablo her nasılsa boşsa varsayılan rollerle devam et.
+        for seed in DEFAULT_ROLES_SEED:
+            d = dict(seed)
+            roles[d['key']] = d
+    return roles
+
+
+def reload_user_roles():
+    global USER_ROLES
+    USER_ROLES = load_user_roles_from_db()
+    return USER_ROLES
+
+
+def slugify_role_key(text):
+    text = normalize_tr_text(text or '').lower()
+    text = re.sub(r'[^a-z0-9]+', '_', text).strip('_')
+    return text or 'rol'
+
 
 def is_admin_role(role_key):
     info = USER_ROLES.get(role_key)
     return bool(info and info.get('is_admin'))
 
-def can_user_manage_maintenance(user_dict):
+
+def has_permission(user_dict, perm_key):
+    """Kullanıcının rolüne bağlı olarak belirli bir yönetim yetkisine sahip olup olmadığını döndürür."""
     if not user_dict:
         return False
-    if user_dict.get('is_admin') or user_dict.get('role') in ['yurt_muduru', 'yurt_mudur_yardimcisi', 'yurt_memuru', 'yurt_temsilcisi', 'yurt_gorevlisi']:
+    role_key = user_dict.get('role') or ('yurt_muduru' if user_dict.get('is_admin') else 'ogrenci')
+    role_info = USER_ROLES.get(role_key)
+    if not role_info:
+        # Rol veritabanında bulunamadıysa eski is_admin bayrağına geri düş.
+        return bool(user_dict.get('is_admin'))
+    perms = role_info.get('permissions') or {}
+    if perms.get('full_admin'):
         return True
-    return False
+    return bool(perms.get(perm_key))
+
+
+def has_any_admin_permission(user_dict):
+    if not user_dict:
+        return False
+    role_key = user_dict.get('role') or ('yurt_muduru' if user_dict.get('is_admin') else 'ogrenci')
+    role_info = USER_ROLES.get(role_key)
+    if not role_info:
+        return bool(user_dict.get('is_admin'))
+    perms = role_info.get('permissions') or {}
+    return any(bool(v) for v in perms.values())
+
+
+def can_user_manage_maintenance(user_dict):
+    return has_permission(user_dict, 'manage_maintenance')
+
 
 def can_user_manage_attendance(user_dict):
-    if not user_dict:
-        return False
-    if user_dict.get('is_admin') or user_dict.get('role') in ['yurt_muduru', 'yurt_mudur_yardimcisi', 'yurt_memuru', 'yurt_temsilcisi', 'kat_1_sorumlusu', 'kat_2_sorumlusu', 'kat_3_sorumlusu', 'kat_4_sorumlusu']:
-        return True
-    return False
+    return has_permission(user_dict, 'manage_attendance')
 
 def normalize_tr_text(text):
     if not text:
@@ -1139,6 +1199,42 @@ def init_db():
     # Admin rolünü güncelle
     c.execute("UPDATE users SET role = 'yurt_muduru', is_admin = 1 WHERE id = 1 AND (role IS NULL OR role = 'ogrenci' OR role = 'default')")
 
+    # Roller (dinamik rol & yetki sistemi) — admin panelinden düzenlenebilir/eklenebilir.
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS roles (
+            key TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            badge TEXT NOT NULL,
+            icon TEXT NOT NULL DEFAULT 'bi-person',
+            class TEXT NOT NULL DEFAULT 'role-badge-ogrenci',
+            color TEXT NOT NULL DEFAULT '#6b7280',
+            is_admin INTEGER DEFAULT 0,
+            desc TEXT,
+            permissions TEXT NOT NULL DEFAULT '{}',
+            is_system INTEGER DEFAULT 0,
+            sort_order INTEGER DEFAULT 100,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    existing_role_count = c.execute('SELECT COUNT(*) c FROM roles').fetchone()['c']
+    if existing_role_count == 0:
+        for seed in DEFAULT_ROLES_SEED:
+            c.execute('''
+                INSERT OR IGNORE INTO roles (key, title, badge, icon, class, color, is_admin, desc, permissions, is_system, sort_order)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
+            ''', (seed['key'], seed['title'], seed['badge'], seed['icon'], seed['class'], seed['color'],
+                  1 if seed['is_admin'] else 0, seed['desc'], json.dumps(seed['permissions']), seed['sort_order']))
+    else:
+        # Sonradan eklenmiş olabilecek sistem rollerini (örn. güncelleme sonrası
+        # yeni bir varsayılan rol eklendiyse) tamamlayıcı şekilde ekle; mevcut
+        # (admin tarafından düzenlenmiş) satırlara dokunma.
+        for seed in DEFAULT_ROLES_SEED:
+            c.execute('''
+                INSERT OR IGNORE INTO roles (key, title, badge, icon, class, color, is_admin, desc, permissions, is_system, sort_order)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
+            ''', (seed['key'], seed['title'], seed['badge'], seed['icon'], seed['class'], seed['color'],
+                  1 if seed['is_admin'] else 0, seed['desc'], json.dumps(seed['permissions']), seed['sort_order']))
+
     _laundry_cleanup_overlaps(conn)
 
     conn.commit()
@@ -1171,6 +1267,9 @@ def login_required(f):
 
 
 def admin_required(f):
+    """Yönetim paneline giriş için: kullanıcının en az bir yönetim yetkisi
+    (herhangi bir manage_* izni veya full_admin) olması yeterlidir. Panel
+    içindeki sekmeler/işlemler ayrıca kendi izinlerine göre gizlenir/korunur."""
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if 'user_id' not in session:
@@ -1179,11 +1278,30 @@ def admin_required(f):
         user = conn.execute('SELECT is_admin, role FROM users WHERE id = ?',
                              (session['user_id'],)).fetchone()
         conn.close()
-        if not user or (not user['is_admin'] and user['role'] not in ['yurt_muduru', 'yurt_mudur_yardimcisi', 'yurt_memuru', 'yurt_temsilcisi']):
+        if not user or not has_any_admin_permission(dict(user)):
             flash('Bu sayfaya erişim yetkiniz yok!', 'danger')
             return redirect(url_for('dashboard'))
         return f(*args, **kwargs)
     return decorated_function
+
+
+def permission_required(perm_key):
+    """Belirli bir yönetim yetkisi (ör. 'manage_users') gerektiren rotalar için."""
+    def wrapper(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            if 'user_id' not in session:
+                return redirect(url_for('login'))
+            conn = get_db()
+            user = conn.execute('SELECT is_admin, role FROM users WHERE id = ?',
+                                 (session['user_id'],)).fetchone()
+            conn.close()
+            if not user or not has_permission(dict(user), perm_key):
+                flash('Bu işlem için yetkiniz bulunmuyor!', 'danger')
+                return redirect(url_for('admin_panel') if has_any_admin_permission(dict(user) if user else {}) else url_for('dashboard'))
+            return f(*args, **kwargs)
+        return decorated_function
+    return wrapper
 
 
 def maintenance_manager_required(f):
@@ -1734,9 +1852,19 @@ def inject_globals():
             'user_roles': USER_ROLES,
             'can_manage_maintenance': can_user_manage_maintenance(me_dict),
             'can_manage_attendance': can_user_manage_attendance(me_dict),
+            'can_manage_users': has_permission(me_dict, 'manage_users'),
+            'can_manage_roles': has_permission(me_dict, 'manage_roles'),
+            'can_manage_events': has_permission(me_dict, 'manage_events'),
+            'can_manage_announcements': has_permission(me_dict, 'manage_announcements'),
+            'can_manage_menu': has_permission(me_dict, 'manage_menu'),
+            'can_manage_laundry': has_permission(me_dict, 'manage_laundry'),
+            'can_manage_messages': has_permission(me_dict, 'manage_messages'),
+            'can_view_analytics': has_permission(me_dict, 'view_analytics'),
+            'can_access_admin_panel': has_any_admin_permission(me_dict),
+            'has_perm': (lambda perm, _u=me_dict: has_permission(_u, perm)),
             'current_xp': get_user_xp(session['user_id']),
         }
-    return {'user_roles': USER_ROLES}
+    return {'user_roles': USER_ROLES, 'has_perm': (lambda perm: False), 'can_access_admin_panel': False}
 
 
 # ==================== ROTALAR ====================
@@ -4884,7 +5012,7 @@ def rate_menu():
     return redirect(url_for('menu_page'))
 
 @app.route('/admin/menu/schedule', methods=['POST'])
-@admin_required
+@permission_required('manage_menu')
 def update_meal_schedule():
     keys = [
         'meal_breakfast_weekday_start', 'meal_breakfast_weekday_end',
@@ -4913,7 +5041,7 @@ def update_meal_schedule():
 
 
 @app.route('/admin/menu/upload',methods=['POST'])
-@admin_required
+@permission_required('manage_menu')
 def upload_menu():
     f=request.files.get('menu_file')
     meal_type = request.form.get('meal_type', 'auto').strip().lower()
@@ -4969,7 +5097,7 @@ def upload_menu():
     return redirect(url_for('admin_panel'))
 
 @app.route('/admin/menu/save', methods=['POST'])
-@admin_required
+@permission_required('manage_menu')
 def save_menu_manual():
     is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json
     if request.is_json:
@@ -5017,7 +5145,7 @@ def save_menu_manual():
     return redirect(request.referrer or url_for('admin_panel'))
 
 @app.route('/admin/menu/delete-day/<int:menu_id>', methods=['POST'])
-@admin_required
+@permission_required('manage_menu')
 def delete_single_day_menu(menu_id):
     conn = get_db()
     conn.execute('DELETE FROM meal_menus WHERE id = ?', (menu_id,))
@@ -5027,7 +5155,7 @@ def delete_single_day_menu(menu_id):
     return redirect(request.referrer or url_for('admin_panel'))
 
 @app.route('/admin/menu/delete',methods=['POST'])
-@admin_required
+@permission_required('manage_menu')
 def delete_menu():
     conn=get_db(); conn.execute('DELETE FROM meal_menus'); conn.commit(); conn.close(); flash('Menü kayıtları temizlendi.','success'); return redirect(url_for('admin_panel'))
 
@@ -5037,14 +5165,14 @@ def delete_menu():
 def announcements_page():
     conn=get_db(); items=conn.execute('SELECT * FROM announcements ORDER BY CASE priority WHEN "urgent" THEN 0 WHEN "high" THEN 1 ELSE 2 END,created_at DESC').fetchall(); conn.close(); return render_template('announcements.html',announcements=items)
 @app.route('/admin/announcement/create',methods=['POST'])
-@admin_required
+@permission_required('manage_announcements')
 def create_announcement():
     title=request.form.get('title','').strip(); content=request.form.get('content','').strip(); priority=request.form.get('priority','normal'); expires=request.form.get('expires_at') or None
     if title and content:
         conn=get_db(); conn.execute('INSERT INTO announcements(title,content,priority,expires_at,created_by) VALUES (?,?,?,?,?)',(title,content,priority,expires,session['user_id'])); conn.commit(); conn.close(); flash('Duyuru yayınlandı.','success')
     return redirect(url_for('admin_panel'))
 @app.route('/admin/announcement/<int:announcement_id>/delete',methods=['POST'])
-@admin_required
+@permission_required('manage_announcements')
 def delete_announcement(announcement_id):
     conn=get_db(); conn.execute('DELETE FROM announcements WHERE id=?',(announcement_id,)); conn.commit(); conn.close(); return redirect(url_for('admin_panel'))
 
@@ -5397,7 +5525,7 @@ def process_laundry_notifications():
 # ==================== ADMIN PANELİ ====================
 
 @app.route('/admin/attendance-schedule', methods=['POST'])
-@admin_required
+@permission_required('manage_attendance')
 def update_attendance_schedule():
     enabled = '1' if request.form.get('auto_attendance_enabled') == '1' else '0'
     schedule_time = request.form.get('auto_attendance_time', '22:00').strip()
@@ -5455,6 +5583,9 @@ def admin_panel():
     laundry_machines = conn.execute('SELECT * FROM laundry_machines ORDER BY id').fetchall()
     laundry_reservations = conn.execute('''SELECT r.*,m.name machine_name,u.full_name user_name FROM laundry_reservations r JOIN laundry_machines m ON m.id=r.machine_id JOIN users u ON u.id=r.user_id WHERE r.status='reserved' AND r.end_at >= ? ORDER BY r.start_at''',(now_tr().strftime('%Y-%m-%d %H:%M:%S'),)).fetchall()
 
+    role_user_counts_rows = conn.execute('SELECT role, COUNT(*) c FROM users GROUP BY role').fetchall()
+    role_user_counts = {row['role']: row['c'] for row in role_user_counts_rows}
+
     conn.close()
 
     stats = {
@@ -5476,11 +5607,152 @@ def admin_panel():
         'dinner_start': get_app_setting('meal_dinner_start', '18:00'),
         'dinner_end': get_app_setting('meal_dinner_end', '20:00')
     }
-    return render_template('admin.html', users=users, events=events, messages=messages, attendances=attendances, stats=stats, announcement_list=announcement_list, maintenance=maintenance, marketplace=marketplace, top_players=top_players, recent_xp=recent_xp, menu_rating_summary=menu_rating_summary, all_menus=all_menus, attendance_auto_enabled=attendance_auto_enabled, attendance_auto_time=attendance_auto_time, meal_schedule_admin=meal_schedule_admin, laundry_machines=laundry_machines, laundry_reservations=laundry_reservations)
+    return render_template('admin.html', users=users, events=events, messages=messages, attendances=attendances, stats=stats, announcement_list=announcement_list, maintenance=maintenance, marketplace=marketplace, top_players=top_players, recent_xp=recent_xp, menu_rating_summary=menu_rating_summary, all_menus=all_menus, attendance_auto_enabled=attendance_auto_enabled, attendance_auto_time=attendance_auto_time, meal_schedule_admin=meal_schedule_admin, laundry_machines=laundry_machines, laundry_reservations=laundry_reservations,
+                           roles=USER_ROLES, permissions_catalog=PERMISSIONS, role_color_palette=ROLE_COLOR_PALETTE, role_icon_choices=ROLE_ICON_CHOICES, role_user_counts=role_user_counts)
+
+
+# -------------------- ROL YÖNETİMİ --------------------
+
+@app.route('/admin/roles/create', methods=['POST'])
+@permission_required('manage_roles')
+def create_role():
+    _actor_conn = get_db()
+    actor = dict(_actor_conn.execute('SELECT is_admin, role FROM users WHERE id = ?', (session['user_id'],)).fetchone())
+    _actor_conn.close()
+    actor_is_full_admin = has_permission(actor, 'full_admin')
+
+    title = (request.form.get('title') or '').strip()
+    badge = (request.form.get('badge') or '').strip() or title
+    desc = (request.form.get('desc') or '').strip()
+    palette_idx = request.form.get('palette', '0')
+    icon = request.form.get('icon') or 'bi-person'
+    is_admin_flag = 1 if request.form.get('is_admin') == '1' else 0
+
+    if not title:
+        flash('Rol adı zorunludur.', 'danger')
+        return redirect(url_for('admin_panel') + '#tab-roles')
+
+    try:
+        palette = ROLE_COLOR_PALETTE[int(palette_idx)]
+    except (ValueError, IndexError):
+        palette = ROLE_COLOR_PALETTE[-1]
+    if icon not in ROLE_ICON_CHOICES:
+        icon = 'bi-person'
+
+    base_key = slugify_role_key(title)
+    key = base_key
+    conn = get_db()
+    suffix = 2
+    while conn.execute('SELECT 1 FROM roles WHERE key = ?', (key,)).fetchone():
+        key = f'{base_key}_{suffix}'
+        suffix += 1
+
+    permissions = {}
+    for perm_key in PERMISSIONS:
+        if request.form.get(f'perm_{perm_key}') == '1':
+            if perm_key in ('full_admin', 'manage_roles') and not actor_is_full_admin:
+                # Sadece Tam Yönetici yetkisine sahip kişiler bu iki kritik
+                # yetkiyi başka bir role devredebilir (yetki yükseltmeyi önler).
+                continue
+            permissions[perm_key] = True
+
+    conn.execute('''
+        INSERT INTO roles (key, title, badge, icon, class, color, is_admin, desc, permissions, is_system, sort_order)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 100)
+    ''', (key, title, badge, icon, palette['class'], palette['color'], is_admin_flag, desc, json.dumps(permissions)))
+    conn.commit()
+    conn.close()
+    reload_user_roles()
+    flash(f'"{title}" rolü oluşturuldu.', 'success')
+    return redirect(url_for('admin_panel') + '#tab-roles')
+
+
+@app.route('/admin/roles/<role_key>/update', methods=['POST'])
+@permission_required('manage_roles')
+def update_role(role_key):
+    _actor_conn = get_db()
+    actor = dict(_actor_conn.execute('SELECT is_admin, role FROM users WHERE id = ?', (session['user_id'],)).fetchone())
+    _actor_conn.close()
+    actor_is_full_admin = has_permission(actor, 'full_admin')
+
+    conn = get_db()
+    role_row = conn.execute('SELECT * FROM roles WHERE key = ?', (role_key,)).fetchone()
+    if not role_row:
+        conn.close()
+        flash('Rol bulunamadı.', 'danger')
+        return redirect(url_for('admin_panel') + '#tab-roles')
+    role = _row_to_role_dict(role_row)
+
+    title = (request.form.get('title') or '').strip() or role['title']
+    badge = (request.form.get('badge') or '').strip() or title
+    desc = (request.form.get('desc') or '').strip()
+    palette_idx = request.form.get('palette')
+    icon = request.form.get('icon') or role['icon']
+    is_admin_flag = 1 if request.form.get('is_admin') == '1' else 0
+
+    if palette_idx is not None:
+        try:
+            palette = ROLE_COLOR_PALETTE[int(palette_idx)]
+        except (ValueError, IndexError):
+            palette = {'class': role['class'], 'color': role['color']}
+    else:
+        palette = {'class': role['class'], 'color': role['color']}
+    if icon not in ROLE_ICON_CHOICES:
+        icon = role['icon']
+
+    permissions = {}
+    for perm_key in PERMISSIONS:
+        if request.form.get(f'perm_{perm_key}') == '1':
+            if perm_key in ('full_admin', 'manage_roles') and not actor_is_full_admin and not role['permissions'].get(perm_key):
+                # Bu yetkiyi zaten olmayan bir role, Tam Yönetici olmayan biri veremez.
+                continue
+            permissions[perm_key] = True
+
+    # Sistemin kilitlenmesini önlemek için: 'yurt_muduru' rolünün Tam Yönetici
+    # yetkisi hiçbir zaman kaldırılamaz.
+    if role_key == 'yurt_muduru':
+        permissions['full_admin'] = True
+        is_admin_flag = 1
+
+    conn.execute('''
+        UPDATE roles SET title=?, badge=?, icon=?, class=?, color=?, is_admin=?, desc=?, permissions=?
+        WHERE key=?
+    ''', (title, badge, icon, palette['class'], palette['color'], is_admin_flag, desc, json.dumps(permissions), role_key))
+    conn.commit()
+    conn.close()
+    reload_user_roles()
+    flash(f'"{title}" rolü güncellendi.', 'success')
+    return redirect(url_for('admin_panel') + '#tab-roles')
+
+
+@app.route('/admin/roles/<role_key>/delete', methods=['POST'])
+@permission_required('manage_roles')
+def delete_role(role_key):
+    conn = get_db()
+    role_row = conn.execute('SELECT * FROM roles WHERE key = ?', (role_key,)).fetchone()
+    if not role_row:
+        conn.close()
+        flash('Rol bulunamadı.', 'danger')
+        return redirect(url_for('admin_panel') + '#tab-roles')
+    if role_row['is_system']:
+        conn.close()
+        flash('Sistem rolleri silinemez; dilerseniz düzenleyebilirsiniz.', 'warning')
+        return redirect(url_for('admin_panel') + '#tab-roles')
+    in_use = conn.execute('SELECT COUNT(*) c FROM users WHERE role = ?', (role_key,)).fetchone()['c']
+    if in_use:
+        conn.close()
+        flash(f'Bu role sahip {in_use} kullanıcı var. Silmeden önce bu kullanıcılara başka bir rol atayın.', 'danger')
+        return redirect(url_for('admin_panel') + '#tab-roles')
+    conn.execute('DELETE FROM roles WHERE key = ?', (role_key,))
+    conn.commit()
+    conn.close()
+    reload_user_roles()
+    flash('Rol silindi.', 'success')
+    return redirect(url_for('admin_panel') + '#tab-roles')
 
 
 @app.route('/admin/laundry/machine/add', methods=['POST'])
-@admin_required
+@permission_required('manage_laundry')
 def admin_laundry_machine_add():
     name=request.form.get('name','').strip()
     if not name:
@@ -5493,12 +5765,12 @@ def admin_laundry_machine_add():
     conn.close(); return redirect(url_for('admin_panel'))
 
 @app.route('/admin/laundry/machine/<int:machine_id>/toggle', methods=['POST'])
-@admin_required
+@permission_required('manage_laundry')
 def admin_laundry_machine_toggle(machine_id):
     conn=get_db(); conn.execute('UPDATE laundry_machines SET enabled=CASE WHEN enabled=1 THEN 0 ELSE 1 END WHERE id=?',(machine_id,)); conn.commit(); conn.close(); return redirect(url_for('admin_panel'))
 
 @app.route('/admin/user/<int:user_id>/delete')
-@admin_required
+@permission_required('manage_users')
 def delete_user(user_id):
     if user_id == session['user_id']:
         flash('Kendinizi silemezsiniz!', 'danger')
@@ -5542,7 +5814,7 @@ def delete_user(user_id):
 
 
 @app.route('/admin/user/<int:user_id>/toggle-dorm')
-@admin_required
+@permission_required('manage_users')
 def toggle_in_dorm(user_id):
     conn = get_db()
     user = conn.execute('SELECT in_dorm FROM users WHERE id = ?', (user_id,)).fetchone()
@@ -5556,7 +5828,7 @@ def toggle_in_dorm(user_id):
 
 
 @app.route('/admin/user/<int:user_id>/role', methods=['POST'])
-@admin_required
+@permission_required('manage_users')
 def set_user_role(user_id):
     is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json
     if request.is_json:
@@ -5602,7 +5874,7 @@ def set_user_role(user_id):
 
 
 @app.route('/admin/user/<int:user_id>/theme', methods=['POST'])
-@admin_required
+@permission_required('manage_users')
 def set_user_theme(user_id):
     is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json
     if request.is_json:
@@ -5630,7 +5902,7 @@ def set_user_theme(user_id):
 
 
 @app.route('/admin/event/<int:event_id>/delete')
-@admin_required
+@permission_required('manage_events')
 def delete_event(event_id):
     conn = get_db()
     event = conn.execute('SELECT image_path FROM events WHERE id = ?', (event_id,)).fetchone()
@@ -5647,7 +5919,7 @@ def delete_event(event_id):
 
 
 @app.route('/admin/message/<int:msg_id>/delete')
-@admin_required
+@permission_required('manage_messages')
 def delete_message(msg_id):
     conn = get_db()
     conn.execute('DELETE FROM messages WHERE id = ?', (msg_id,))
@@ -5660,6 +5932,7 @@ def delete_message(msg_id):
 # ==================== BAŞLATMA ====================
 
 init_db()
+reload_user_roles()
 normalize_existing_usernames()
 start_scheduler()
 

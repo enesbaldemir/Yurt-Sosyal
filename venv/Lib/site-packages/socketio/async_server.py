@@ -553,15 +553,26 @@ class AsyncServer(base_server.BaseServer):
         fail_reason = exceptions.ConnectionRefusedError().error_args
         try:
             if data:
+                # the client sent authentication
+                # in this case we only call the connect handler's newer style
+                # that includes the `auth` argument
                 success = await self._trigger_event(
                     'connect', namespace, sid, self.environ[eio_sid], data)
             else:
+                # the client did not send authentication
+                # we have two possible call signatures for the connect handler,
+                # the newer with authentication and the legacy one without
                 try:
                     success = await self._trigger_event(
-                        'connect', namespace, sid, self.environ[eio_sid])
-                except TypeError:
-                    success = await self._trigger_event(
                         'connect', namespace, sid, self.environ[eio_sid], None)
+                except TypeError as exc:
+                    try:
+                        success = await self._trigger_event(
+                            'connect', namespace, sid, self.environ[eio_sid])
+                    except TypeError:
+                        # if both signatures failed with TypeError, we raise
+                        # the first exception
+                        raise exc
         except exceptions.ConnectionRefusedError as exc:
             fail_reason = exc.error_args
             success = False
