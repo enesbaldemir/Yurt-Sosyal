@@ -1,0 +1,78 @@
+{# Yeni ilan / ilan düzenleme modalı. edit_item tanımlıysa düzenleme modundadır. #}
+{% set e = edit_item if edit_item is defined else None %}
+<div class="modal fade" id="{{ 'editItem' if e else 'newItem' }}" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content" style="border-radius: 18px;">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold">{{ 'İlanı düzenle' if e else 'Yeni ilan ver' }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Kapat"></button>
+            </div>
+            <form method="post" action="{{ url_for('market_edit', item_id=e.id) if e else url_for('market_create') }}" enctype="multipart/form-data" class="mk-form">
+                <div class="modal-body">
+                    <label class="mk-drop mb-3">
+                        <input type="file" name="photo" accept="image/*" hidden>
+                        <input type="hidden" name="remove_photo" value="0">
+                        {% if e and e.photo_path %}<img src="{{ url_for('static', filename='uploads/market/' + e.photo_path) }}" alt="">{% else %}<img alt="" hidden>{% endif %}
+                        <span class="ph" {{ 'hidden' if e and e.photo_path }}><i class="bi bi-camera fs-3 d-block mb-1"></i>Fotoğraf ekle<br><small>Dokun ya da sürükle · en fazla 8 MB</small></span>
+                        <button type="button" class="btn btn-light btn-sm rm" {{ '' if e and e.photo_path else 'hidden' }}><i class="bi bi-trash3"></i></button>
+                    </label>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Başlık</label>
+                        <input name="title" class="form-control" maxlength="100" placeholder="Örn: Algoritma ders kitabı" value="{{ e.title if e else '' }}" required>
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label small fw-semibold">Kategori</label>
+                            <select name="category" class="form-select">
+                                {% for key, label, icon in categories %}<option value="{{ key }}" {{ 'selected' if e and e.category == key }}>{{ label }}</option>{% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small fw-semibold">Durum</label>
+                            <select name="condition" class="form-select">
+                                {% for key, label in conditions.items() %}<option value="{{ key }}" {{ 'selected' if (e and e.condition == key) or (not e and key == 'used') }}>{{ label }}</option>{% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Fiyat (₺) <span class="text-muted fw-normal">— ücretsiz/takas ise boş bırak</span></label>
+                        <input name="price" type="number" step="0.01" min="0" class="form-control" placeholder="Örn: 150" value="{{ ('%.2f'|format(e.price))|replace('.00','') if e and e.price else '' }}">
+                    </div>
+                    <div>
+                        <label class="form-label small fw-semibold">Açıklama</label>
+                        <textarea name="description" class="form-control" rows="3" maxlength="1000" placeholder="Ürünün durumu, teslim edilebileceği oda/kat…">{{ e.description if e and e.description else '' }}</textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Vazgeç</button>
+                    <button type="submit" class="btn btn-primary btn-sm">{{ 'Kaydet' if e else 'İlanı yayınla' }}</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+<script>
+document.querySelectorAll('.mk-form').forEach(function (form) {
+    if (form.dataset.wired) return; form.dataset.wired = '1';
+    var drop = form.querySelector('.mk-drop'), input = drop.querySelector('input[type=file]'), img = drop.querySelector('img'),
+        ph = drop.querySelector('.ph'), rm = drop.querySelector('.rm'), flag = drop.querySelector('input[name=remove_photo]');
+    function show(file) {
+        if (!file) return;
+        if (!/^image\//.test(file.type)) { alert('Lütfen bir görsel seç.'); return; }
+        if (file.size > 8 * 1024 * 1024) { alert('Fotoğraf en fazla 8 MB olabilir.'); input.value = ''; return; }
+        var r = new FileReader();
+        r.onload = function (e) { img.src = e.target.result; img.hidden = false; ph.hidden = true; rm.hidden = false; flag.value = '0'; };
+        r.readAsDataURL(file);
+    }
+    input.addEventListener('change', function () { show(input.files[0]); });
+    rm.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); input.value = ''; img.hidden = true; img.removeAttribute('src'); ph.hidden = false; rm.hidden = true; flag.value = '1'; });
+    ['dragenter', 'dragover'].forEach(function (ev) { drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.add('drag'); }); });
+    ['dragleave', 'drop'].forEach(function (ev) { drop.addEventListener(ev, function () { drop.classList.remove('drag'); }); });
+    drop.addEventListener('drop', function (e) {
+        e.preventDefault();
+        var f = e.dataTransfer.files[0]; if (!f) return;
+        var dt = new DataTransfer(); dt.items.add(f); input.files = dt.files; show(f);
+    });
+    form.addEventListener('submit', function () { var b = form.querySelector('[type=submit]'); b.disabled = true; b.textContent = 'Kaydediliyor…'; });
+});
+</script>

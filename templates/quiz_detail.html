@@ -61,8 +61,18 @@
                         <button type="button" class="kq-chip-btn" id="kqImgPick"><i class="bi bi-upload"></i> <span id="kqImgPickLbl">Görsel ekle</span></button>
                         <button type="button" class="kq-chip-btn" id="kqImgRemove" hidden><i class="bi bi-trash3"></i> Kaldır</button>
                         <button type="button" class="kq-chip-btn" id="kqAudioPick"><i class="bi bi-music-note-beamed"></i> Ses ekle</button>
+                        <button type="button" class="kq-chip-btn" id="kqVideoPick"><i class="bi bi-camera-video"></i> Video ekle</button>
                     </div>
                 </div>
+
+                <div class="kq-video" id="kqVideo" hidden>
+                    <video id="kqVideoEl" controls playsinline preload="metadata"></video>
+                    <div class="kq-video-bar">
+                        <span><i class="bi bi-camera-video-fill"></i> Videolu soru · sunucu ekranında soru açılınca otomatik oynar</span>
+                        <button type="button" class="kq-audio-x" id="kqVideoRemove" title="Videoyu kaldır" aria-label="Videoyu kaldır"><i class="bi bi-trash3"></i></button>
+                    </div>
+                </div>
+                <div class="kq-upload-progress" id="kqUpProg" hidden><i></i><span>Yükleniyor… %0</span></div>
 
                 <div class="kq-audio" id="kqAudio" hidden>
                     <button type="button" class="kq-audio-play" id="kqAudioPlay" aria-label="Sesi çal"><i class="bi bi-play-fill"></i></button>
@@ -116,6 +126,7 @@
 
     <input type="file" id="kqImgInput" accept="image/*" hidden>
     <input type="file" id="kqAudioInput" accept="audio/*" hidden>
+    <input type="file" id="kqVideoInput" accept="video/mp4,video/webm,video/quicktime,video/x-m4v,.mp4,.mov,.webm,.m4v" hidden>
     <input type="file" id="kqOptImgInput" accept="image/*" hidden>
 </div>
 
@@ -256,7 +267,7 @@
             (q.qtype === 'truefalse' ? 'Doğru/Yanlış' : 'Quiz') + ' · ' + q.time_limit + ' sn</div>' +
             '<div class="kq-slide-card">' +
             '<div class="kq-slide-q' + ((q.question_text || '').trim() ? '' : ' is-empty') + '">' + KQ.esc((q.question_text || '').trim() || 'Soru') + '</div>' +
-            '<div class="kq-slide-img"' + img + '>' + (q.image_path ? '' : '<i class="bi bi-image"></i>') + '</div>' +
+            '<div class="kq-slide-img"' + img + '>' + (q.image_path ? '' : '<i class="bi ' + (q.video_path ? 'bi-camera-video-fill' : 'bi-image') + '"></i>') + '</div>' +
             '<div class="kq-slide-opts">' + bars + '</div></div></div>' +
             (issues.length ? '<span class="kq-slide-warn" title="' + KQ.esc(issues.join(', ')) + '">!</span>' : '') +
             '<div class="kq-slide-tools"><button type="button" data-act="dup" title="Çoğalt" aria-label="Çoğalt"><i class="bi bi-copy"></i></button>' +
@@ -424,6 +435,12 @@
         au.hidden = !q.audio_path;
         if (q.audio_path) { $('kqAudioEl').src = '/static/uploads/quiz/' + encodeURIComponent(q.audio_path); $('kqAudioName').textContent = '🎧 Sesli soru eklendi'; }
         $('kqAudioPick').hidden = !!q.audio_path;
+        var vb = $('kqVideo'), ve = $('kqVideoEl');
+        vb.hidden = !q.video_path;
+        var vsrc = q.video_path ? '/static/uploads/quiz/' + encodeURIComponent(q.video_path) : '';
+        if (q.video_path && ve.getAttribute('src') !== vsrc) ve.setAttribute('src', vsrc);
+        if (!q.video_path) { ve.pause(); ve.removeAttribute('src'); ve.load(); }
+        $('kqVideoPick').hidden = !!q.video_path;
     }
     function upload(field, file, extra) {
         var qid = currentId, fd = new FormData();
@@ -462,6 +479,43 @@
         upload('question_audio', f);
     });
     $('kqAudioRemove').addEventListener('click', function () { $('kqAudioEl').pause(); removeFile('remove_audio'); });
+    // ---- Video: ilerleme çubuklu yükleme (büyük dosyalar için) ----
+    var VIDEO_MAX = {{ quiz_video_max_mb }} * 1024 * 1024;
+    $('kqVideoPick').addEventListener('click', function () { $('kqVideoInput').click(); });
+    $('kqVideoInput').addEventListener('change', function () {
+        var f = this.files[0]; this.value = '';
+        if (!f) return;
+        if (!/\.(mp4|mov|webm|m4v)$/i.test(f.name)) { KQ.toast('Video için mp4, mov, webm veya m4v seç.', true); return; }
+        if (f.size > VIDEO_MAX) { KQ.toast('Video en fazla {{ quiz_video_max_mb }} MB olabilir. Daha kısa ya da sıkıştırılmış bir video dene.', true); return; }
+        var qid = currentId, fd = new FormData(), prog = $('kqUpProg'), bar = prog.querySelector('i'), lbl = prog.querySelector('span');
+        fd.append('question_video', f);
+        prog.hidden = false; bar.style.width = '0%'; lbl.textContent = 'Video yükleniyor… %0';
+        setSave('saving', 'Video yükleniyor…');
+        flush().catch(function () {}).then(function () {
+            var xhr = new XMLHttpRequest();
+            xhr.open('POST', URLS.q(qid));
+            xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+            xhr.upload.onprogress = function (e) {
+                if (!e.lengthComputable) return;
+                var pct = Math.round(e.loaded * 100 / e.total);
+                bar.style.width = pct + '%'; lbl.textContent = 'Video yükleniyor… %' + pct;
+            };
+            xhr.onload = function () {
+                prog.hidden = true;
+                var j = null; try { j = JSON.parse(xhr.responseText); } catch (e) {}
+                if (xhr.status >= 200 && xhr.status < 300 && j && j.ok) {
+                    var q = find(qid); Object.assign(q, j.question); refreshDerived(qid);
+                    if (qid === currentId) renderMedia(q);
+                    setSave('saved'); KQ.toast('Video eklendi 🎬');
+                } else {
+                    KQ.toast((j && j.error) || (xhr.status === 413 ? 'Video çok büyük.' : 'Video yüklenemedi.'), true); setSave('error');
+                }
+            };
+            xhr.onerror = function () { prog.hidden = true; KQ.toast('Bağlantı hatası: video yüklenemedi.', true); setSave('error'); };
+            xhr.send(fd);
+        });
+    });
+    $('kqVideoRemove').addEventListener('click', function () { if (confirm('Video kaldırılsın mı?')) { $('kqVideoEl').pause(); removeFile('remove_video'); } });
     $('kqAudioPlay').addEventListener('click', function () {
         var a = $('kqAudioEl');
         if (a.paused) a.play().catch(function () {}); else a.pause();

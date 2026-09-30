@@ -210,7 +210,17 @@
     }
     function renderMedia(q) {
         var m = $('khMedia');
-        if (q.image_path) {
+        if (q.video_path) {
+            m.innerHTML = '<div class="kh-media-wrap"><video id="khVideoEl" src="/static/uploads/quiz/' + encodeURIComponent(q.video_path) + '" playsinline preload="auto"></video>' +
+                '<div class="kh-video-ctrl"><button type="button" class="kh-audio" id="khVideoBtn"><span class="p"><i class="bi bi-play-fill"></i></span> <span class="t">Videoyu oynat</span></button>' +
+                '<button type="button" class="kh-audio" id="khVideoMute" hidden><span class="p"><i class="bi bi-volume-mute-fill"></i></span> Sesi aç</button></div></div>';
+            var v = $('khVideoEl'), vb = $('khVideoBtn'), vm = $('khVideoMute');
+            vb.addEventListener('click', function () { if (v.paused) { v.play().catch(function () {}); } else v.pause(); });
+            vm.addEventListener('click', function () { v.muted = false; vm.hidden = true; });
+            v.addEventListener('click', function () { vb.click(); });
+            v.addEventListener('play', function () { vb.querySelector('.p').innerHTML = '<i class="bi bi-pause-fill"></i>'; vb.querySelector('.t').textContent = 'Duraklat'; });
+            ['pause', 'ended'].forEach(function (ev) { v.addEventListener(ev, function () { vb.querySelector('.p').innerHTML = '<i class="bi bi-play-fill"></i>'; vb.querySelector('.t').textContent = ev === 'ended' ? 'Tekrar oynat' : 'Devam et'; }); });
+        } else if (q.image_path) {
             m.innerHTML = '<img src="/static/uploads/quiz/' + encodeURIComponent(q.image_path) + '" alt="">';
         } else if (q.audio_path) {
             m.innerHTML = '<button type="button" class="kh-audio" id="khAudioBtn"><span class="p"><i class="bi bi-play-fill"></i></span> Soruyu dinlet<audio id="khAudioEl" src="/static/uploads/quiz/' + encodeURIComponent(q.audio_path) + '" preload="auto"></audio></button>';
@@ -244,6 +254,11 @@
             var remaining = d.remaining_ms != null ? d.remaining_ms : d.time_limit * 1000;
             timer = KQ.ringTimer(timerEl, d.time_limit * 1000, remaining, function (sec) { if (sec <= 5 && sec > 0) KQ.sfx.tick(); });
             var au = document.getElementById('khAudioEl'); if (au) au.play().catch(function () {});
+            var vv = document.getElementById('khVideoEl');
+            if (vv) {
+                // Önce sesli oynatmayı dene; tarayıcı engellerse sessiz başlat ve "Sesi aç" düğmesini göster
+                vv.play().catch(function () { vv.muted = true; document.getElementById('khVideoMute').hidden = false; vv.play().catch(function () {}); });
+            }
         };
         if (d.intro_ms > 300) {
             $('khIntroNum').textContent = 'Soru ' + (d.index + 1) + ' / ' + d.total;

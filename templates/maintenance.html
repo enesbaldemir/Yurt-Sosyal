@@ -1,220 +1,228 @@
 {% extends 'base.html' %}
-{% block title %}Arıza & Teknik Destek — Yurt Sosyal{% endblock %}
+{% block title %}Arıza & Talep — Yurt Sosyal{% endblock %}
 {% block content %}
+{% set ST = {'pending': ('Bekliyor', 'bi-hourglass-split', 'var(--warning)'), 'in_progress': ('İşlemde', 'bi-wrench-adjustable', 'var(--info)'), 'resolved': ('Çözüldü', 'bi-check-circle-fill', 'var(--success)'), 'cancelled': ('İptal edildi', 'bi-x-circle', 'var(--text-faint)')} %}
+{% set PR = {'normal': ('Normal', 'var(--text-muted)'), 'high': ('Yüksek', 'var(--warning)'), 'urgent': ('Acil', 'var(--danger)')} %}
+{% set CATS = [('Elektrik','bi-lightning-charge'),('Su / Tesisat','bi-droplet'),('İnternet / Ağ','bi-wifi'),('Mobilya / Marangoz','bi-lamp'),('Temizlik / Hijyen','bi-stars'),('Isıtma / Klima','bi-thermometer-half'),('Diğer','bi-three-dots')] %}
+<style>
+    .mt-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: .6rem; }
+    .mt-stat { border: 1px solid var(--border); border-radius: 14px; padding: .7rem .9rem; background: var(--surface); cursor: pointer; transition: border-color .15s; text-align: left; }
+    .mt-stat:hover, .mt-stat.active { border-color: var(--st); }
+    .mt-stat b { font-size: 1.5rem; display: block; line-height: 1.1; color: var(--st); }
+    .mt-stat span { font-size: .74rem; color: var(--text-muted); font-weight: 600; }
+    .mt-card { border: 1px solid var(--border); border-left: 4px solid var(--st); border-radius: 14px; padding: .9rem 1rem; background: var(--surface); }
+    .mt-status { display: inline-flex; align-items: center; gap: .3rem; font-size: .74rem; font-weight: 700; color: var(--st); background: color-mix(in srgb, var(--st) 12%, transparent); padding: .2rem .6rem; border-radius: 999px; }
+    .mt-prio { font-size: .7rem; font-weight: 700; color: var(--pc); }
+    .mt-steps { display: flex; align-items: center; gap: 0; margin: .7rem 0 .3rem; }
+    .mt-step { display: flex; flex-direction: column; align-items: center; gap: .2rem; font-size: .66rem; font-weight: 700; color: var(--text-faint); flex: 0 0 auto; }
+    .mt-step i { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: var(--surface-2); font-size: .8rem; }
+    .mt-step.done { color: var(--success); } .mt-step.done i { background: var(--success); color: #fff; }
+    .mt-step.now { color: var(--info); } .mt-step.now i { background: var(--info); color: #fff; box-shadow: 0 0 0 4px var(--info-bg); }
+    .mt-line { flex: 1; height: 3px; background: var(--surface-2); margin: 0 .2rem 1rem; border-radius: 3px; }
+    .mt-line.done { background: var(--success); }
+    .mt-note { background: var(--surface-2); border-radius: 10px; padding: .55rem .75rem; font-size: .8rem; }
+    .mt-cat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: .4rem; }
+    .mt-cat-grid label { border: 1px solid var(--border); border-radius: 12px; padding: .55rem .4rem; text-align: center; font-size: .76rem; font-weight: 600; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: .2rem; color: var(--text-muted); }
+    .mt-cat-grid label i { font-size: 1.15rem; }
+    .mt-cat-grid input:checked + label { border-color: var(--gold); background: var(--gold-subtle); color: var(--text); }
+    .mt-quick button { font-size: .74rem; }
+    .mt-photo { max-height: 110px; border-radius: 8px; border: 1px solid var(--border); }
+    @media (max-width: 575.98px) { .mt-stats { grid-template-columns: repeat(2, 1fr); } }
+</style>
 
-<div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+<div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
     <div>
         <span class="kicker">Yurt Hizmetleri</span>
-        <h4 class="fw-bold mb-0">Arıza & Bakım Masası</h4>
+        <h4 class="fw-bold mb-0">Arıza & Talep</h4>
     </div>
-    {% if is_staff %}
-    <span class="role-badge role-badge-gorevli" style="font-size:0.8rem; padding: 4px 10px;">
-        <i class="bi bi-tools me-1"></i>Teknik Sorumlu Yetkisi Aktif
-    </span>
-    {% endif %}
+    <div class="d-flex gap-2 align-items-center">
+        {% if is_staff %}<span class="badge-tag badge-gold"><i class="bi bi-tools me-1"></i>Teknik sorumlu görünümü</span>{% endif %}
+        <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="collapse" data-bs-target="#mtNew" aria-expanded="{{ 'false' if requests else 'true' }}"><i class="bi bi-plus-lg me-1"></i> Yeni talep</button>
+    </div>
+</div>
+
+<!-- YENİ TALEP -->
+<div class="collapse {{ '' if requests or is_staff else 'show' }} mb-4" id="mtNew">
+    <div class="card card-pad">
+        <form method="post" action="{{ url_for('create_maintenance') }}" enctype="multipart/form-data">
+            <label class="form-label small fw-semibold">Ne ile ilgili?</label>
+            <div class="mt-cat-grid mb-3">
+                {% for c, ic in CATS %}
+                <input type="radio" class="btn-check" name="category" id="cat{{ loop.index }}" value="{{ c }}" {{ 'checked' if loop.first }}>
+                <label for="cat{{ loop.index }}"><i class="bi {{ ic }}"></i>{{ c }}</label>
+                {% endfor %}
+            </div>
+            <div class="row g-3 mb-3">
+                <div class="col-md-6">
+                    <label class="form-label small fw-semibold">Oda / konum</label>
+                    <input name="room_number" class="form-control" placeholder="Örn: 204 veya 2. kat mutfak" value="{{ current_user.room_number if current_user and current_user.room_number else '' }}" required>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label small fw-semibold">Aciliyet</label>
+                    <div class="btn-group w-100" role="group">
+                        <input type="radio" class="btn-check" name="priority" id="pr1" value="normal" checked><label class="btn btn-outline-secondary btn-sm" for="pr1">Normal</label>
+                        <input type="radio" class="btn-check" name="priority" id="pr2" value="high"><label class="btn btn-outline-warning btn-sm" for="pr2">Yüksek</label>
+                        <input type="radio" class="btn-check" name="priority" id="pr3" value="urgent"><label class="btn btn-outline-danger btn-sm" for="pr3">Acil</label>
+                    </div>
+                </div>
+            </div>
+            <div class="mb-3">
+                <label class="form-label small fw-semibold">Sorunu anlat</label>
+                <textarea name="description" class="form-control" rows="3" placeholder="Örn: Banyodaki lavabo musluğu sürekli damlatıyor." required></textarea>
+            </div>
+            <div class="mb-3">
+                <label class="form-label small fw-semibold">Fotoğraf <span class="text-muted fw-normal">(isteğe bağlı, teknik ekibe çok yardımcı olur)</span></label>
+                <input type="file" name="photo" class="form-control" accept="image/*">
+            </div>
+            <button type="submit" class="btn btn-primary w-100 py-2"><i class="bi bi-send me-1"></i> Talebi gönder</button>
+        </form>
+    </div>
 </div>
 
 {% if is_staff %}
-<!-- ===================== YURT GÖREVLİSİ & YÖNETİM ARIZA YÖNETİM MASASI ===================== -->
-<div class="card card-pad mb-4 border-warning">
-    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-        <div class="section-title mb-0">
-            <span><i class="bi bi-wrench-adjustable me-1 text-warning"></i> Gelen Arıza Talepleri (Teknik Yönetim)</span>
-        </div>
-        <div class="btn-group btn-group-sm" role="group">
-            <button type="button" class="btn btn-outline-secondary active maint-filter-btn" data-filter="all">Tümü ({{ all_requests|length }})</button>
-            <button type="button" class="btn btn-outline-secondary maint-filter-btn" data-filter="pending">Bekleyen</button>
-            <button type="button" class="btn btn-outline-secondary maint-filter-btn" data-filter="in_progress">İşlemde</button>
-            <button type="button" class="btn btn-outline-secondary maint-filter-btn" data-filter="resolved">Çözüldü</button>
-        </div>
-    </div>
+<!-- TEKNİK YÖNETİM -->
+{% set cnt = namespace(p=0, i=0, r=0, u=0) %}
+{% for r in all_requests %}{% if r.status == 'pending' %}{% set cnt.p = cnt.p + 1 %}{% elif r.status == 'in_progress' %}{% set cnt.i = cnt.i + 1 %}{% elif r.status == 'resolved' %}{% set cnt.r = cnt.r + 1 %}{% endif %}{% if r.priority == 'urgent' and r.status in ['pending', 'in_progress'] %}{% set cnt.u = cnt.u + 1 %}{% endif %}{% endfor %}
+<div class="mt-stats mb-3">
+    <button type="button" class="mt-stat" data-mf="pending" style="--st: var(--warning);"><b>{{ cnt.p }}</b><span>Bekleyen</span></button>
+    <button type="button" class="mt-stat" data-mf="in_progress" style="--st: var(--info);"><b>{{ cnt.i }}</b><span>İşlemde</span></button>
+    <button type="button" class="mt-stat" data-mf="urgent" style="--st: var(--danger);"><b>{{ cnt.u }}</b><span>Açık acil</span></button>
+    <button type="button" class="mt-stat" data-mf="resolved" style="--st: var(--success);"><b>{{ cnt.r }}</b><span>Çözülen</span></button>
+</div>
+<div class="d-flex gap-2 mb-3 flex-wrap">
+    <input type="search" id="mtSearch" class="form-control form-control-sm" style="max-width: 320px;" placeholder="Oda, kişi veya açıklama ara…">
+    <button type="button" class="btn btn-secondary btn-sm" data-mf="">Tümünü göster ({{ all_requests|length }})</button>
+</div>
 
-    {% if all_requests %}
-    <div class="d-flex flex-column gap-3" id="maint-list-container">
-        {% for r in all_requests %}
-        <div class="card card-pad maint-item-card border" data-status="{{ r.status }}" style="background-color: var(--surface-1);">
-            <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-2">
-                <div>
-                    <div class="d-flex align-items-center gap-2 flex-wrap">
-                        <strong class="text-primary">{{ r.full_name }}</strong>
-                        <span class="text-muted small">@{{ r.username }}</span>
-                        <span class="badge bg-secondary-subtle text-secondary" style="font-size:0.75rem;">
-                            <i class="bi bi-door-closed me-1"></i>{{ r.room_number or r.user_room or 'Oda Belirtilmemiş' }}
-                        </span>
-                        <span class="badge-tag">{{ r.category }}</span>
-                        {% if r.priority == 'urgent' %}
-                        <span class="badge bg-danger text-white" style="font-size:0.7rem;">Acil</span>
-                        {% elif r.priority == 'high' %}
-                        <span class="badge bg-warning text-dark" style="font-size:0.7rem;">Yüksek</span>
-                        {% endif %}
-                    </div>
-                </div>
-                <div class="text-muted small">
-                    <i class="bi bi-clock me-1"></i>{{ r.created_at|datetime_tr }}
-                </div>
+<div class="d-flex flex-column gap-2 mb-4" id="mtStaffList">
+    {% for r in all_requests %}
+    {% set st = ST.get(r.status, ST['pending']) %}
+    <div class="mt-card mt-staff-item" style="--st: {{ st[2] }};" data-status="{{ r.status }}" data-prio="{{ r.priority }}"
+         data-search="{{ (r.full_name ~ ' ' ~ r.username ~ ' ' ~ (r.room_number or r.user_room or '') ~ ' ' ~ r.description ~ ' ' ~ r.category)|lower }}">
+        <div class="d-flex justify-content-between align-items-start gap-2 flex-wrap">
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+                <span class="mt-status"><i class="bi {{ st[1] }}"></i> {{ st[0] }}</span>
+                <span class="badge-tag">{{ r.category }}</span>
+                <span class="badge-tag"><i class="bi bi-door-closed me-1"></i>{{ r.room_number or r.user_room or 'Oda yok' }}</span>
+                {% if r.priority != 'normal' %}<span class="mt-prio" style="--pc: {{ PR.get(r.priority, PR['normal'])[1] }};"><i class="bi bi-exclamation-triangle-fill"></i> {{ PR.get(r.priority, PR['normal'])[0] }}</span>{% endif %}
             </div>
-
-            <p class="mb-2" style="white-space: pre-line; line-height: 1.5; font-size:0.9rem;">{{ r.description }}</p>
-
-            {% if r.photo_path %}
-            <div class="mb-2">
-                <a href="{{ url_for('static', filename='uploads/posts/' + r.photo_path) }}" target="_blank" class="d-inline-block">
-                    <img src="{{ url_for('static', filename='uploads/posts/' + r.photo_path) }}" alt="Arıza Fotoğrafı" style="max-height: 120px; border-radius: 6px; border: 1px solid var(--border);" loading="lazy">
-                </a>
+            <span class="text-muted small">{{ r.created_at|datetime_tr }}</span>
+        </div>
+        <div class="small mt-2"><a href="{{ url_for('profile', username=r.username) }}" class="fw-bold text-decoration-none">{{ r.full_name }}</a> <span class="text-muted">@{{ r.username }}</span></div>
+        <p class="mb-2 mt-1" style="white-space: pre-line; font-size: .9rem;">{{ r.description }}</p>
+        {% if r.photo_path %}<a href="{{ url_for('static', filename='uploads/posts/' + r.photo_path) }}" target="_blank" rel="noopener"><img src="{{ url_for('static', filename='uploads/posts/' + r.photo_path) }}" class="mt-photo mb-2" alt="Arıza fotoğrafı" loading="lazy"></a>{% endif %}
+        <form method="post" action="{{ url_for('update_maintenance', req_id=r.id) }}" class="d-flex flex-wrap gap-2 align-items-center mt-1">
+            <input type="hidden" name="status" value="{{ r.status }}">
+            <div class="btn-group btn-group-sm mt-quick" role="group" aria-label="Durum">
+                {% for key in ['pending', 'in_progress', 'resolved', 'cancelled'] %}
+                <button type="submit" class="btn {{ 'btn-dark' if r.status == key else 'btn-outline-secondary' }}" onclick="this.form.status.value='{{ key }}'"><i class="bi {{ ST[key][1] }}"></i> {{ ST[key][0] }}</button>
+                {% endfor %}
             </div>
-            {% endif %}
-
-            <!-- Durum Güncelleme ve Not Formu -->
-            <form method="post" action="{{ url_for('update_maintenance', req_id=r.id) }}" class="p-2 rounded mt-2 border d-flex flex-wrap align-items-center gap-2" style="background-color: var(--surface-2);">
-                <div class="d-flex align-items-center gap-2 flex-fill min-w-0">
-                    <label class="form-label mb-0 small fw-semibold text-muted" style="white-space: nowrap;">Durum:</label>
-                    <select name="status" class="form-select form-select-sm" style="width: auto; min-width: 130px; font-weight: 600;">
-                        <option value="pending" {{ 'selected' if r.status == 'pending' }}>⏳ Beklemede</option>
-                        <option value="in_progress" {{ 'selected' if r.status == 'in_progress' }}>🔧 İnceleniyor / İşlemde</option>
-                        <option value="resolved" {{ 'selected' if r.status == 'resolved' }}>✅ Çözüldü</option>
-                        <option value="cancelled" {{ 'selected' if r.status == 'cancelled' }}>❌ İptal</option>
-                    </select>
-
-                    <input type="text" name="admin_note" class="form-control form-control-sm flex-fill" placeholder="Öğrenciye bilgi / teknik not yazın..." value="{{ r.admin_note or '' }}">
-                </div>
-                <button type="submit" class="btn btn-primary btn-sm px-3">
-                    <i class="bi bi-check2 me-1"></i> Güncelle
-                </button>
+            <input type="text" name="admin_note" class="form-control form-control-sm flex-fill" style="min-width:180px;" placeholder="Öğrenciye not (durum butonuyla birlikte kaydedilir)" value="{{ r.admin_note or '' }}">
+        </form>
+        <div class="d-flex justify-content-end mt-2">
+            <form method="post" action="{{ url_for('delete_maintenance', req_id=r.id) }}" class="m-0" onsubmit="return confirm('Bu talep kalıcı olarak silinsin mi? (Hatalı / tekrar eden talepler için)')">
+                <button class="btn btn-soft-danger btn-sm py-0"><i class="bi bi-trash3 me-1"></i> Sil</button>
             </form>
         </div>
-        {% endfor %}
     </div>
     {% else %}
-    <div class="text-center py-4 text-muted small">
-        <i class="bi bi-check-circle fs-3 d-block mb-1 text-success"></i>
-        Şu anda bekleyen arıza veya teknik talep bulunmuyor.
-    </div>
-    {% endif %}
-</div>
-{% endif %}
-
-<!-- Yeni Talep Oluşturma Kartı -->
-<div class="card card-pad mb-4">
-    <div class="section-title mb-3">
-        <span><i class="bi bi-tools me-1"></i> Yeni Arıza & Bakım Talebi Bildir</span>
-    </div>
-
-    <form method="post" action="{{ url_for('create_maintenance') }}" enctype="multipart/form-data">
-        <div class="row g-3 mb-3">
-            <div class="col-md-4">
-                <label class="form-label">Kategori</label>
-                <select name="category" class="form-select" required>
-                    <option value="Elektrik">Elektrik</option>
-                    <option value="Su / Tesisat">Su / Tesisat</option>
-                    <option value="İnternet / Ağ">İnternet / Ağ</option>
-                    <option value="Mobilya / Marangoz">Mobilya / Marangoz</option>
-                    <option value="Temizlik / Hijyen">Temizlik / Hijyen</option>
-                    <option value="Diğer">Diğer</option>
-                </select>
-            </div>
-            <div class="col-md-4">
-                <label class="form-label">Oda / Konum Numarası</label>
-                <input name="room_number" class="form-control" placeholder="Örn: 204 veya Kat 2 Mutfak" value="{{ current_user.room_number if current_user and current_user.room_number else '' }}" required>
-            </div>
-            <div class="col-md-4">
-                <label class="form-label">Öncelik Seviyesi</label>
-                <select name="priority" class="form-select">
-                    <option value="normal">Normal</option>
-                    <option value="high">Yüksek</option>
-                    <option value="urgent">Acil</option>
-                </select>
-            </div>
-        </div>
-
-        <div class="mb-3">
-            <label class="form-label">Sorunun Açıklaması</label>
-            <textarea name="description" class="form-control" rows="3" placeholder="Arızayı veya talebinizi detaylı olarak belirtiniz..." required></textarea>
-        </div>
-
-        <div class="mb-4">
-            <label class="form-label">Fotoğraf Ekle <span class="text-muted fw-normal">(Opsiyonel)</span></label>
-            <input type="file" name="photo" class="form-control" accept="image/*">
-        </div>
-
-        <button type="submit" class="btn btn-primary w-100 py-2">
-            <i class="bi bi-send me-1"></i> Arıza Bildirimini İlet
-        </button>
-    </form>
-</div>
-
-<!-- Geçmiş Taleplerim -->
-<div class="section-title mb-3">
-    <span><i class="bi bi-clock-history me-1"></i> Bildirdiğim Taleplerim ({{ requests|length }})</span>
-</div>
-
-{% if requests %}
-<div class="d-flex flex-column gap-3">
-    {% for r in requests %}
-    <div class="card card-pad">
-        <div class="d-flex justify-content-between align-items-baseline mb-2">
-            <div class="d-flex align-items-center gap-2 flex-wrap">
-                <span class="badge-tag">{{ r.category }}</span>
-                {% if r.room_number %}
-                <span class="text-muted small">Oda: {{ r.room_number }}</span>
-                {% endif %}
-                {% if r.priority == 'urgent' %}
-                <span class="badge-tag" style="color: var(--danger); border-color: rgba(179,57,57,0.3);">Acil</span>
-                {% endif %}
-            </div>
-            <span class="status-pill {{ 'attendance-present' if r.status == 'resolved' or r.status == 'Çözüldü' else ('badge-gold' if r.status == 'in_progress' or r.status == 'İnceleniyor' else '') }}">
-                {{ 'Çözüldü' if r.status == 'resolved' or r.status == 'Çözüldü' else ('İnceleniyor' if r.status == 'in_progress' or r.status == 'İnceleniyor' else 'Bekliyor') }}
-            </span>
-        </div>
-
-        <p class="small text-muted mb-2" style="white-space: pre-line; line-height: 1.5;">{{ r.description }}</p>
-
-        {% if r.photo_path %}
-        <div class="mb-2">
-            <a href="{{ url_for('static', filename='uploads/posts/' + r.photo_path) }}" target="_blank">
-                <img src="{{ url_for('static', filename='uploads/posts/' + r.photo_path) }}" alt="Fotoğraf" style="max-height: 90px; border-radius: 4px; border: 1px solid var(--border);" loading="lazy">
-            </a>
-        </div>
-        {% endif %}
-
-        {% if r.admin_note %}
-        <div class="p-2 px-3 rounded mb-2" style="background-color: var(--surface-2); border: 1px solid var(--border); font-size: 0.8rem;">
-            <strong class="text-muted d-block" style="font-size: 0.72rem; text-transform: uppercase;"><i class="bi bi-chat-left-dots me-1"></i>Teknik Servis / Yönetim Notu:</strong>
-            <span>{{ r.admin_note }}</span>
-        </div>
-        {% endif %}
-
-        <div class="text-muted small" style="font-size: 0.75rem;">
-            Bildirim Tarihi: {{ r.created_at|datetime_tr }}
-        </div>
-    </div>
+    <div class="card card-pad text-center text-muted small py-4"><i class="bi bi-check-circle fs-3 d-block mb-1 text-success"></i>Bekleyen talep yok. Harika! 🎉</div>
     {% endfor %}
-</div>
-{% else %}
-<div class="card card-pad text-center py-4">
-    <div class="empty-state">
-        <i class="bi bi-check2-circle"></i>
-        <p class="small text-muted mb-0">Aktif veya geçmiş arıza talebiniz bulunmuyor.</p>
-    </div>
+    <div class="card card-pad text-center text-muted small py-3" id="mtNoMatch" hidden>Filtreye uyan talep yok.</div>
 </div>
 {% endif %}
 
+<!-- TALEPLERİM -->
+<div class="section-title mb-2"><span><i class="bi bi-clock-history me-1"></i> Taleplerim ({{ requests|length }})</span></div>
+<div class="d-flex flex-column gap-2">
+{% for r in requests %}
+    {% set st = ST.get(r.status, ST['pending']) %}
+    <div class="mt-card" style="--st: {{ st[2] }};">
+        <div class="d-flex justify-content-between align-items-start gap-2 flex-wrap">
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+                <span class="mt-status"><i class="bi {{ st[1] }}"></i> {{ st[0] }}</span>
+                <span class="badge-tag">{{ r.category }}</span>
+                {% if r.room_number %}<span class="text-muted small">Oda {{ r.room_number }}</span>{% endif %}
+                {% if r.priority != 'normal' %}<span class="mt-prio" style="--pc: {{ PR.get(r.priority, PR['normal'])[1] }};">{{ PR.get(r.priority, PR['normal'])[0] }}</span>{% endif %}
+            </div>
+            <span class="text-muted small">{{ r.created_at|datetime_tr }}</span>
+        </div>
+
+        {% if r.status != 'cancelled' %}
+        <div class="mt-steps" aria-label="Talep durumu">
+            <div class="mt-step done"><i class="bi bi-inbox"></i>Alındı</div>
+            <div class="mt-line {{ 'done' if r.status in ['in_progress', 'resolved'] }}"></div>
+            <div class="mt-step {{ 'done' if r.status == 'resolved' else ('now' if r.status == 'in_progress') }}"><i class="bi bi-wrench"></i>İşlemde</div>
+            <div class="mt-line {{ 'done' if r.status == 'resolved' }}"></div>
+            <div class="mt-step {{ 'done' if r.status == 'resolved' }}"><i class="bi bi-check-lg"></i>Çözüldü</div>
+        </div>
+        {% endif %}
+
+        <p class="small mb-2" style="white-space: pre-line;" id="mtDesc{{ r.id }}">{{ r.description }}</p>
+        {% if r.photo_path %}<a href="{{ url_for('static', filename='uploads/posts/' + r.photo_path) }}" target="_blank" rel="noopener"><img src="{{ url_for('static', filename='uploads/posts/' + r.photo_path) }}" class="mt-photo mb-2" alt="Fotoğraf" loading="lazy"></a>{% endif %}
+        {% if r.admin_note %}<div class="mt-note mb-2"><strong class="d-block text-muted" style="font-size:.68rem; text-transform:uppercase;"><i class="bi bi-chat-left-dots me-1"></i>Yönetim notu</strong>{{ r.admin_note }}</div>{% endif %}
+
+        {% if r.status == 'pending' %}
+        <div class="collapse" id="mtEdit{{ r.id }}">
+            <form method="post" action="{{ url_for('edit_maintenance', req_id=r.id) }}" class="p-2 rounded mb-2" style="background: var(--surface-2);">
+                <div class="row g-2 mb-2">
+                    <div class="col-6"><select name="category" class="form-select form-select-sm">{% for c, ic in CATS %}<option {{ 'selected' if r.category == c }}>{{ c }}</option>{% endfor %}</select></div>
+                    <div class="col-6"><input name="room_number" class="form-control form-control-sm" value="{{ r.room_number or '' }}" placeholder="Oda"></div>
+                </div>
+                <select name="priority" class="form-select form-select-sm mb-2">{% for k, v in PR.items() %}<option value="{{ k }}" {{ 'selected' if r.priority == k }}>{{ v[0] }}</option>{% endfor %}</select>
+                <textarea name="description" class="form-control form-control-sm mb-2" rows="2" required>{{ r.description }}</textarea>
+                <button class="btn btn-primary btn-sm">Kaydet</button>
+            </form>
+        </div>
+        {% endif %}
+
+        <div class="d-flex gap-2 flex-wrap justify-content-end">
+            {% if r.status == 'pending' %}
+            <button type="button" class="btn btn-secondary btn-sm py-0" data-bs-toggle="collapse" data-bs-target="#mtEdit{{ r.id }}"><i class="bi bi-pencil me-1"></i> Düzenle</button>
+            {% endif %}
+            {% if r.status in ['pending', 'in_progress'] %}
+            <form method="post" action="{{ url_for('cancel_maintenance', req_id=r.id) }}" class="m-0" onsubmit="return confirm('Talep iptal edilsin mi? Sorun çözüldüyse ya da yanlış bildirdiysen iptal edebilirsin.')">
+                <button class="btn btn-secondary btn-sm py-0"><i class="bi bi-x-circle me-1"></i> İptal et</button>
+            </form>
+            {% endif %}
+            {% if r.status != 'in_progress' %}
+            <form method="post" action="{{ url_for('delete_maintenance', req_id=r.id) }}" class="m-0" onsubmit="return confirm('Talep kalıcı olarak silinsin mi?')">
+                <button class="btn btn-soft-danger btn-sm py-0"><i class="bi bi-trash3 me-1"></i> Sil</button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+{% else %}
+    <div class="card card-pad text-center py-4">
+        <div class="empty-state"><i class="bi bi-check2-circle"></i><p class="small text-muted mb-0">Henüz bir talebin yok. Bir sorun olursa "Yeni talep" ile bildirebilirsin.</p></div>
+    </div>
+{% endfor %}
+</div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
-document.querySelectorAll('.maint-filter-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-        document.querySelectorAll('.maint-filter-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        const filter = btn.dataset.filter;
-        document.querySelectorAll('.maint-item-card').forEach(card => {
-            if (filter === 'all' || card.dataset.status === filter) {
-                card.style.display = 'block';
-            } else {
-                card.style.display = 'none';
-            }
+(function () {
+    var filter = '', q = '';
+    function apply() {
+        var n = 0;
+        document.querySelectorAll('.mt-staff-item').forEach(function (c) {
+            var okF = !filter || (filter === 'urgent' ? (c.dataset.prio === 'urgent' && ['pending', 'in_progress'].indexOf(c.dataset.status) > -1) : c.dataset.status === filter);
+            var ok = okF && (!q || c.dataset.search.indexOf(q) > -1);
+            c.hidden = !ok; if (ok) n++;
+        });
+        var nm = document.getElementById('mtNoMatch'); if (nm) nm.hidden = n > 0 || !document.querySelector('.mt-staff-item');
+    }
+    document.querySelectorAll('[data-mf]').forEach(function (b) {
+        b.addEventListener('click', function () {
+            filter = b.dataset.mf;
+            document.querySelectorAll('.mt-stat').forEach(function (x) { x.classList.toggle('active', x === b); });
+            apply();
         });
     });
-});
+    var s = document.getElementById('mtSearch');
+    if (s) s.addEventListener('input', function () { q = s.value.trim().toLocaleLowerCase('tr-TR'); apply(); });
+})();
 </script>
 {% endblock %}

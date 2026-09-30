@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}Hızlı Matematik — Oyunlar{% endblock %}
+{% block content %}
+{% include 'partials/_arcade_game_style.html' %}
+<div class="ag-wrap">
+    <div class="d-flex align-items-center gap-2 mb-3">
+        <a href="{{ url_for('games_hub') }}" class="icon-btn" title="Oyunlara dön"><i class="bi bi-arrow-left"></i></a>
+        <div><span class="kicker">Beyin · 45 saniye</span><h4 class="fw-bold mb-0">Hızlı Matematik</h4></div>
+    </div>
+    <div class="ag-stage" id="ag" style="--g1: {{ game_theme[0] }}; --g2: {{ game_theme[1] }};">
+        <div class="ag-hud">
+            <span class="ag-pill"><i class="bi bi-star-fill"></i> <span id="sc">0</span></span>
+            <span class="ag-combo" id="combo" hidden></span>
+            <span class="ag-pill"><i class="bi bi-stopwatch"></i> <span id="tm">45</span> sn</span>
+        </div>
+        <div class="ag-bar"><i id="bar"></i></div>
+        <div class="ag-center" id="intro">
+            <div style="font-size:3rem;">🧮</div>
+            <div class="ag-title">Ne kadar hızlısın?</div>
+            <div class="ag-sub">İşlemleri çöz, doğru cevaba dokun. Seri yaptıkça puan katlanır ve sorular zorlaşır. Yanlış cevap 3 saniye götürür!</div>
+            <button type="button" class="ag-start" id="start"><i class="bi bi-play-fill"></i> Başla</button>
+        </div>
+        <div class="ag-center" id="play" hidden>
+            <div class="ag-sub" id="level" style="font-size:.8rem; text-transform:uppercase; letter-spacing:.08em;">Seviye 1</div>
+            <div id="q" style="font-size: clamp(2.6rem, 11vw, 4rem); font-weight: 900; font-variant-numeric: tabular-nums;">2 + 2</div>
+        </div>
+        <div class="ag-opts" id="opts" hidden></div>
+        <div class="ag-center" id="over" hidden>
+            <div style="font-size:3rem;">🏁</div>
+            <div class="ag-title">Süre doldu!</div>
+            <div style="font-size:3rem; font-weight:900;" id="final">0</div>
+            <div class="ag-sub" id="finalSub"></div>
+            <button type="button" class="ag-start" id="again"><i class="bi bi-arrow-repeat"></i> Tekrar oyna</button>
+        </div>
+    </div>
+    {% include 'partials/_game_leaderboard.html' %}
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+(function () {
+    var $ = function (id) { return document.getElementById(id); };
+    var TOTAL = 45, score = 0, streak = 0, best = 0, correct = 0, wrong = 0, end_at = 0, timer = null, answer = 0, running = false;
+    function rnd(a, b) { return a + Math.floor(Math.random() * (b - a + 1)); }
+    function level() { return 1 + Math.floor(correct / 5); }
+    function make() {
+        var L = level(), op = ['+', '-', '×', '÷'][rnd(0, L >= 3 ? 3 : L >= 2 ? 2 : 1)], a, b;
+        var max = 10 + L * 8;
+        if (op === '+') { a = rnd(2, max); b = rnd(2, max); answer = a + b; }
+        else if (op === '-') { a = rnd(5, max); b = rnd(1, a); answer = a - b; }
+        else if (op === '×') { a = rnd(2, 5 + L * 2); b = rnd(2, 9); answer = a * b; }
+        else { b = rnd(2, 9); answer = rnd(2, 5 + L * 2); a = answer * b; }
+        $('q').textContent = a + ' ' + op + ' ' + b;
+        $('level').textContent = 'Seviye ' + L;
+        var set = [answer];
+        while (set.length < 4) {
+            var d = answer + rnd(-10, 10);
+            if (d >= 0 && set.indexOf(d) < 0) set.push(d);
+        }
+        set.sort(function () { return Math.random() - .5; });
+        $('opts').innerHTML = set.map(function (v) { return '<button type="button" class="ag-opt" data-v="' + v + '">' + v + '</button>'; }).join('');
+    }
+    function floatText(txt, color, el) {
+        var r = el.getBoundingClientRect(), s = $('ag').getBoundingClientRect();
+        var f = document.createElement('div'); f.className = 'ag-float'; f.textContent = txt; f.style.color = color;
+        f.style.left = (r.left - s.left + r.width / 2 - 20) + 'px'; f.style.top = (r.top - s.top) + 'px';
+        $('ag').appendChild(f); setTimeout(function () { f.remove(); }, 800);
+    }
+    $('opts').addEventListener('click', function (e) {
+        var b = e.target.closest('.ag-opt'); if (!b || !running) return;
+        if (Number(b.dataset.v) === answer) {
+            streak++; correct++; best = Math.max(best, streak);
+            var pts = 10 * (1 + Math.floor(streak / 3)) + level() * 2;
+            score += pts; b.classList.add('ok'); floatText('+' + pts, '#fff', b);
+        } else {
+            streak = 0; wrong++; end_at -= 3000; b.classList.add('bad'); floatText('-3 sn', '#fecaca', b);
+            if (navigator.vibrate) navigator.vibrate(80);
+        }
+        $('sc').textContent = score;
+        $('combo').hidden = streak < 3; $('combo').textContent = '🔥 x' + (1 + Math.floor(streak / 3));
+        setTimeout(make, 140);
+    });
+    function start() {
+        score = 0; streak = 0; best = 0; correct = 0; wrong = 0; running = true; end_at = Date.now() + TOTAL * 1000;
+        $('sc').textContent = 0; $('combo').hidden = true;
+        $('intro').hidden = true; $('over').hidden = true; $('play').hidden = false; $('opts').hidden = false;
+        make();
+        clearInterval(timer);
+        timer = setInterval(function () {
+            var left = Math.max(0, (end_at - Date.now()) / 1000);
+            $('tm').textContent = Math.ceil(left); $('bar').style.width = Math.min(100, left / TOTAL * 100) + '%';
+            if (left <= 0) finish();
+        }, 100);
+    }
+    function finish() {
+        clearInterval(timer); running = false;
+        $('play').hidden = true; $('opts').hidden = true; $('over').hidden = false;
+        $('final').textContent = score;
+        $('finalSub').textContent = correct + ' doğru · ' + wrong + ' yanlış · en uzun seri ' + best;
+        fetch('{{ url_for("submit_game_score", game_key="math") }}', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ score: score }) });
+    }
+    $('start').addEventListener('click', start);
+    $('again').addEventListener('click', start);
+})();
+</script>
+{% endblock %}

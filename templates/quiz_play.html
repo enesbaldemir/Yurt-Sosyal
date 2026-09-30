@@ -139,7 +139,10 @@
         var begin = function () {
             $('kpQText').textContent = q.question_text;
             var m = $('kpMedia');
-            m.innerHTML = q.image_path ? '<img src="/static/uploads/quiz/' + encodeURIComponent(q.image_path) + '" alt="">' : '';
+            m.innerHTML = q.video_path
+                ? '<video src="/static/uploads/quiz/' + encodeURIComponent(q.video_path) + '" playsinline muted autoplay controls preload="auto"></video>'
+                : (q.image_path ? '<img src="/static/uploads/quiz/' + encodeURIComponent(q.image_path) + '" alt="">' : '');
+            var pv = m.querySelector('video'); if (pv) pv.play().catch(function () {});
             if (q.audio_path) {
                 m.innerHTML += '<button type="button" class="kh-audio" id="kpAudioBtn"><span class="p"><i class="bi bi-play-fill"></i></span> Dinle<audio id="kpAudioEl" src="/static/uploads/quiz/' + encodeURIComponent(q.audio_path) + '"></audio></button>';
                 var a = $('kpAudioEl'), b = $('kpAudioBtn');

@@ -1,0 +1,137 @@
+{% extends 'base.html' %}
+{% block title %}{{ item.title }} — Yurt Pazarı{% endblock %}
+{% block content %}
+{% include 'partials/_market_style.html' %}
+<style>
+    .md-layout { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 1.2rem; align-items: start; }
+    .md-photo { border-radius: 18px; overflow: hidden; background: var(--surface-2); aspect-ratio: 1 / 1; position: relative; border: 1px solid var(--border); }
+    .md-photo img { width: 100%; height: 100%; object-fit: contain; background: #000; cursor: zoom-in; }
+    .md-price { font-size: 1.8rem; font-weight: 900; letter-spacing: -.02em; }
+    .md-seller { display: flex; align-items: center; gap: .7rem; padding: .8rem; border: 1px solid var(--border); border-radius: 14px; text-decoration: none; color: var(--text); }
+    .md-seller:hover { background: var(--hover); color: var(--text); }
+    .md-comment { display: flex; gap: .6rem; padding: .7rem 0; border-bottom: 1px solid var(--border); }
+    .md-comment:last-child { border-bottom: 0; }
+    .md-comment .who { font-weight: 700; font-size: .85rem; }
+    .md-comment .seller-tag { font-size: .62rem; font-weight: 800; background: var(--gold-subtle); color: var(--gold); border-radius: 999px; padding: 1px 6px; margin-left: .3rem; }
+    .md-more { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: .6rem; }
+    .md-more a { text-decoration: none; color: var(--text); font-size: .78rem; font-weight: 600; }
+    .md-more .th { aspect-ratio: 1; border-radius: 10px; overflow: hidden; background: var(--surface-2); margin-bottom: .3rem; display: grid; place-items: center; color: var(--text-faint); font-size: 1.5rem; }
+    .md-more .th img { width: 100%; height: 100%; object-fit: cover; }
+    @media (max-width: 767.98px) { .md-layout { grid-template-columns: 1fr; } }
+</style>
+
+<div class="d-flex align-items-center gap-2 mb-3">
+    <a href="{{ url_for('market_page') }}" class="icon-btn" title="Pazara dön"><i class="bi bi-arrow-left"></i></a>
+    <span class="kicker mb-0">Yurt Pazarı · {{ item.category }}</span>
+</div>
+
+<div class="md-layout">
+    <div>
+        <div class="md-photo">
+            {% if item.photo_path %}
+            <a href="{{ url_for('static', filename='uploads/market/' + item.photo_path) }}" target="_blank" rel="noopener"><img src="{{ url_for('static', filename='uploads/market/' + item.photo_path) }}" alt="{{ item.title }}"></a>
+            {% else %}
+            {% set cat_icon = (categories|selectattr(0, 'equalto', item.category)|map(attribute=2)|first) or 'bi-bag' %}
+            <div class="mk-noimg"><i class="bi {{ cat_icon }}"></i></div>
+            {% endif %}
+            {% if item.status == 'sold' %}<span class="mk-sold" style="font-size:.9rem;">SATILDI</span>{% endif %}
+        </div>
+    </div>
+
+    <div class="d-flex flex-column gap-3">
+        <div class="card card-pad">
+            <div class="d-flex gap-2 flex-wrap mb-2">
+                <span class="badge-tag">{{ item.category }}</span>
+                {% if item.condition %}<span class="badge-tag">{{ conditions.get(item.condition, '') }}</span>{% endif %}
+                <span class="badge-tag"><i class="bi bi-clock me-1"></i>{{ item.created_at|datetime_tr }}</span>
+            </div>
+            <h4 class="fw-bold mb-1">{{ item.title }}</h4>
+            <div class="md-price mb-2" style="color: var(--gold);">{% if item.price %}{{ '%.2f'|format(item.price)|replace('.00','') }} ₺{% else %}Ücretsiz / Takas{% endif %}</div>
+            {% if item.description %}<p class="mb-3" style="white-space: pre-line; line-height: 1.55;">{{ item.description }}</p>{% endif %}
+
+            {% if item.user_id != session.user_id %}
+                {% if item.status == 'active' %}
+                <form method="post" action="{{ url_for('market_contact', item_id=item.id) }}" id="contactForm">
+                    <label class="form-label small fw-semibold">Satıcıya mesajın</label>
+                    <textarea name="message" class="form-control mb-2" rows="2" maxlength="500">Merhaba, bu ürün hâlâ satılık mı?</textarea>
+                    <button type="submit" class="btn btn-primary w-100 py-2"><i class="bi bi-send me-1"></i> İletişime geç — ilanı mesajla gönder</button>
+                    <div class="text-muted mt-1" style="font-size:.72rem;"><i class="bi bi-info-circle me-1"></i>İlanın fotoğrafı, başlığı, fiyatı ve bağlantısı mesajınla birlikte {{ item.full_name.split(' ')[0] }}'e gönderilir.</div>
+                </form>
+                {% else %}
+                <div class="alert alert-secondary small mb-0">Bu ürün satıldı.</div>
+                {% endif %}
+            {% endif %}
+
+            {% if can_manage %}
+            <div class="d-flex gap-2 flex-wrap mt-3 pt-3 border-top" style="border-color: var(--border) !important;">
+                {% if item.user_id == session.user_id %}
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#editItem"><i class="bi bi-pencil me-1"></i> Düzenle</button>
+                <form method="post" action="{{ url_for('market_status', item_id=item.id) }}" class="m-0">
+                    <input type="hidden" name="status" value="{{ 'active' if item.status == 'sold' else 'sold' }}">
+                    <button class="btn btn-secondary btn-sm">{% if item.status == 'sold' %}<i class="bi bi-arrow-counterclockwise me-1"></i> Yeniden yayınla{% else %}<i class="bi bi-check2-circle me-1"></i> Satıldı olarak işaretle{% endif %}</button>
+                </form>
+                {% endif %}
+                <form method="post" action="{{ url_for('market_delete', item_id=item.id) }}" class="m-0 ms-auto" onsubmit="return confirm('İlan kalıcı olarak kaldırılsın mı?')">
+                    <button class="btn btn-soft-danger btn-sm"><i class="bi bi-trash3 me-1"></i> {{ 'Kaldır' if item.user_id == session.user_id else 'Kaldır (moderasyon)' }}</button>
+                </form>
+            </div>
+            {% endif %}
+        </div>
+
+        <a href="{{ url_for('profile', username=item.username) }}" class="md-seller">
+            <span class="avatar" style="width:44px;height:44px;">{% if item.profile_photo %}<img src="{{ url_for('static', filename='uploads/profiles/' + item.profile_photo) }}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">{% else %}{{ item.full_name[0]|upper }}{% endif %}</span>
+            <span class="flex-fill min-w-0">
+                <span class="d-block fw-bold text-truncate">{{ item.full_name }}</span>
+                <span class="text-muted small">@{{ item.username }}{% if item.seller_room %} · Oda {{ item.seller_room }}{% endif %}</span>
+            </span>
+            <i class="bi bi-chevron-right text-muted"></i>
+        </a>
+    </div>
+</div>
+
+<div class="card card-pad mt-3" id="yorumlar">
+    <div class="section-title mb-2"><span><i class="bi bi-chat-dots me-1"></i> Sorular & Yorumlar ({{ comments|length }})</span></div>
+    {% for c in comments %}
+    <div class="md-comment">
+        <span class="avatar" style="width:34px;height:34px;font-size:.75rem; flex:0 0 auto;">{% if c.profile_photo %}<img src="{{ url_for('static', filename='uploads/profiles/' + c.profile_photo) }}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">{% else %}{{ c.full_name[0]|upper }}{% endif %}</span>
+        <div class="flex-fill min-w-0">
+            <div class="d-flex justify-content-between gap-2">
+                <a href="{{ url_for('profile', username=c.username) }}" class="who text-decoration-none">{{ c.full_name }}{% if c.user_id == item.user_id %}<span class="seller-tag">Satıcı</span>{% endif %}</a>
+                <span class="text-muted text-nowrap" style="font-size:.7rem;">{{ c.created_at|datetime_tr }}</span>
+            </div>
+            <div class="small" style="white-space: pre-line;">{{ c.comment }}</div>
+        </div>
+        {% if c.user_id == session.user_id or item.user_id == session.user_id or can('moderate_content') %}
+        <form method="post" action="{{ url_for('market_comment_delete', comment_id=c.id) }}" class="m-0" onsubmit="return confirm('Yorum silinsin mi?')">
+            <button class="btn btn-sm text-muted p-1" title="Sil" aria-label="Yorumu sil"><i class="bi bi-x-lg"></i></button>
+        </form>
+        {% endif %}
+    </div>
+    {% else %}
+    <p class="text-muted small mb-2">Henüz soru yok. Ürünle ilgili merak ettiğini sor!</p>
+    {% endfor %}
+    <form method="post" action="{{ url_for('market_comment', item_id=item.id) }}" class="d-flex gap-2 mt-2">
+        <input name="comment" class="form-control" maxlength="500" placeholder="{{ 'Soruları yanıtla…' if item.user_id == session.user_id else 'Satıcıya soru sor ya da yorum yaz…' }}" required>
+        <button class="btn btn-primary"><i class="bi bi-send"></i></button>
+    </form>
+</div>
+
+{% if more %}
+<div class="card card-pad mt-3">
+    <div class="section-title mb-2"><span>{{ item.full_name.split(' ')[0] }}'in diğer ilanları</span></div>
+    <div class="md-more">
+        {% for m in more %}
+        <a href="{{ url_for('market_detail', item_id=m.id) }}">
+            <div class="th">{% if m.photo_path %}<img src="{{ url_for('static', filename='uploads/market/' + m.photo_path) }}" alt="" loading="lazy">{% else %}<i class="bi bi-bag"></i>{% endif %}</div>
+            <div class="text-truncate">{{ m.title }}</div>
+            <div class="text-muted">{% if m.price %}{{ '%.2f'|format(m.price)|replace('.00','') }} ₺{% else %}Ücretsiz{% endif %}</div>
+        </a>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+{% if item.user_id == session.user_id %}
+{% with edit_item = item %}{% include 'partials/_market_form.html' %}{% endwith %}
+{% endif %}
+{% endblock %}

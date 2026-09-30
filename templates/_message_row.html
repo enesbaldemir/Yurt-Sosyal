@@ -30,7 +30,7 @@
                 <img class="msg-image" src="{{ url_for('static', filename='uploads/messages/' ~ m.image) }}" onclick="openLightbox('{{ url_for('static', filename='uploads/messages/' ~ m.image) }}')" alt="Görsel">
                 {% endif %}
                 {% if m.content %}
-                <div class="{{ 'msg-caption' if m.image }}">{{ (m.content or '')|e|replace('\n', '<br>')|safe }}</div>
+                <div class="{{ 'msg-caption' if m.image }}">{{ m.content|nl2br }}</div>
                 {% endif %}
             {% endif %}
         </div>
