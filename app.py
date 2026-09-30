@@ -3769,6 +3769,7 @@ def _init_quiz_extras(conn):
     _ensure_column(conn, 'quiz_participants', 'streak', 'INTEGER DEFAULT 0')
     _ensure_column(conn, 'quiz_participants', 'best_streak', 'INTEGER DEFAULT 0')
     _ensure_column(conn, 'quiz_participants', 'correct_count', 'INTEGER DEFAULT 0')
+    _ensure_column(conn, 'quiz_participants', 'shared_post_id', 'INTEGER')
     _ensure_column(conn, 'quiz_sessions', 'auto_advance', 'INTEGER DEFAULT 0')
     _ensure_column(conn, 'quiz_sessions', 'finished_at', 'TIMESTAMP')
     conn.execute('CREATE INDEX IF NOT EXISTS idx_quiz_questions_quiz ON quiz_questions(quiz_id, order_index)')
@@ -4315,6 +4316,56 @@ def quiz_play(session_id):
     quiz = conn.execute('SELECT * FROM quizzes WHERE id = ?', (qs['quiz_id'],)).fetchone()
     conn.close()
     return render_template('quiz_play.html', quiz_session=qs, quiz=quiz, participant=participant)
+
+
+@app.route('/quiz/play/<int:session_id>/share', methods=['POST'])
+@login_required
+def quiz_share_to_feed(session_id):
+    """Yarışma sonucunu (oluşturulan sonuç kartı görseliyle) sosyal akışta paylaşır.
+    Derece/puan/doğru sayısı sunucuda hesaplanır; açıklamaya gerçek değerler yazılır."""
+    if not has_perm('page_feed'):
+        return jsonify({'ok': False, 'error': 'Rolünün Sosyal Akış erişimi yok.'}), 403
+    conn = get_db()
+    qs = conn.execute('SELECT * FROM quiz_sessions WHERE id = ?', (session_id,)).fetchone()
+    me = conn.execute('SELECT * FROM quiz_participants WHERE session_id = ? AND user_id = ?',
+                      (session_id, session['user_id'])).fetchone()
+    if not qs or not me or qs['status'] != 'finished':
+        conn.close()
+        return jsonify({'ok': False, 'error': 'Sonuç yalnızca yarışma bittikten sonra paylaşılabilir.'}), 400
+    if me['shared_post_id']:
+        conn.close()
+        return jsonify({'ok': False, 'error': 'Bu yarışmanın sonucunu zaten paylaştın.', 'post_id': me['shared_post_id']}), 409
+    players = _quiz_players(conn, session_id)
+    rank, _ = _rank_players(players, lambda p: p['score'])
+    total_q = conn.execute('SELECT COUNT(*) c FROM quiz_questions WHERE quiz_id = ?', (qs['quiz_id'],)).fetchone()['c']
+    quiz = conn.execute('SELECT title FROM quizzes WHERE id = ?', (qs['quiz_id'],)).fetchone()
+
+    f = request.files.get('image')
+    filename = None
+    if f and f.filename:
+        f.stream.seek(0, os.SEEK_END)
+        size = f.stream.tell()
+        f.stream.seek(0)
+        if size > 6 * 1024 * 1024 or not allowed_file(f.filename, IMAGE_EXT):
+            conn.close()
+            return jsonify({'ok': False, 'error': 'Sonuç kartı görseli geçersiz.'}), 400
+        filename = save_media(f, UPLOAD_POSTS, IMAGE_EXT)
+
+    r = rank.get(me['id'])
+    medal = {1: '🥇', 2: '🥈', 3: '🥉'}.get(r, '🎯')
+    note = (request.form.get('note') or '').strip()[:300]
+    stats = (f"{medal} \"{quiz['title']}\" yarışmasında {len(players)} kişi arasında {r}. oldum! "
+             f"{me['score']:,} puan · {me['correct_count'] or 0}/{total_q} doğru".replace(',', '.')
+             + (f" · 🔥 {me['best_streak']}'li seri" if (me['best_streak'] or 0) >= 2 else '') + " #YurtQuiz")
+    caption = (note + '\n\n' + stats) if note else stats
+    cur = conn.execute('INSERT INTO posts (user_id, caption, media_path, media_type) VALUES (?, ?, ?, ?)',
+                       (session['user_id'], caption, filename, 'image' if filename else 'text'))
+    post_id = cur.lastrowid
+    conn.execute('UPDATE quiz_participants SET shared_post_id = ? WHERE id = ?', (post_id, me['id']))
+    conn.commit()
+    conn.close()
+    award_xp(session['user_id'], 5, 'Yarışma sonucu paylaşıldı')
+    return jsonify({'ok': True, 'post_id': post_id, 'url': url_for('feed') + f'#post-{post_id}'})
 
 
 # ---------- Canlı oyun motoru ----------
@@ -6671,6 +6722,7 @@ def _init_extras(conn):
         comment TEXT NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY(item_id) REFERENCES marketplace_items(id), FOREIGN KEY(user_id) REFERENCES users(id))''')
     conn.execute('CREATE INDEX IF NOT EXISTS idx_market_comments_item ON market_comments(item_id)')
+    _ensure_column(conn, 'market_comments', 'parent_id', 'INTEGER')
     conn.execute('CREATE INDEX IF NOT EXISTS idx_game_scores_game ON game_scores(game_key, created_at)')
 
 
@@ -6818,7 +6870,9 @@ def market_detail(item_id):
                            WHERE user_id = ? AND id != ? AND status = 'active' ORDER BY created_at DESC LIMIT 4''',
                         (item['user_id'], item_id)).fetchall()
     conn.close()
-    return render_template('market_detail.html', item=item, comments=comments, more=more,
+    comments = nest_comments(comments)  # üst yorum + yanıtları
+    comment_total = sum(1 + len(c['replies']) for c in comments)
+    return render_template('market_detail.html', item=item, comments=comments, comment_total=comment_total, more=more,
                            can_manage=_can_manage_item(item), categories=MARKET_CATEGORIES, conditions=MARKET_CONDITIONS)
 
 
@@ -6901,20 +6955,36 @@ def market_delete(item_id):
 @login_required
 def market_comment(item_id):
     text = request.form.get('comment', '').strip()[:500]
+    parent_id = request.form.get('parent_id', type=int)
     conn = get_db()
     item = _market_item(conn, item_id)
     if not item or not text:
         conn.close()
         return redirect(url_for('market_detail', item_id=item_id) if item else url_for('market_page'))
-    conn.execute('INSERT INTO market_comments(item_id, user_id, comment) VALUES (?, ?, ?)', (item_id, session['user_id'], text))
+    parent = None
+    if parent_id:
+        parent = conn.execute('SELECT * FROM market_comments WHERE id = ? AND item_id = ?', (parent_id, item_id)).fetchone()
+        if parent and parent['parent_id']:
+            # Yanıta yanıt verilirse aynı konuşmada (tek seviye) toplansın
+            parent = conn.execute('SELECT * FROM market_comments WHERE id = ?', (parent['parent_id'],)).fetchone() or parent
+    cur = conn.execute('INSERT INTO market_comments(item_id, user_id, comment, parent_id) VALUES (?, ?, ?, ?)',
+                       (item_id, session['user_id'], text, parent['id'] if parent else None))
+    new_id = cur.lastrowid
     conn.commit()
     me = conn.execute('SELECT full_name FROM users WHERE id = ?', (session['user_id'],)).fetchone()
+    reply_to_user = None
+    if parent_id:
+        target = conn.execute('SELECT user_id FROM market_comments WHERE id = ?', (parent_id,)).fetchone()
+        reply_to_user = target['user_id'] if target else None
     conn.close()
-    if item['user_id'] != session['user_id']:
-        create_notification(item['user_id'], 'İlanına yorum geldi 💬',
-                            f'{me["full_name"]}: "{text[:80]}" — {item["title"]}',
-                            url_for('market_detail', item_id=item_id) + '#yorumlar')
-    return redirect(url_for('market_detail', item_id=item_id) + '#yorumlar')
+    link = url_for('market_detail', item_id=item_id) + f'#mc-{new_id}'
+    notified = set()
+    if reply_to_user and reply_to_user != session['user_id']:
+        create_notification(reply_to_user, 'Yorumuna yanıt geldi 💬', f'{me["full_name"]}: "{text[:80]}" — {item["title"]}', link)
+        notified.add(reply_to_user)
+    if item['user_id'] != session['user_id'] and item['user_id'] not in notified:
+        create_notification(item['user_id'], 'İlanına yorum geldi 💬', f'{me["full_name"]}: "{text[:80]}" — {item["title"]}', link)
+    return redirect(link)
 
 
 @app.route('/market/comment/<int:comment_id>/delete', methods=['POST'])
@@ -6924,6 +6994,7 @@ def market_comment_delete(comment_id):
     c = conn.execute('''SELECT c.*, m.user_id AS seller_id FROM market_comments c
                         JOIN marketplace_items m ON m.id = c.item_id WHERE c.id = ?''', (comment_id,)).fetchone()
     if c and (c['user_id'] == session['user_id'] or c['seller_id'] == session['user_id'] or has_perm('moderate_content')):
+        conn.execute('DELETE FROM market_comments WHERE parent_id = ?', (comment_id,))
         conn.execute('DELETE FROM market_comments WHERE id = ?', (comment_id,))
         conn.commit()
     conn.close()

@@ -10,7 +10,18 @@
     .md-seller { display: flex; align-items: center; gap: .7rem; padding: .8rem; border: 1px solid var(--border); border-radius: 14px; text-decoration: none; color: var(--text); }
     .md-seller:hover { background: var(--hover); color: var(--text); }
     .md-comment { display: flex; gap: .6rem; padding: .7rem 0; border-bottom: 1px solid var(--border); }
-    .md-comment:last-child { border-bottom: 0; }
+    .md-thread { border-bottom: 1px solid var(--border); }
+    .md-thread:last-of-type { border-bottom: 0; }
+    .md-thread .md-comment { border-bottom: 0; }
+    .md-replies { margin-left: 44px; padding-left: .8rem; border-left: 2px solid var(--border); margin-bottom: .5rem; }
+    .md-comment.is-reply { padding: .45rem 0; }
+    .md-reply-btn { border: 0; background: transparent; padding: 0; margin-top: .2rem; font-size: .72rem; font-weight: 700; color: var(--text-muted); }
+    .md-reply-btn:hover { color: var(--gold); }
+    .md-replying { display: flex; align-items: center; gap: .45rem; font-size: .78rem; background: var(--gold-subtle); color: var(--text); border-radius: 10px; padding: .35rem .6rem; margin-bottom: .45rem; }
+    .md-replying i.bi-reply-fill { color: var(--gold); }
+    .md-replying button { margin-left: auto; border: 0; background: transparent; color: var(--text-muted); }
+    .md-comment.is-flash { animation: mdflash 1.6s ease; border-radius: 10px; }
+    @keyframes mdflash { 0%, 40% { background: var(--gold-subtle); } 100% { background: transparent; } }
     .md-comment .who { font-weight: 700; font-size: .85rem; }
     .md-comment .seller-tag { font-size: .62rem; font-weight: 800; background: var(--gold-subtle); color: var(--gold); border-radius: 999px; padding: 1px 6px; margin-left: .3rem; }
     .md-more { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: .6rem; }
@@ -90,29 +101,47 @@
 </div>
 
 <div class="card card-pad mt-3" id="yorumlar">
-    <div class="section-title mb-2"><span><i class="bi bi-chat-dots me-1"></i> Sorular & Yorumlar ({{ comments|length }})</span></div>
-    {% for c in comments %}
-    <div class="md-comment">
-        <span class="avatar" style="width:34px;height:34px;font-size:.75rem; flex:0 0 auto;">{% if c.profile_photo %}<img src="{{ url_for('static', filename='uploads/profiles/' + c.profile_photo) }}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">{% else %}{{ c.full_name[0]|upper }}{% endif %}</span>
+    <div class="section-title mb-2"><span><i class="bi bi-chat-dots me-1"></i> Sorular & Yorumlar ({{ comment_total }})</span></div>
+    {% macro mc_row(c, parent_id, is_reply) %}
+    <div class="md-comment {{ 'is-reply' if is_reply }}" id="mc-{{ c.id }}">
+        <span class="avatar" style="width:{{ 28 if is_reply else 34 }}px;height:{{ 28 if is_reply else 34 }}px;font-size:.72rem; flex:0 0 auto;">{% if c.profile_photo %}<img src="{{ url_for('static', filename='uploads/profiles/' + c.profile_photo) }}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">{% else %}{{ c.full_name[0]|upper }}{% endif %}</span>
         <div class="flex-fill min-w-0">
             <div class="d-flex justify-content-between gap-2">
                 <a href="{{ url_for('profile', username=c.username) }}" class="who text-decoration-none">{{ c.full_name }}{% if c.user_id == item.user_id %}<span class="seller-tag">Satıcı</span>{% endif %}</a>
                 <span class="text-muted text-nowrap" style="font-size:.7rem;">{{ c.created_at|datetime_tr }}</span>
             </div>
             <div class="small" style="white-space: pre-line;">{{ c.comment }}</div>
+            <button type="button" class="md-reply-btn" data-reply-to="{{ c.id }}" data-name="{{ c.full_name }}"><i class="bi bi-reply"></i> Yanıtla</button>
         </div>
         {% if c.user_id == session.user_id or item.user_id == session.user_id or can('moderate_content') %}
-        <form method="post" action="{{ url_for('market_comment_delete', comment_id=c.id) }}" class="m-0" onsubmit="return confirm('Yorum silinsin mi?')">
+        <form method="post" action="{{ url_for('market_comment_delete', comment_id=c.id) }}" class="m-0" onsubmit="return confirm('{{ 'Yorum ve yanıtları silinsin mi?' if (not is_reply and c.replies) else 'Yorum silinsin mi?' }}')">
             <button class="btn btn-sm text-muted p-1" title="Sil" aria-label="Yorumu sil"><i class="bi bi-x-lg"></i></button>
         </form>
+        {% endif %}
+    </div>
+    {% endmacro %}
+    {% for c in comments %}
+    <div class="md-thread">
+        {{ mc_row(c, c.id, False) }}
+        {% if c.replies %}
+        <div class="md-replies">
+            {% for r in c.replies %}{{ mc_row(r, c.id, True) }}{% endfor %}
+        </div>
         {% endif %}
     </div>
     {% else %}
     <p class="text-muted small mb-2">Henüz soru yok. Ürünle ilgili merak ettiğini sor!</p>
     {% endfor %}
-    <form method="post" action="{{ url_for('market_comment', item_id=item.id) }}" class="d-flex gap-2 mt-2">
-        <input name="comment" class="form-control" maxlength="500" placeholder="{{ 'Soruları yanıtla…' if item.user_id == session.user_id else 'Satıcıya soru sor ya da yorum yaz…' }}" required>
-        <button class="btn btn-primary"><i class="bi bi-send"></i></button>
+    <form method="post" action="{{ url_for('market_comment', item_id=item.id) }}" class="mt-2" id="mcForm">
+        <div class="md-replying" id="mcReplying" hidden>
+            <i class="bi bi-reply-fill"></i> <span><b id="mcReplyName"></b> kişisine yanıt veriyorsun</span>
+            <button type="button" id="mcReplyCancel" aria-label="Yanıtı iptal et"><i class="bi bi-x-lg"></i></button>
+        </div>
+        <input type="hidden" name="parent_id" id="mcParent" value="">
+        <div class="d-flex gap-2">
+            <input name="comment" id="mcInput" class="form-control" maxlength="500" placeholder="{{ 'Soruları yanıtla…' if item.user_id == session.user_id else 'Satıcıya soru sor ya da yorum yaz…' }}" required>
+            <button class="btn btn-primary" aria-label="Gönder"><i class="bi bi-send"></i></button>
+        </div>
     </form>
 </div>
 
@@ -134,4 +163,27 @@
 {% if item.user_id == session.user_id %}
 {% with edit_item = item %}{% include 'partials/_market_form.html' %}{% endwith %}
 {% endif %}
+{% endblock %}
+{% block extra_js %}
+<script>
+(function () {
+    var form = document.getElementById('mcForm'); if (!form) return;
+    var parent = document.getElementById('mcParent'), input = document.getElementById('mcInput'), box = document.getElementById('mcReplying');
+    function cancel() { parent.value = ''; box.hidden = true; }
+    document.querySelectorAll('.md-reply-btn').forEach(function (b) {
+        b.addEventListener('click', function () {
+            parent.value = b.dataset.replyTo;
+            document.getElementById('mcReplyName').textContent = b.dataset.name;
+            box.hidden = false;
+            if (!input.value.trim()) input.value = '@' + b.dataset.name.split(' ')[0] + ' ';
+            form.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            setTimeout(function () { input.focus(); input.setSelectionRange(input.value.length, input.value.length); }, 250);
+        });
+    });
+    document.getElementById('mcReplyCancel').addEventListener('click', cancel);
+    input.addEventListener('keydown', function (e) { if (e.key === 'Escape') cancel(); });
+    var m = /^#mc-(\d+)$/.exec(location.hash);
+    if (m) { var el = document.getElementById('mc-' + m[1]); if (el) { el.scrollIntoView({ block: 'center' }); el.classList.add('is-flash'); } }
+})();
+</script>
 {% endblock %}
