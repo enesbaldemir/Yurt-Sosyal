@@ -73,7 +73,7 @@
     </section>
 
     <!-- BİTİŞ -->
-    <section class="kh-screen kp-center" data-screen="final">
+    <section class="kh-screen kp-center" data-screen="final" style="overflow-y:auto; justify-content:flex-start; padding-top:1.5rem;">
         <div style="font-size:4rem; line-height:1;" id="kpFinalMedal">🏆</div>
         <div class="kp-big" id="kpFinalTitle">Yarışma bitti!</div>
         <div class="kp-rankcard d-grid gap-1" style="min-width:260px;">
@@ -83,7 +83,14 @@
             <div class="d-flex justify-content-between"><span>En uzun seri</span><b id="kpFinalStreak">0</b></div>
         </div>
         <div class="d-flex gap-2 flex-wrap justify-content-center">
-            <button type="button" class="kq-btn kq-btn-white" id="kpShare"><i class="bi bi-share"></i> Paylaş</button>
+            {% if can('page_feed') %}
+            {% if participant.shared_post_id %}
+            <a href="{{ url_for('feed') }}#post-{{ participant.shared_post_id }}" class="kq-btn kq-btn-green" id="kpFeedShare"><i class="bi bi-check2-circle"></i> Akışta paylaşıldı · gör</a>
+            {% else %}
+            <button type="button" class="kq-btn kq-btn-green" id="kpFeedShare"><i class="bi bi-megaphone-fill"></i> Akışta paylaş, hava at 😎</button>
+            {% endif %}
+            {% endif %}
+            <button type="button" class="kq-btn kq-btn-white" id="kpShare"><i class="bi bi-share"></i> Dışarı paylaş</button>
             <a href="{{ url_for('quiz_list') }}" class="kq-btn kq-btn-white"><i class="bi bi-grid"></i> Yarışmalar</a>
         </div>
     </section>
@@ -94,6 +101,26 @@
         <div class="kp-sub" id="kpInfoSub"></div>
         <a href="{{ url_for('quiz_join') }}" class="kq-btn kq-btn-white" id="kpInfoBtn" hidden>Yeniden katıl</a>
     </section>
+
+    <!-- Akışta paylaş: sonuç kartı önizleme -->
+    <div class="kp-share" id="kpShareSheet" hidden role="dialog" aria-modal="true" aria-labelledby="kpShareTitle">
+        <div class="kp-share-card">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <strong id="kpShareTitle">Akışta paylaş</strong>
+                <button type="button" class="kp-share-x" id="kpShareClose" aria-label="Kapat"><i class="bi bi-x-lg"></i></button>
+            </div>
+            <img id="kpSharePreview" alt="Sonuç kartı önizlemesi">
+            <textarea id="kpShareNote" maxlength="300" rows="2" placeholder="Bir şeyler ekle… (isteğe bağlı)"></textarea>
+            <div class="kp-share-chips" id="kpShareChips">
+                <button type="button">Kimse beni geçemez 😎</button>
+                <button type="button">Bir dahaki sefere birinciyim! 💪</button>
+                <button type="button">Ezberledim sanki 🧠</button>
+                <button type="button">Şans değil, yetenek 🔥</button>
+            </div>
+            <button type="button" class="kq-btn kq-btn-green w-100" id="kpShareSend"><i class="bi bi-send-fill"></i> Akışta paylaş</button>
+            <div class="kp-share-hint">Puan, derece ve doğru sayısı sistemden otomatik eklenir.</div>
+        </div>
+    </div>
 
     <div class="kp-bottom">
         <span>{{ participant.nickname }}</span>
@@ -120,7 +147,69 @@
     join();
     socket.on('connect', join);
 
-    function show(id) { phase = id; KQ.showScreen(root, id); }
+    function show(id) { phase = id; KQ.showScreen(root, id); if (id !== 'answer') closeViewer(); }
+
+    // ---------- Ekrana sığdırma: şıklar HER ZAMAN görünür kalır ----------
+    // Mobil tarayıcılarda 'vh' adres çubuğu gizliymiş gibi hesaplanır; dikey video
+    // bu yüzden şıkların yerini yiyordu. Artık gerçek görünür alan ölçülüp önce
+    // şıklara yer ayrılıyor, medya kalan alana sığdırılıyor; yer yoksa medya
+    // dokununca tam ekran açılan küçük bir düğmeye dönüşüyor.
+    function fitAnswer() {
+        var sec = document.querySelector('[data-screen="answer"]');
+        if (!sec || !sec.classList.contains('is-active')) return;
+        var media = $('kpMedia'), tiles = $('kpTiles'), head = sec.querySelector('.kp-qmeta');
+        var n = tiles.children.length, rows = n > 2 ? 2 : 1;
+        var H = sec.clientHeight, cs = getComputedStyle(sec);
+        var gap = parseFloat(cs.rowGap || cs.gap) || 8, pad = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
+        sec.classList.toggle('is-short', H < 520);
+        var headH = head.offsetHeight;
+        var tileMin = Math.max(64, Math.min(120, H * 0.16));      // bir şık satırının en az yüksekliği
+        var tilesNeed = rows * tileMin + (rows - 1) * gap;
+        var box = media.querySelector('.kp-media-box'), peek = media.querySelector('.kp-media-peek'), audio = media.querySelector('.kh-audio');
+        var audioH = audio ? audio.offsetHeight + gap : 0;
+        var room = H - pad - headH - tilesNeed - gap * 2 - audioH;   // medyaya kalan alan
+        if (!box) { media.style.display = audio ? '' : 'none'; return; }
+        media.style.display = '';
+        var cap = Math.min(room, H * 0.42);
+        if (cap < 90) {                                              // çok dar: küçük düğmeye çevir
+            media.classList.add('is-collapsed'); box.style.height = '';
+        } else {
+            media.classList.remove('is-collapsed');
+            box.style.height = Math.floor(cap) + 'px';
+        }
+        tiles.classList.toggle('is-compact', (H - pad - headH - media.offsetHeight - gap * 2) / rows < 96);
+    }
+    window.addEventListener('resize', fitAnswer);
+    window.addEventListener('orientationchange', function () { setTimeout(fitAnswer, 250); });
+    if (window.visualViewport) window.visualViewport.addEventListener('resize', fitAnswer);
+
+    // Tam ekran medya görüntüleyici (videoyu/görseli büyüt, sonra şıklara dön)
+    var viewer = null, viewerHome = null;
+    function openViewer() {
+        var box = $('kpMedia').querySelector('.kp-media-box'); if (!box) return;
+        var el = box.querySelector('video, img');
+        viewer = document.createElement('div');
+        viewer.className = 'kp-viewer';
+        viewer.innerHTML = '<button type="button" class="kp-viewer-close"><i class="bi bi-x-lg"></i> Şıklara dön</button>';
+        viewerHome = box;
+        viewer.insertBefore(el, viewer.firstChild);
+        if (el.tagName === 'VIDEO') { el.controls = true; el.muted = false; el.play().catch(function () { el.muted = true; el.play().catch(function () {}); }); }
+        document.body.appendChild(viewer);
+        viewer.querySelector('.kp-viewer-close').addEventListener('click', closeViewer);
+    }
+    function closeViewer() {
+        if (!viewer) return;
+        var el = viewer.querySelector('video, img');
+        if (el && viewerHome) {
+            if (el.tagName === 'VIDEO') { el.controls = false; el.muted = true; }
+            viewerHome.insertBefore(el, viewerHome.firstChild);
+        }
+        viewer.remove(); viewer = null; viewerHome = null;
+        fitAnswer();
+    }
+    $('kpMedia').addEventListener('click', function (e) {
+        if (e.target.closest('.kp-media-box') || e.target.closest('.kp-media-peek')) openViewer();
+    });
     function bg(kind) { stage.classList.toggle('is-correct-bg', kind === 'ok'); stage.classList.toggle('is-wrong-bg', kind === 'bad'); }
     function stopTimers() { if (timer) timer.stop(); clearTimeout(introTimer); }
     function setScore(to, from) { KQ.countUp($('kpScore'), from != null ? from : score, to, 900); score = to; }
@@ -139,10 +228,16 @@
         var begin = function () {
             $('kpQText').textContent = q.question_text;
             var m = $('kpMedia');
+            closeViewer();
             m.innerHTML = q.video_path
-                ? '<video src="/static/uploads/quiz/' + encodeURIComponent(q.video_path) + '" playsinline muted autoplay controls preload="auto"></video>'
-                : (q.image_path ? '<img src="/static/uploads/quiz/' + encodeURIComponent(q.image_path) + '" alt="">' : '');
-            var pv = m.querySelector('video'); if (pv) pv.play().catch(function () {});
+                ? '<div class="kp-media-box"><video src="/static/uploads/quiz/' + encodeURIComponent(q.video_path) + '" playsinline webkit-playsinline muted autoplay loop preload="auto"></video>' +
+                  '<span class="kp-media-zoom"><i class="bi bi-arrows-fullscreen"></i></span></div>' +
+                  '<button type="button" class="kp-media-peek"><i class="bi bi-play-circle-fill"></i> Videoyu izle</button>'
+                : (q.image_path ? '<div class="kp-media-box"><img src="/static/uploads/quiz/' + encodeURIComponent(q.image_path) + '" alt=""><span class="kp-media-zoom"><i class="bi bi-arrows-fullscreen"></i></span></div>' +
+                  '<button type="button" class="kp-media-peek"><i class="bi bi-image"></i> Görseli gör</button>' : '');
+            var pv = m.querySelector('video');
+            if (pv) { pv.play().catch(function () {}); pv.addEventListener('loadedmetadata', fitAnswer); }
+            var pimg = m.querySelector('.kp-media-box img'); if (pimg) pimg.addEventListener('load', fitAnswer);
             if (q.audio_path) {
                 m.innerHTML += '<button type="button" class="kh-audio" id="kpAudioBtn"><span class="p"><i class="bi bi-play-fill"></i></span> Dinle<audio id="kpAudioEl" src="/static/uploads/quiz/' + encodeURIComponent(q.audio_path) + '"></audio></button>';
                 var a = $('kpAudioEl'), b = $('kpAudioBtn');
@@ -161,6 +256,7 @@
                 box.appendChild(b);
             });
             show('answer');
+            fitAnswer();
             var remaining = d.remaining_ms != null ? d.remaining_ms : d.time_limit * 1000;
             timer = KQ.ringTimer($('kpTimer'), d.time_limit * 1000, remaining, null, function () {
                 if (!answered && phase === 'answer') { show('sent'); $('kpSentSub').textContent = 'Süre doldu! Sonuç bekleniyor…'; }
@@ -254,6 +350,7 @@
             $('kpFinalStreak').textContent = me.best_streak ? '🔥 ' + me.best_streak : '-';
             setScore(me.score);
             if (me.rank <= 3 && !d.resync) { KQ.confetti(200); KQ.sfx.fanfare(); }
+            lastFinal = { me: me, d: d };
             $('kpShare').onclick = function () {
                 var text = TITLE + ' yarışmasında ' + me.rank + '. oldum! ' + me.score + ' puan, ' + me.correct + '/' + d.total_questions + ' doğru 🏆';
                 if (navigator.share) navigator.share({ title: 'Yarışma sonucum', text: text }).catch(function () {});
@@ -261,6 +358,99 @@
                 else KQ.toast(text);
             };
         }
+    });
+
+    // ---------- Akışta paylaş: sonuç kartı (canvas) ----------
+    var lastFinal = null, shareBlob = null;
+    var NICK = {{ participant.nickname|tojson }};
+    function roundRect(ctx, x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
+    function wrapText(ctx, text, maxW) {
+        var words = String(text).split(' '), lines = [], line = '';
+        words.forEach(function (w) { var t = line ? line + ' ' + w : w; if (ctx.measureText(t).width > maxW && line) { lines.push(line); line = w; } else line = t; });
+        if (line) lines.push(line);
+        return lines.slice(0, 3);
+    }
+    function drawShape(ctx, l, cx, cy, s) {
+        ctx.beginPath();
+        if (l === 'a') { ctx.moveTo(cx, cy - s); ctx.lineTo(cx + s, cy + s * .8); ctx.lineTo(cx - s, cy + s * .8); }
+        else if (l === 'b') { ctx.moveTo(cx, cy - s); ctx.lineTo(cx + s, cy); ctx.lineTo(cx, cy + s); ctx.lineTo(cx - s, cy); }
+        else if (l === 'c') { ctx.arc(cx, cy, s, 0, Math.PI * 2); }
+        else { ctx.rect(cx - s * .85, cy - s * .85, s * 1.7, s * 1.7); }
+        ctx.closePath(); ctx.fill();
+    }
+    function buildCard(me, d) {
+        var W = 1080, H = 1350, c = document.createElement('canvas'); c.width = W; c.height = H;
+        var ctx = c.getContext('2d'), F = 'Montserrat, "DM Sans", Arial, sans-serif';
+        var g = ctx.createLinearGradient(0, 0, W, H); g.addColorStop(0, '#6C2BD9'); g.addColorStop(1, '#25076B');
+        ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+        // arka plan şekilleri
+        [['a', '#E21B3C', 140, 180, 120], ['b', '#1368CE', 950, 260, 110], ['c', '#D89E00', 120, 1180, 100], ['d', '#26890C', 960, 1150, 95]].forEach(function (x) {
+            ctx.globalAlpha = .22; ctx.fillStyle = x[1]; drawShape(ctx, x[0], x[2], x[3], x[4]);
+        });
+        ctx.globalAlpha = 1; ctx.textAlign = 'center';
+        ctx.fillStyle = '#fff'; ctx.font = '900 54px ' + F; ctx.fillText('YURT! Quiz', W / 2, 130);
+        ctx.fillStyle = 'rgba(255,255,255,.8)'; ctx.font = '700 38px ' + F;
+        wrapText(ctx, TITLE, 860).forEach(function (ln, i) { ctx.fillText(ln, W / 2, 200 + i * 48); });
+        // madalya dairesi
+        var medal = me.rank === 1 ? ['#FFD54A', '#E8A600'] : me.rank === 2 ? ['#E9EEF5', '#AFB9C8'] : me.rank === 3 ? ['#F2B27A', '#C66F2E'] : ['#ffffff', '#d9ccff'];
+        var mg = ctx.createLinearGradient(0, 330, 0, 690); mg.addColorStop(0, medal[0]); mg.addColorStop(1, medal[1]);
+        ctx.fillStyle = 'rgba(0,0,0,.18)'; ctx.beginPath(); ctx.arc(W / 2, 525, 190, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = mg; ctx.beginPath(); ctx.arc(W / 2, 510, 180, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = me.rank <= 3 ? '#3b2300' : '#46178F'; ctx.font = '900 150px ' + F; ctx.fillText(me.rank + '.', W / 2, 560);
+        ctx.font = '800 34px ' + F; ctx.fillText('/ ' + d.player_count + ' kişi', W / 2, 615);
+        ctx.fillStyle = '#fff'; ctx.font = '900 64px ' + F;
+        ctx.fillText(me.rank === 1 ? 'Şampiyon! 🏆' : me.rank <= 3 ? 'Podyumdayım! 🎉' : 'Yarıştım, eğlendim! 🎯', W / 2, 800);
+        // istatistik kutuları
+        var stats = [['PUAN', me.score.toLocaleString('tr-TR')], ['DOĞRU', me.correct + '/' + d.total_questions], ['SERİ', me.best_streak ? '🔥 ' + me.best_streak : '-']];
+        stats.forEach(function (st, i) {
+            var bw = 290, bx = 60 + i * (bw + 35), by = 880;
+            ctx.fillStyle = 'rgba(255,255,255,.14)'; roundRect(ctx, bx, by, bw, 200, 32); ctx.fill();
+            ctx.fillStyle = 'rgba(255,255,255,.75)'; ctx.font = '800 30px ' + F; ctx.fillText(st[0], bx + bw / 2, by + 62);
+            ctx.fillStyle = '#fff'; ctx.font = '900 64px ' + F; ctx.fillText(st[1], bx + bw / 2, by + 150);
+        });
+        // isim şeridi
+        ctx.fillStyle = '#fff'; roundRect(ctx, 200, 1150, 680, 96, 48); ctx.fill();
+        ctx.fillStyle = '#1B1B1F'; ctx.font = '900 44px ' + F;
+        var nm = NICK.length > 22 ? NICK.slice(0, 21) + '…' : NICK; ctx.fillText(nm, W / 2, 1213);
+        ctx.fillStyle = 'rgba(255,255,255,.7)'; ctx.font = '700 28px ' + F;
+        ctx.fillText(new Date().toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' }) + ' · #YurtQuiz', W / 2, 1305);
+        return c;
+    }
+    function openShare() {
+        if (!lastFinal) return;
+        var go = function () {
+            var c = buildCard(lastFinal.me, lastFinal.d);
+            $('kpSharePreview').src = c.toDataURL('image/png');
+            c.toBlob(function (b) { shareBlob = b; }, 'image/png');
+            $('kpShareSheet').hidden = false;
+        };
+        (document.fonts && document.fonts.load ? Promise.all([document.fonts.load('900 60px Montserrat'), document.fonts.load('700 30px Montserrat')]).catch(function () {}) : Promise.resolve()).then(go);
+    }
+    var fs = $('kpFeedShare');
+    if (fs && fs.tagName === 'BUTTON') fs.addEventListener('click', openShare);
+    $('kpShareClose').addEventListener('click', function () { $('kpShareSheet').hidden = true; });
+    $('kpShareChips').addEventListener('click', function (e) {
+        var b = e.target.closest('button'); if (b) { $('kpShareNote').value = b.textContent; }
+    });
+    $('kpShareSend').addEventListener('click', function () {
+        var btn = this; btn.disabled = true; btn.innerHTML = '<span class="kp-spinner" style="width:18px;height:18px;border-width:3px;"></span> Paylaşılıyor…';
+        var fd = new FormData();
+        if (shareBlob) fd.append('image', shareBlob, 'yarisma-sonucu.png');
+        fd.append('note', $('kpShareNote').value);
+        fetch('/quiz/play/' + SID + '/share', { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(function (r) { return r.json(); })
+            .then(function (j) {
+                if (!j.ok && !j.post_id) throw new Error(j.error || 'Paylaşılamadı');
+                $('kpShareSheet').hidden = true;
+                KQ.toast(j.ok ? 'Akışta paylaşıldı! +5 XP 🎉' : j.error);
+                if (j.ok) KQ.confetti(80);
+                var a = document.createElement('a');
+                a.className = 'kq-btn kq-btn-green'; a.id = 'kpFeedShare';
+                a.href = j.url || ('/feed#post-' + j.post_id);
+                a.innerHTML = '<i class="bi bi-check2-circle"></i> Akışta paylaşıldı · gör';
+                fs.replaceWith(a); fs = a;
+            })
+            .catch(function (e) { KQ.toast(e.message, true); btn.disabled = false; btn.innerHTML = '<i class="bi bi-send-fill"></i> Akışta paylaş'; });
     });
 
     socket.on('quiz_kicked', function (d) {
