@@ -210,7 +210,7 @@
 <script>
 (function () {
     var INITIAL = {{ today|tojson }};
-    var IS_ADMIN = {{ 'true' if session.get('is_admin') else 'false' }};
+    var IS_ADMIN = {{ 'true' if can('manage_polls') else 'false' }};
     var URLS = { admin: {{ url_for('admin_panel')|tojson }}, events: {{ url_for('events')|tojson }},
                  createEvent: {{ url_for('create_event')|tojson }}, menu: {{ url_for('menu_page')|tojson }} };
     var lastData = null, lastFetch = Date.now();
@@ -257,7 +257,7 @@
         // Yemek
         var f = d.meal_focus || {};
         setPlain('v-meal-label', (f.label || 'Yemek') + ' · ' + (f.time || ''));
-        setPlain('v-meal', f.line ? f.line + (f.more ? ' +' + f.more + ' çeşit' : '') : 'Bu öğünün menüsü henüz girilmedi');
+        setPlain('v-meal', f.line ? f.line + (f.more ? ' +' + f.more + ' çeşit' : '') : (f.empty_text || 'Bu öğünün menüsü henüz girilmedi'));
         var rate = d.rating_count ? '★ ' + d.rating_avg + ' (' + d.rating_count + ' oy) · ' : '';
         setPlain('v-meal-sub', rate + (d.meal_status ? d.meal_status.text : ''));
 

@@ -1,337 +1,280 @@
 {% extends "base.html" %}
-{% block title %}{{ quiz.title }} — Quiz Oyna{% endblock %}
+{% block title %}{{ quiz.title }} — Yarışma{% endblock %}
 {% block shell_class %}full-width{% endblock %}
+{% block body_class %}kq-immersive{% endblock %}
 {% block context_panel %}{% endblock %}
 {% block extra_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/quiz-arcade.css') }}">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/quiz-pro.css', v='2026093001') }}">
 {% endblock %}
 {% block content %}
-<div class="qa-scope qa-play-wrap">
+<div class="kp-stage" id="kp">
+    <div class="kq-floaters" aria-hidden="true"><span>▲</span><span>◆</span><span>●</span><span>■</span></div>
 
-    <!-- HAZIR MISIN? / BEKLEME EKRANI -->
-    <div id="waiting-screen" class="qa-bg text-center qa-fade-up" style="padding: 46px 24px;">
-        <div class="qa-blob" style="width:150px;height:150px;background:var(--qa-purple);top:-40px;left:-30px;"></div>
-        <div class="qa-blob" style="width:110px;height:110px;background:var(--qa-pink);bottom:-30px;right:-20px;animation-delay:1s;"></div>
-        <div style="font-size:3rem; line-height:1;" class="mb-3">🎯</div>
-        <h3 class="fw-bold mb-1">Hazır mısın?</h3>
-        <p class="mb-1 fw-semibold" style="color: var(--qa-purple); font-size:1.1rem;">{{ quiz.title }}</p>
-        <p class="small mb-4" style="color: var(--qa-ink-muted);">Sunucunun yarışmayı başlatması bekleniyor. Ekranından ayrılma!</p>
-        <div class="qa-pill qa-pill-soft" style="font-size:0.85rem;">Takma Adın: <strong class="ms-1">{{ participant.nickname }}</strong></div>
-        <div class="mt-4 d-flex justify-content-center gap-2">
-            <span class="qa-dot" style="width:9px;height:9px;border-radius:50%;background:var(--qa-purple); animation: qa-pulse-dot 1.2s ease-in-out infinite;"></span>
-            <span class="qa-dot" style="width:9px;height:9px;border-radius:50%;background:var(--qa-pink); animation: qa-pulse-dot 1.2s ease-in-out infinite 0.2s;"></span>
-            <span class="qa-dot" style="width:9px;height:9px;border-radius:50%;background:var(--qa-orange); animation: qa-pulse-dot 1.2s ease-in-out infinite 0.4s;"></span>
-        </div>
+    <div class="kp-top">
+        <a href="{{ url_for('quiz_list') }}" class="kh-tbtn" style="width:34px;height:34px;" title="Çık" aria-label="Çık" onclick="return confirm('Yarışmadan çıkmak istiyor musun? Puanın korunur, geri dönebilirsin.')"><i class="bi bi-x-lg"></i></a>
+        <span>PIN {{ quiz_session.code }}</span>
+        <div class="spacer"></div>
+        <span id="kpProgress"></span>
+        <button type="button" class="kh-tbtn" style="width:34px;height:34px;" id="kpMute" title="Sesi aç/kapat"><i class="bi bi-volume-up-fill"></i></button>
     </div>
 
-    <!-- SORU EKRANI -->
-    <div id="question-screen" style="display:none;">
-        <div class="qa-top-bar">
-            <span class="qa-pill qa-pill-soft qa-progress-label" id="p-question-index">Soru 1 / 1</span>
-            <div class="qa-timer-ring" id="p-timer-ring">
-                <svg viewBox="0 0 60 60">
-                    <circle class="qa-ring-bg" cx="30" cy="30" r="26"></circle>
-                    <circle class="qa-ring-fg" cx="30" cy="30" r="26"></circle>
-                </svg>
-                <span class="qa-ring-num">--</span>
-            </div>
+    <!-- LOBİ -->
+    <section class="kh-screen kp-center is-active" data-screen="lobby">
+        <div class="kp-big">Oyuna girdin! 🎉</div>
+        <div class="kp-nick">{{ participant.nickname }}</div>
+        <div class="kp-sub">Adını ekranda görüyor musun?<br>Sunucunun başlatmasını bekle…</div>
+        <div class="kh-empty-players"><div class="dots"><span></span><span></span><span></span></div></div>
+    </section>
+
+    <!-- HAZIRLAN -->
+    <section class="kh-screen kp-intro" data-screen="intro">
+        <span class="qnum" id="kpIntroNum">Soru 1</span>
+        <div class="kp-big" id="kpIntroText"></div>
+        <div class="kq-progress" id="kpIntroBar"><i></i></div>
+        <div class="kp-sub">Hazır ol!</div>
+    </section>
+
+    <!-- CEVAPLA -->
+    <section class="kh-screen kp-answer" data-screen="answer">
+        <div class="kp-qmeta">
+            <div class="kp-timer" id="kpTimer"><span class="num">20</span></div>
+            <div class="kp-qhead flex-fill" id="kpQText"></div>
         </div>
+        <div class="kp-media" id="kpMedia"></div>
+        <div class="kp-tiles" id="kpTiles"></div>
+    </section>
 
-        <div class="qa-question-card qa-q-enter" id="p-question-card">
-            <div class="qa-question-text" id="p-question-text"></div>
-            <img id="p-question-image" class="qa-question-media" style="display:none;" alt="">
+    <!-- CEVAP GÖNDERİLDİ -->
+    <section class="kh-screen kp-center" data-screen="sent">
+        <div class="kp-spinner"></div>
+        <div class="kp-big">Cevabın alındı!</div>
+        <div class="kp-sub" id="kpSentSub">Diğer oyuncular bekleniyor…</div>
+    </section>
 
-            <div id="p-question-audio" class="qa-audio-player" style="display:none;">
-                <button type="button" class="qa-audio-play-btn" id="p-audio-toggle"><i class="bi bi-play-fill"></i></button>
-                <div class="qa-audio-wave" id="p-audio-wave"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
-                <audio id="p-audio-el" preload="none"></audio>
-            </div>
+    <!-- SONUÇ -->
+    <section class="kh-screen kp-center" data-screen="result">
+        <div class="kp-result-icon" id="kpResIcon"><i class="bi bi-check-lg"></i></div>
+        <div class="kp-big" id="kpResTitle">Doğru!</div>
+        <div id="kpResStreak"></div>
+        <div class="kp-points" id="kpResPoints">+0</div>
+        <div class="kp-rankline" id="kpResRank"></div>
+    </section>
 
-            <div class="qa-answer-grid" id="p-options"></div>
-
-            <p class="small text-center mt-3 mb-0" id="p-waiting-msg" style="display:none; color: var(--qa-ink-muted);">
-                <i class="bi bi-check2-circle me-1" style="color: var(--qa-green);"></i> Cevabın kaydedildi, sonuç bekleniyor...
-            </p>
+    <!-- SIRALAMA -->
+    <section class="kh-screen kp-center" data-screen="board" style="justify-content:flex-start; overflow-y:auto;">
+        <div class="kp-rankcard">
+            <div class="kp-sub" style="color:#55556A;">Sıralaman</div>
+            <div><span class="rank" id="kpRank">1</span><span style="font-weight:900; font-size:1.4rem; color:#46178F;">.</span></div>
+            <div class="move" id="kpMove"></div>
         </div>
+        <div class="kp-mini-lb kq-lb" id="kpBoard"></div>
+        <div class="kp-sub" id="kpBoardNote">Sonraki soru birazdan…</div>
+    </section>
+
+    <!-- BİTİŞ -->
+    <section class="kh-screen kp-center" data-screen="final">
+        <div style="font-size:4rem; line-height:1;" id="kpFinalMedal">🏆</div>
+        <div class="kp-big" id="kpFinalTitle">Yarışma bitti!</div>
+        <div class="kp-rankcard d-grid gap-1" style="min-width:260px;">
+            <div class="d-flex justify-content-between"><span>Sıralama</span><b id="kpFinalRank">-</b></div>
+            <div class="d-flex justify-content-between"><span>Puan</span><b id="kpFinalScore">0</b></div>
+            <div class="d-flex justify-content-between"><span>Doğru</span><b id="kpFinalCorrect">0</b></div>
+            <div class="d-flex justify-content-between"><span>En uzun seri</span><b id="kpFinalStreak">0</b></div>
+        </div>
+        <div class="d-flex gap-2 flex-wrap justify-content-center">
+            <button type="button" class="kq-btn kq-btn-white" id="kpShare"><i class="bi bi-share"></i> Paylaş</button>
+            <a href="{{ url_for('quiz_list') }}" class="kq-btn kq-btn-white"><i class="bi bi-grid"></i> Yarışmalar</a>
+        </div>
+    </section>
+
+    <!-- ÇIKARILDIN / DURAKLADI -->
+    <section class="kh-screen kp-center" data-screen="info">
+        <div class="kp-big" id="kpInfoTitle"></div>
+        <div class="kp-sub" id="kpInfoSub"></div>
+        <a href="{{ url_for('quiz_join') }}" class="kq-btn kq-btn-white" id="kpInfoBtn" hidden>Yeniden katıl</a>
+    </section>
+
+    <div class="kp-bottom">
+        <span>{{ participant.nickname }}</span>
+        <span class="score" id="kpScore">{{ participant.score or 0 }}</span>
     </div>
-
-    <!-- SONUÇ EKRANI -->
-    <div id="result-screen" class="qa-question-card qa-result-panel" style="display:none;">
-        <div class="qa-result-icon" id="result-icon"><i class="bi bi-check-lg"></i></div>
-        <h3 class="fw-bold mb-1" id="result-title"></h3>
-        <p class="mb-0" id="result-points" style="color: var(--qa-ink-muted);"></p>
-        <div class="mt-2 fw-bold" id="result-score-total" style="color: var(--qa-purple); font-size:1.1rem;"></div>
-    </div>
-
-    <!-- LİDERLİK TABLOSU (ARA) -->
-    <div id="leaderboard-screen" class="qa-question-card" style="display:none;">
-        <div class="d-flex align-items-center gap-2 mb-3">
-            <i class="bi bi-trophy-fill" style="color: var(--qa-yellow);"></i>
-            <h5 class="fw-bold mb-0">Anlık Sıralama</h5>
-        </div>
-        <div id="p-leaderboard-list"></div>
-        <p class="small text-center mt-3 mb-0" style="color: var(--qa-ink-muted);">Sonraki soru başlatılıyor...</p>
-    </div>
-
-    <!-- BİTİŞ EKRANI -->
-    <div id="finished-screen" class="qa-bg text-center" style="display:none; padding: 40px 24px;">
-        <div class="qa-blob" style="width:160px;height:160px;background:var(--qa-purple);top:-40px;right:-30px;"></div>
-        <i class="bi bi-trophy-fill" style="font-size: 2.6rem; color: var(--qa-yellow);"></i>
-        <h3 class="fw-bold mt-2 mb-3">Yarışma Bitti!</h3>
-
-        <div class="row g-2 justify-content-center mb-3" style="max-width:420px; margin-inline:auto;">
-            <div class="col-4">
-                <div class="qa-hero-stat" style="justify-content:center; background: var(--qa-surface-2); color: var(--qa-ink);">
-                    <span class="qa-score-count" id="final-score" style="font-size:1.3rem;">0</span>
-                </div>
-                <div class="small mt-1" style="color: var(--qa-ink-muted);">Puan</div>
-            </div>
-            <div class="col-4">
-                <div class="qa-hero-stat" style="justify-content:center; background: var(--qa-surface-2); color: var(--qa-ink);">
-                    <span class="fw-bold" id="final-correct">0</span>
-                </div>
-                <div class="small mt-1" style="color: var(--qa-ink-muted);">Doğru</div>
-            </div>
-            <div class="col-4">
-                <div class="qa-hero-stat" style="justify-content:center; background: var(--qa-surface-2); color: var(--qa-ink);">
-                    <span class="fw-bold" id="final-rank">#-</span>
-                </div>
-                <div class="small mt-1" style="color: var(--qa-ink-muted);">Sıra</div>
-            </div>
-        </div>
-
-        <div id="p-final-leaderboard" class="text-start mb-4" style="max-width:420px; margin-inline:auto;"></div>
-
-        <div class="d-flex flex-column gap-2" style="max-width:420px; margin-inline:auto;">
-            <button type="button" class="qa-btn qa-btn-lg" id="share-result-btn"><i class="bi bi-share"></i> Sonucu Paylaş</button>
-            <a href="{{ url_for('quiz_list') }}" class="qa-btn qa-btn-ghost qa-btn-block">Yarışmalara Dön</a>
-        </div>
-    </div>
-
 </div>
 {% endblock %}
 
 {% block extra_js %}
-<script src="{{ url_for('static', filename='js/quiz-arcade.js') }}"></script>
+<script src="{{ url_for('static', filename='js/quiz-pro.js', v='2026093001') }}"></script>
 <script>
 (function () {
-    var SESSION_ID = {{ quiz_session.id }};
-    var QUIZ_TITLE = {{ quiz.title|tojson }};
-    var MY_NICKNAME = {{ participant.nickname|tojson }};
-    var myScore = {{ participant.score or 0 }};
-    var myCorrect = 0, myWrong = 0, answerTimes = [];
-    var currentQuestion = null, questionStart = null, timerInterval = null, answered = false;
-    var totalTime = 20;
+    'use strict';
+    var SID = {{ quiz_session.id }};
+    var PID = {{ participant.id }};
+    var TITLE = {{ quiz.title|tojson }};
+    var KQ = window.KQ, root = document.getElementById('kp'), stage = root;
+    var $ = function (id) { return document.getElementById(id); };
+    var score = {{ participant.score or 0 }}, timer = null, introTimer = null, current = null, answered = false, phase = 'lobby';
 
-    var QA = window.QuizArcade || {};
-    if (typeof socket !== 'undefined') QA.attachConnectionBanner(socket);
+    if (typeof socket === 'undefined') { KQ.toast('Canlı bağlantı kurulamadı. Sayfayı yenile.', true); return; }
+    KQ.connectionBadge(socket);
+    function join() { socket.emit('quiz_join_room', { session_id: SID }); }
+    join();
+    socket.on('connect', join);
 
-    socket.emit('quiz_join_room', { session_id: SESSION_ID });
+    function show(id) { phase = id; KQ.showScreen(root, id); }
+    function bg(kind) { stage.classList.toggle('is-correct-bg', kind === 'ok'); stage.classList.toggle('is-wrong-bg', kind === 'bad'); }
+    function stopTimers() { if (timer) timer.stop(); clearTimeout(introTimer); }
+    function setScore(to, from) { KQ.countUp($('kpScore'), from != null ? from : score, to, 900); score = to; }
+    function vibrate(p) { try { if (navigator.vibrate) navigator.vibrate(p); } catch (e) {} }
 
-    function showScreen(id) {
-        ['waiting-screen', 'question-screen', 'result-screen', 'leaderboard-screen', 'finished-screen'].forEach(function (s) {
-            var el = document.getElementById(s);
-            if (el) el.style.display = (s === id) ? '' : 'none';
-        });
-    }
+    function syncMute() { $('kpMute').innerHTML = KQ.isMuted() ? '<i class="bi bi-volume-mute-fill"></i>' : '<i class="bi bi-volume-up-fill"></i>'; }
+    syncMute();
+    $('kpMute').addEventListener('click', function () { KQ.setMuted(!KQ.isMuted()); syncMute(); });
 
-    var optKeys = ['option_a', 'option_b', 'option_c', 'option_d'];
-    var optLetters = { option_a: 'A', option_b: 'B', option_c: 'C', option_d: 'D' };
-    var optColors = { option_a: 'qa-opt-A', option_b: 'qa-opt-B', option_c: 'qa-opt-C', option_d: 'qa-opt-D' };
-
-    // ---------- Ses oynatıcı ----------
-    var audioEl = document.getElementById('p-audio-el');
-    var audioToggle = document.getElementById('p-audio-toggle');
-    var audioWave = document.getElementById('p-audio-wave');
-    audioToggle.addEventListener('click', function () {
-        if (audioEl.paused) { audioEl.play().catch(function () {}); } else { audioEl.pause(); }
-    });
-    audioEl.addEventListener('play', function () {
-        audioToggle.innerHTML = '<i class="bi bi-pause-fill"></i>';
-        audioWave.classList.add('playing');
-    });
-    ['pause', 'ended'].forEach(function (ev) {
-        audioEl.addEventListener(ev, function () {
-            audioToggle.innerHTML = '<i class="bi bi-play-fill"></i>';
-            audioWave.classList.remove('playing');
-        });
-    });
-
-    socket.on('quiz_question', function (data) {
-        currentQuestion = data.question;
-        questionStart = Date.now();
-        answered = false;
-        totalTime = data.question.time_limit;
-
-        document.getElementById('p-question-index').textContent = 'Soru ' + (data.index + 1) + ' / ' + data.total;
-        document.getElementById('p-waiting-msg').style.display = 'none';
-
-        var card = document.getElementById('p-question-card');
-        card.classList.remove('qa-q-enter');
-        card.classList.add('qa-q-exit');
-        setTimeout(function () {
-            renderQuestion(data.question);
-            card.classList.remove('qa-q-exit');
-            void card.offsetWidth;
-            card.classList.add('qa-q-enter');
-            showScreen('question-screen');
-        }, QA.prefersReducedMotion() ? 0 : 180);
-    });
-
-    function renderQuestion(q) {
-        document.getElementById('p-question-text').textContent = q.question_text;
-
-        var imgEl = document.getElementById('p-question-image');
-        if (q.image_path) { imgEl.src = '/static/uploads/quiz/' + q.image_path; imgEl.style.display = 'block'; }
-        else { imgEl.style.display = 'none'; }
-
-        var audioBox = document.getElementById('p-question-audio');
-        audioEl.pause();
-        if (q.audio_path) {
-            audioEl.src = '/static/uploads/quiz/' + q.audio_path;
-            audioBox.style.display = 'flex';
-        } else {
-            audioBox.style.display = 'none';
-        }
-
-        var box = document.getElementById('p-options');
-        box.innerHTML = '';
-        optKeys.forEach(function (key) {
-            var val = q[key];
-            if (!val) return;
-            var img = q[key + '_image'];
-            var btn = document.createElement('button');
-            btn.type = 'button';
-            btn.className = 'qa-answer-btn ' + optColors[key];
-            btn.innerHTML =
-                '<span class="qa-answer-letter">' + optLetters[key] + '</span>' +
-                (img ? '<img class="qa-answer-img" src="/static/uploads/quiz/' + img + '">' : '') +
-                '<span class="qa-answer-text"></span>';
-            btn.querySelector('.qa-answer-text').textContent = val;
-            btn.dataset.opt = key.replace('option_', '');
-            btn.addEventListener('click', function (e) { QA.ripple(btn, e); submitAnswer(btn.dataset.opt, btn); });
-            box.appendChild(btn);
-        });
-
-        var ring = document.getElementById('p-timer-ring');
-        clearInterval(timerInterval);
-        var remaining = q.time_limit;
-        QA.setRing(ring, remaining, totalTime);
-        timerInterval = setInterval(function () {
-            remaining -= 1;
-            QA.setRing(ring, remaining, totalTime);
-            if (remaining <= 0) clearInterval(timerInterval);
-        }, 1000);
-    }
-
-    function submitAnswer(opt, btnEl) {
-        if (answered) return;
-        answered = true;
-        var answerMs = Date.now() - questionStart;
-        answerTimes.push(answerMs);
-        document.querySelectorAll('.qa-answer-btn').forEach(function (b) {
-            b.disabled = true;
-            if (b !== btnEl) b.classList.add('is-fade');
-        });
-        btnEl.classList.add('is-selected');
-        document.getElementById('p-waiting-msg').style.display = 'block';
-        socket.emit('quiz_answer', {
-            session_id: SESSION_ID, question_id: currentQuestion.id,
-            selected_option: opt, answer_ms: answerMs
-        });
-    }
-
-    socket.on('quiz_answer_result', function (data) {
-        clearInterval(timerInterval);
-        var icon = document.getElementById('result-icon');
-        var title = document.getElementById('result-title');
-        var pts = document.getElementById('result-points');
-        var totalEl = document.getElementById('result-score-total');
-
-        var selectedBtn = document.querySelector('.qa-answer-btn.is-selected');
-        if (data.is_correct) {
-            myCorrect++;
-            icon.className = 'qa-result-icon ok';
-            icon.innerHTML = '<i class="bi bi-check-lg"></i>';
-            title.textContent = 'Tebrikler, Doğru Cevap!';
-            var bonusMsg = data.points >= 850 ? ' ⚡ Hız bonusu!' : '';
-            pts.textContent = '+' + data.points + ' puan kazandın.' + bonusMsg;
-            if (selectedBtn) {
-                selectedBtn.classList.remove('is-fade');
-                selectedBtn.classList.add('is-correct-flash');
-                QA.floatScore(selectedBtn, '+' + data.points, '#22C55E');
+    // ---------- Soru ----------
+    socket.on('quiz_question', function (d) {
+        stopTimers(); bg(null);
+        current = d; answered = false;
+        var q = d.question;
+        $('kpProgress').textContent = (d.index + 1) + ' / ' + d.total;
+        var begin = function () {
+            $('kpQText').textContent = q.question_text;
+            var m = $('kpMedia');
+            m.innerHTML = q.image_path ? '<img src="/static/uploads/quiz/' + encodeURIComponent(q.image_path) + '" alt="">' : '';
+            if (q.audio_path) {
+                m.innerHTML += '<button type="button" class="kh-audio" id="kpAudioBtn"><span class="p"><i class="bi bi-play-fill"></i></span> Dinle<audio id="kpAudioEl" src="/static/uploads/quiz/' + encodeURIComponent(q.audio_path) + '"></audio></button>';
+                var a = $('kpAudioEl'), b = $('kpAudioBtn');
+                b.addEventListener('click', function () { if (a.paused) a.play().catch(function () {}); else a.pause(); });
+                a.addEventListener('play', function () { b.querySelector('.p').innerHTML = '<i class="bi bi-pause-fill"></i>'; });
+                a.addEventListener('pause', function () { b.querySelector('.p').innerHTML = '<i class="bi bi-play-fill"></i>'; });
             }
-            QA.confetti({ count: 60 });
-        } else {
-            myWrong++;
-            icon.className = 'qa-result-icon bad';
-            icon.innerHTML = '<i class="bi bi-x-lg"></i>';
-            title.textContent = 'Yanlış Cevap';
-            pts.textContent = 'Doğru cevap: ' + data.correct_option.toUpperCase() + ' şıkkıydı.';
-            if (selectedBtn) selectedBtn.classList.add('is-wrong-shake');
-        }
-        myScore += (data.points || 0);
-        totalEl.textContent = 'Toplam puanın: ' + myScore;
-
-        document.querySelectorAll('.qa-answer-btn').forEach(function (b) { b.classList.remove('is-fade'); });
-        setTimeout(function () { showScreen('result-screen'); }, data.is_correct ? 250 : 0);
-    });
-
-    function medalFor(i) {
-        return i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : null;
-    }
-
-    function renderLeaderboard(containerId, leaderboard) {
-        var box = document.getElementById(containerId);
-        if (!box) return;
-        box.innerHTML = '';
-        if (!leaderboard.length) {
-            box.innerHTML = '<p class="small text-center mb-0" style="color: var(--qa-ink-muted);">Henüz puan kaydedilmedi.</p>';
-            return;
-        }
-        leaderboard.forEach(function (p, i) {
-            var isMe = p.nickname === MY_NICKNAME;
-            var row = document.createElement('div');
-            row.className = 'qa-lb-row' + (isMe ? ' me' : '');
-            row.style.animationDelay = (i * 40) + 'ms';
-            var medal = medalFor(i);
-            row.innerHTML =
-                '<span class="qa-lb-rank">' + (medal ? '<span class="qa-lb-medal">' + medal + '</span>' : ('#' + (i + 1))) + '</span>' +
-                '<span class="qa-lb-avatar"></span>' +
-                '<span class="qa-lb-name"></span>' +
-                '<span class="qa-lb-score"></span>';
-            row.querySelector('.qa-lb-avatar').textContent = (p.nickname[0] || '?').toUpperCase();
-            row.querySelector('.qa-lb-name').textContent = p.nickname + (isMe ? ' (sen)' : '');
-            row.querySelector('.qa-lb-score').textContent = p.score;
-            box.appendChild(row);
-        });
-    }
-
-    socket.on('quiz_leaderboard', function (data) {
-        renderLeaderboard('p-leaderboard-list', data.leaderboard);
-        showScreen('leaderboard-screen');
-    });
-
-    socket.on('quiz_finished', function (data) {
-        renderLeaderboard('p-final-leaderboard', data.leaderboard);
-        var rank = data.leaderboard.findIndex(function (p) { return p.nickname === MY_NICKNAME; });
-        document.getElementById('final-rank').textContent = rank >= 0 ? ('#' + (rank + 1)) : '-';
-        document.getElementById('final-correct').textContent = myCorrect;
-        QA.countUp(document.getElementById('final-score'), myScore, { duration: 1100 });
-        showScreen('finished-screen');
-        QA.confetti({ count: 110 });
-
-        document.getElementById('share-result-btn').onclick = function () {
-            var avgSec = answerTimes.length ? (answerTimes.reduce(function (a, b) { return a + b; }, 0) / answerTimes.length / 1000).toFixed(1) : '0';
-            var text = QUIZ_TITLE + ' yarışmasında ' + myScore + ' puan topladım! (' + myCorrect + ' doğru, ortalama ' + avgSec + ' sn) 🏆';
-            if (navigator.share) {
-                navigator.share({ title: 'Yurt Sosyal Yarışma Sonucum', text: text }).catch(function () {});
-            } else if (navigator.clipboard) {
-                navigator.clipboard.writeText(text).then(function () { QA.toast('Sonuç panoya kopyalandı!'); });
-            } else {
-                QA.toast(text);
-            }
+            var box = $('kpTiles'), letters = KQ.filledLetters(q);
+            box.className = 'kp-tiles kq-tiles is-entering' + (q.qtype === 'truefalse' ? ' is-tf' : '');
+            box.innerHTML = '';
+            letters.forEach(function (l) {
+                var b = document.createElement('button');
+                b.type = 'button'; b.className = 'kq-tile kq-c-' + l; b.dataset.l = l;
+                b.setAttribute('aria-label', KQ.SHAPE_NAMES[l] + ': ' + (q['option_' + l] || 'görsel şık'));
+                b.innerHTML = KQ.tileHtml(l, q['option_' + l], q['option_' + l + '_image']);
+                box.appendChild(b);
+            });
+            show('answer');
+            var remaining = d.remaining_ms != null ? d.remaining_ms : d.time_limit * 1000;
+            timer = KQ.ringTimer($('kpTimer'), d.time_limit * 1000, remaining, null, function () {
+                if (!answered && phase === 'answer') { show('sent'); $('kpSentSub').textContent = 'Süre doldu! Sonuç bekleniyor…'; }
+            });
         };
+        if (d.intro_ms > 300) {
+            $('kpIntroNum').textContent = 'Soru ' + (d.index + 1) + ' / ' + d.total;
+            $('kpIntroText').textContent = q.question_text;
+            show('intro');
+            KQ.progressBar($('kpIntroBar'), d.intro_ms);
+            introTimer = setTimeout(begin, d.intro_ms);
+        } else { begin(); }
+    });
+
+    $('kpTiles').addEventListener('click', function (e) {
+        var b = e.target.closest('.kq-tile'); if (!b || answered || !current) return;
+        answered = true;
+        $('kpTiles').classList.add('is-locked');
+        b.classList.add('is-picked');
+        KQ.sfx.pop(); vibrate(30);
+        socket.emit('quiz_answer', { session_id: SID, question_id: current.question.id, selected_option: b.dataset.l });
+        setTimeout(function () { if (phase === 'answer') { show('sent'); $('kpSentSub').textContent = 'Diğer oyuncular bekleniyor…'; } }, 450);
+    });
+    socket.on('quiz_answer_ack', function (d) {
+        if (!d.ok) {
+            answered = true; show('sent');
+            $('kpSentSub').textContent = 'Bu soru için cevap süresi kapandı.';
+        }
+    });
+
+    // ---------- Sonuç ----------
+    socket.on('quiz_reveal', function (d) {
+        stopTimers();
+        var r = (d.results || {})[String(PID)];
+        $('kpProgress').textContent = (d.index + 1) + ' / ' + d.total;
+        if (!r) { show('sent'); return; }
+        var icon = $('kpResIcon'), title = $('kpResTitle');
+        if (r.correct) {
+            bg('ok'); icon.className = 'kp-result-icon ok'; icon.innerHTML = '<i class="bi bi-check-lg"></i>';
+            title.textContent = ['Doğru!', 'Harika!', 'Süpersin!', 'Tam isabet!'][Math.floor(Math.random() * 4)];
+            KQ.sfx.correct(); vibrate([40, 40, 80]);
+            if (!d.resync) KQ.confetti(70);
+        } else {
+            bg('bad'); icon.className = 'kp-result-icon bad'; icon.innerHTML = '<i class="bi ' + (r.answered ? 'bi-x-lg' : 'bi-hourglass-bottom') + '"></i>';
+            title.textContent = r.answered ? 'Yanlış' : 'Süre doldu';
+            KQ.sfx.wrong(); vibrate(200);
+        }
+        $('kpResStreak').innerHTML = r.correct && r.streak >= 2 ? '<span class="kp-streak">🔥 ' + r.streak + '\'li seri!</span>' :
+            (!r.correct && r.answered ? '<span class="kp-sub">Doğru cevap: ' + KQ.shape(d.correct_option) + ' ' + KQ.esc(d.question['option_' + d.correct_option]) + '</span>' : '');
+        var pts = $('kpResPoints');
+        pts.hidden = !r.correct;
+        if (r.correct) KQ.countUp(pts, 0, r.points, 900), setTimeout(function () { pts.textContent = '+' + r.points.toLocaleString('tr-TR'); }, 950);
+        $('kpResRank').innerHTML = r.rank === 1 ? '🏆 Zirvedesin! Böyle devam.' :
+            ('<b>' + r.rank + '.</b> sıradasın' + (r.ahead_name ? ' · <b>' + KQ.esc(r.ahead_name) + '</b>\'in ' + r.ahead_gap.toLocaleString('tr-TR') + ' puan gerisinde' : ''));
+        show('result');
+        setScore(r.score);
+    });
+
+    // ---------- Sıralama (animasyonlu) ----------
+    socket.on('quiz_leaderboard', function (d) {
+        stopTimers(); bg(null);
+        var r = (d.results || {})[String(PID)];
+        show('board');
+        if (r) {
+            var rankEl = $('kpRank'), from = r.prev_rank || r.rank;
+            rankEl.textContent = from;
+            var delta = from - r.rank, mv = $('kpMove');
+            mv.className = 'move' + (delta > 0 ? ' up' : delta < 0 ? ' down' : '');
+            mv.textContent = delta > 0 ? '▲ ' + delta + ' sıra yükseldin!' : delta < 0 ? '▼ ' + Math.abs(delta) + ' sıra düştün' : 'Yerini korudun';
+            setTimeout(function () {
+                KQ.countUp(rankEl, from, r.rank, 700);
+                rankEl.classList.remove('bump'); void rankEl.offsetWidth; rankEl.classList.add('bump');
+                if (delta > 0) KQ.sfx.pop();
+            }, 700);
+        }
+        setTimeout(function () { KQ.renderBoard($('kpBoard'), d.leaderboard, { limit: 5, meId: PID, rowHeight: 54 }); }, 200);
+        $('kpBoardNote').textContent = d.is_last ? 'Final sonuçları geliyor… 🥁' : 'Sonraki soru birazdan…';
+    });
+
+    // ---------- Final ----------
+    socket.on('quiz_finished', function (d) {
+        stopTimers(); bg(null);
+        var me = (d.results || {})[String(PID)];
+        show('final');
+        if (me) {
+            $('kpFinalMedal').textContent = me.rank === 1 ? '🥇' : me.rank === 2 ? '🥈' : me.rank === 3 ? '🥉' : '🎯';
+            $('kpFinalTitle').textContent = me.rank <= 3 ? me.rank + '. oldun! Tebrikler!' : 'Yarışma bitti!';
+            $('kpFinalRank').textContent = me.rank + ' / ' + d.player_count;
+            KQ.countUp($('kpFinalScore'), 0, me.score, 1200);
+            $('kpFinalCorrect').textContent = me.correct + ' / ' + d.total_questions;
+            $('kpFinalStreak').textContent = me.best_streak ? '🔥 ' + me.best_streak : '-';
+            setScore(me.score);
+            if (me.rank <= 3 && !d.resync) { KQ.confetti(200); KQ.sfx.fanfare(); }
+            $('kpShare').onclick = function () {
+                var text = TITLE + ' yarışmasında ' + me.rank + '. oldum! ' + me.score + ' puan, ' + me.correct + '/' + d.total_questions + ' doğru 🏆';
+                if (navigator.share) navigator.share({ title: 'Yarışma sonucum', text: text }).catch(function () {});
+                else if (navigator.clipboard) navigator.clipboard.writeText(text).then(function () { KQ.toast('Sonuç panoya kopyalandı'); });
+                else KQ.toast(text);
+            };
+        }
+    });
+
+    socket.on('quiz_kicked', function (d) {
+        if (Number(d.participant_id) !== PID) return;
+        stopTimers();
+        $('kpInfoTitle').textContent = 'Oyundan çıkarıldın';
+        $('kpInfoSub').textContent = 'Sunucu seni bu oyundan çıkardı.';
+        $('kpInfoBtn').hidden = false;
+        show('info');
+    });
+    socket.on('quiz_state', function (d) {
+        if (d.phase === 'paused') {
+            $('kpInfoTitle').textContent = 'Kısa bir mola…';
+            $('kpInfoSub').textContent = 'Sunucu oyunu birazdan devam ettirecek.';
+            $('kpInfoBtn').hidden = true;
+            show('info');
+        }
     });
 })();
 </script>

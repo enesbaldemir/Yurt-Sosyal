@@ -36,9 +36,14 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=Instrument+Serif:ital@0;1&family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='20260819-auto-attendance-ios-push-event-fix') }}">
+    <style id="role-badge-colors">
+        .role-badge[class*="role-badge-r-"] { background: color-mix(in srgb, var(--rc) 13%, transparent); color: var(--rc); border-color: color-mix(in srgb, var(--rc) 34%, transparent); }
+        [data-bs-theme="dark"] .role-badge[class*="role-badge-r-"] { background: color-mix(in srgb, var(--rc) 20%, transparent); color: color-mix(in srgb, var(--rc) 70%, #fff); border-color: color-mix(in srgb, var(--rc) 45%, transparent); }
+        {% for rk, ri in user_roles.items() %}.role-badge-r-{{ rk }}{--rc: {{ ri.color }};}{% endfor %}
+    </style>
     {% block extra_css %}{% endblock %}
 </head>
-<body class="{{ '' if session.get('user_id') else 'no-chrome' }}">
+<body class="{{ '' if session.get('user_id') else 'no-chrome' }} {% block body_class %}{% endblock %}">
     <!-- PWA Install Banner -->
     <div id="pwa-install-banner" class="pwa-banner" style="display: none;">
         <div class="pwa-banner-icon">
@@ -154,20 +159,20 @@
 
         <div class="sidebar-section-title mt-2">Navigasyon</div>
         <a class="drawer-link {{ 'active' if request.endpoint == 'dashboard' }}" href="{{ url_for('dashboard') }}"><i class="bi bi-house"></i> Ana Sayfa</a>
-        <a class="drawer-link {{ 'active' if request.endpoint in ['feed','create_post'] }}" href="{{ url_for('feed') }}"><i class="bi bi-grid-3x3"></i> Sosyal Akış</a>
-        <a class="drawer-link {{ 'active' if request.endpoint in ['events','create_event','event_detail'] }}" href="{{ url_for('events') }}"><i class="bi bi-calendar3"></i> Etkinlikler</a>
-        <a class="drawer-link {{ 'active' if request.endpoint in ['menu_page','rate_menu'] }}" href="{{ url_for('menu_page') }}"><i class="bi bi-cup-hot"></i> Yemekhane</a>
-        <a class="drawer-link {{ 'active' if request.endpoint in ['games_hub','game_play'] }}" href="{{ url_for('games_hub') }}"><i class="bi bi-joystick"></i> Oyun Merkezi</a>
-        <a class="drawer-link {{ 'active' if request.endpoint in ['quiz_list','quiz_detail','quiz_play','quiz_host_screen','quiz_join','quiz_create'] }}" href="{{ url_for('quiz_list') }}"><i class="bi bi-patch-question"></i> Yarışmalar</a>
-        <a class="drawer-link {{ 'active' if request.endpoint == 'leaderboard_page' }}" href="{{ url_for('leaderboard_page') }}"><i class="bi bi-trophy"></i> Yurt Sıralaması</a>
-        <a class="drawer-link {{ 'active' if request.endpoint == 'announcements_page' }}" href="{{ url_for('announcements_page') }}"><i class="bi bi-megaphone"></i> Duyurular</a>
-        <a class="drawer-link {{ 'active' if request.endpoint in ['attendance_list','attendance_detail'] }}" href="{{ url_for('attendance_list') }}"><i class="bi bi-clipboard-check"></i> Yoklama</a>
-        <a class="drawer-link {{ 'active' if request.endpoint == 'maintenance_page' }}" href="{{ url_for('maintenance_page') }}"><i class="bi bi-tools"></i> Arıza / Talep</a>
-        <a class="drawer-link {{ 'active' if request.endpoint == 'laundry_page' }}" href="{{ url_for('laundry_page') }}">{{ icons.washing_machine_icon(18) }} Çamaşırhane</a>
-        <a class="drawer-link {{ 'active' if request.endpoint == 'roommate_matching' }}" href="{{ url_for('roommate_matching') }}"><i class="bi bi-people"></i> Oda Arkadaşı</a>
-        <a class="drawer-link {{ 'active' if request.endpoint == 'market_page' }}" href="{{ url_for('market_page') }}"><i class="bi bi-bag"></i> Yurt Pazarı</a>
-        <a class="drawer-link {{ 'active' if request.endpoint == 'chat' }}" href="{{ url_for('chat') }}"><i class="bi bi-chat-dots"></i> Genel Sohbet</a>
-        <a class="drawer-link {{ 'active' if request.endpoint in ['messages_list','messages_thread'] }}" href="{{ url_for('messages_list') }}"><i class="bi bi-chat-left-text"></i> Mesajlar</a>
+        {% if can('page_feed') %}<a class="drawer-link {{ 'active' if request.endpoint in ['feed','create_post'] }}" href="{{ url_for('feed') }}"><i class="bi bi-grid-3x3"></i> Sosyal Akış</a>{% endif %}
+        {% if can('page_events') %}<a class="drawer-link {{ 'active' if request.endpoint in ['events','create_event','event_detail'] }}" href="{{ url_for('events') }}"><i class="bi bi-calendar3"></i> Etkinlikler</a>{% endif %}
+        {% if can('page_menu') %}<a class="drawer-link {{ 'active' if request.endpoint in ['menu_page','rate_menu'] }}" href="{{ url_for('menu_page') }}"><i class="bi bi-cup-hot"></i> Yemekhane</a>{% endif %}
+        {% if can('page_games') %}<a class="drawer-link {{ 'active' if request.endpoint in ['games_hub','game_play'] }}" href="{{ url_for('games_hub') }}"><i class="bi bi-joystick"></i> Oyun Merkezi</a>{% endif %}
+        {% if can('page_quiz') %}<a class="drawer-link {{ 'active' if request.endpoint in ['quiz_list','quiz_detail','quiz_play','quiz_host_screen','quiz_join','quiz_create'] }}" href="{{ url_for('quiz_list') }}"><i class="bi bi-patch-question"></i> Yarışmalar</a>{% endif %}
+        {% if can('page_leaderboard') %}<a class="drawer-link {{ 'active' if request.endpoint == 'leaderboard_page' }}" href="{{ url_for('leaderboard_page') }}"><i class="bi bi-trophy"></i> Yurt Sıralaması</a>{% endif %}
+        {% if can('page_announcements') %}<a class="drawer-link {{ 'active' if request.endpoint == 'announcements_page' }}" href="{{ url_for('announcements_page') }}"><i class="bi bi-megaphone"></i> Duyurular</a>{% endif %}
+        {% if can('page_attendance') %}<a class="drawer-link {{ 'active' if request.endpoint in ['attendance_list','attendance_detail'] }}" href="{{ url_for('attendance_list') }}"><i class="bi bi-clipboard-check"></i> Yoklama</a>{% endif %}
+        {% if can('page_maintenance') %}<a class="drawer-link {{ 'active' if request.endpoint == 'maintenance_page' }}" href="{{ url_for('maintenance_page') }}"><i class="bi bi-tools"></i> Arıza / Talep</a>{% endif %}
+        {% if can('page_laundry') %}<a class="drawer-link {{ 'active' if request.endpoint == 'laundry_page' }}" href="{{ url_for('laundry_page') }}">{{ icons.washing_machine_icon(18) }} Çamaşırhane</a>{% endif %}
+        {% if can('page_roommates') %}<a class="drawer-link {{ 'active' if request.endpoint == 'roommate_matching' }}" href="{{ url_for('roommate_matching') }}"><i class="bi bi-people"></i> Oda Arkadaşı</a>{% endif %}
+        {% if can('page_market') %}<a class="drawer-link {{ 'active' if request.endpoint == 'market_page' }}" href="{{ url_for('market_page') }}"><i class="bi bi-bag"></i> Yurt Pazarı</a>{% endif %}
+        {% if can('page_chat') %}<a class="drawer-link {{ 'active' if request.endpoint == 'chat' }}" href="{{ url_for('chat') }}"><i class="bi bi-chat-dots"></i> Genel Sohbet</a>{% endif %}
+        {% if can('page_messages') %}<a class="drawer-link {{ 'active' if request.endpoint in ['messages_list','messages_thread'] }}" href="{{ url_for('messages_list') }}"><i class="bi bi-chat-left-text"></i> Mesajlar</a>{% endif %}
 
         <div class="sidebar-section-title mt-3">Hesap</div>
         <a class="drawer-link" href="{{ url_for('profile', username=session.username) }}"><i class="bi bi-person"></i> Profilim</a>
@@ -183,7 +188,7 @@
         <a href="{{ url_for('dashboard') }}" class="{{ 'active' if request.endpoint == 'dashboard' }}" title="Ana Sayfa">
             <i class="bi bi-house"></i>
         </a>
-        <a href="{{ url_for('feed') }}" class="{{ 'active' if request.endpoint == 'feed' }}" title="Akış">
+        <a href="{{ url_for('feed') if can('page_feed') else url_for('dashboard') }}" class="{{ 'active' if request.endpoint == 'feed' }}" title="Akış">
             <i class="bi bi-grid-3x3"></i>
         </a>
         <a href="{{ url_for('create_post') }}" class="nav-add" title="Paylaş">
@@ -216,22 +221,23 @@
             <div class="sidebar-section-title">Ana Menü</div>
             <ul class="sidebar-nav-list">
                 <li><a class="sidebar-link {{ 'active' if request.endpoint == 'dashboard' }}" href="{{ url_for('dashboard') }}"><i class="bi bi-house"></i> Ana Sayfa</a></li>
-                <li><a class="sidebar-link {{ 'active' if request.endpoint in ['feed','create_post'] }}" href="{{ url_for('feed') }}"><i class="bi bi-grid-3x3"></i> Sosyal Akış</a></li>
-                <li><a class="sidebar-link {{ 'active' if request.endpoint in ['events','create_event','event_detail'] }}" href="{{ url_for('events') }}"><i class="bi bi-calendar3"></i> Etkinlikler</a></li>
-                <li><a class="sidebar-link {{ 'active' if request.endpoint in ['menu_page','rate_menu'] }}" href="{{ url_for('menu_page') }}"><i class="bi bi-cup-hot"></i> Yemekhane</a></li>
+                {% if can('page_feed') %}<li><a class="sidebar-link {{ 'active' if request.endpoint in ['feed','create_post'] }}" href="{{ url_for('feed') }}"><i class="bi bi-grid-3x3"></i> Sosyal Akış</a></li>{% endif %}
+                {% if can('page_events') %}<li><a class="sidebar-link {{ 'active' if request.endpoint in ['events','create_event','event_detail'] }}" href="{{ url_for('events') }}"><i class="bi bi-calendar3"></i> Etkinlikler</a></li>{% endif %}
+                {% if can('page_menu') %}<li><a class="sidebar-link {{ 'active' if request.endpoint in ['menu_page','rate_menu'] }}" href="{{ url_for('menu_page') }}"><i class="bi bi-cup-hot"></i> Yemekhane</a></li>{% endif %}
             </ul>
 
             <div class="sidebar-section-title">Aktivite & Sosyal</div>
             <ul class="sidebar-nav-list">
-                <li><a class="sidebar-link {{ 'active' if request.endpoint in ['games_hub','game_play'] }}" href="{{ url_for('games_hub') }}"><i class="bi bi-joystick"></i> Oyun Merkezi</a></li>
-                <li><a class="sidebar-link {{ 'active' if request.endpoint in ['quiz_list','quiz_detail','quiz_play','quiz_host_screen','quiz_join','quiz_create'] }}" href="{{ url_for('quiz_list') }}"><i class="bi bi-patch-question"></i> Yarışmalar</a></li>
-                <li><a class="sidebar-link {{ 'active' if request.endpoint == 'leaderboard_page' }}" href="{{ url_for('leaderboard_page') }}"><i class="bi bi-trophy"></i> Yurt Sıralaması</a></li>
-                <li><a class="sidebar-link {{ 'active' if request.endpoint == 'chat' }}" href="{{ url_for('chat') }}"><i class="bi bi-chat-dots"></i> Genel Sohbet</a></li>
-                <li><a class="sidebar-link {{ 'active' if request.endpoint in ['messages_list','messages_thread'] }}" href="{{ url_for('messages_list') }}"><i class="bi bi-chat-left-text"></i> Mesajlar</a></li>
+                {% if can('page_games') %}<li><a class="sidebar-link {{ 'active' if request.endpoint in ['games_hub','game_play'] }}" href="{{ url_for('games_hub') }}"><i class="bi bi-joystick"></i> Oyun Merkezi</a></li>{% endif %}
+                {% if can('page_quiz') %}<li><a class="sidebar-link {{ 'active' if request.endpoint in ['quiz_list','quiz_detail','quiz_play','quiz_host_screen','quiz_join','quiz_create'] }}" href="{{ url_for('quiz_list') }}"><i class="bi bi-patch-question"></i> Yarışmalar</a></li>{% endif %}
+                {% if can('page_leaderboard') %}<li><a class="sidebar-link {{ 'active' if request.endpoint == 'leaderboard_page' }}" href="{{ url_for('leaderboard_page') }}"><i class="bi bi-trophy"></i> Yurt Sıralaması</a></li>{% endif %}
+                {% if can('page_chat') %}<li><a class="sidebar-link {{ 'active' if request.endpoint == 'chat' }}" href="{{ url_for('chat') }}"><i class="bi bi-chat-dots"></i> Genel Sohbet</a></li>{% endif %}
+                {% if can('page_messages') %}<li><a class="sidebar-link {{ 'active' if request.endpoint in ['messages_list','messages_thread'] }}" href="{{ url_for('messages_list') }}"><i class="bi bi-chat-left-text"></i> Mesajlar</a></li>{% endif %}
             </ul>
 
             <div class="sidebar-section-title">Yurt Hizmetleri</div>
             <ul class="sidebar-nav-list">
+                {% if can('page_attendance') %}
                 <li>
                     <a class="sidebar-link {{ 'active' if request.endpoint in ['attendance_list','attendance_detail'] }}" href="{{ url_for('attendance_list') }}">
                         <i class="bi bi-clipboard-check"></i> Yoklama
@@ -240,7 +246,9 @@
                         {% endif %}
                     </a>
                 </li>
-                <li><a class="sidebar-link {{ 'active' if request.endpoint == 'announcements_page' }}" href="{{ url_for('announcements_page') }}"><i class="bi bi-megaphone"></i> Duyurular</a></li>
+                {% endif %}
+                {% if can('page_announcements') %}<li><a class="sidebar-link {{ 'active' if request.endpoint == 'announcements_page' }}" href="{{ url_for('announcements_page') }}"><i class="bi bi-megaphone"></i> Duyurular</a></li>{% endif %}
+                {% if can('page_maintenance') %}
                 <li>
                     <a class="sidebar-link {{ 'active' if request.endpoint == 'maintenance_page' }}" href="{{ url_for('maintenance_page') }}">
                         <i class="bi bi-tools"></i> Arıza & Talep
@@ -249,9 +257,10 @@
                         {% endif %}
                     </a>
                 </li>
-                <li><a class="sidebar-link {{ 'active' if request.endpoint == 'laundry_page' }}" href="{{ url_for('laundry_page') }}">{{ icons.washing_machine_icon(18) }} Çamaşırhane</a></li>
-            <li><a class="sidebar-link {{ 'active' if request.endpoint == 'roommate_matching' }}" href="{{ url_for('roommate_matching') }}"><i class="bi bi-people"></i> Oda Arkadaşı</a></li>
-                <li><a class="sidebar-link {{ 'active' if request.endpoint == 'market_page' }}" href="{{ url_for('market_page') }}"><i class="bi bi-bag"></i> Yurt Pazarı</a></li>
+                {% endif %}
+                {% if can('page_laundry') %}<li><a class="sidebar-link {{ 'active' if request.endpoint == 'laundry_page' }}" href="{{ url_for('laundry_page') }}">{{ icons.washing_machine_icon(18) }} Çamaşırhane</a></li>{% endif %}
+            {% if can('page_roommates') %}<li><a class="sidebar-link {{ 'active' if request.endpoint == 'roommate_matching' }}" href="{{ url_for('roommate_matching') }}"><i class="bi bi-people"></i> Oda Arkadaşı</a></li>{% endif %}
+                {% if can('page_market') %}<li><a class="sidebar-link {{ 'active' if request.endpoint == 'market_page' }}" href="{{ url_for('market_page') }}"><i class="bi bi-bag"></i> Yurt Pazarı</a></li>{% endif %}
             </ul>
 
             {% if session.get('is_admin') %}
@@ -349,7 +358,7 @@
                     <a href="{{ url_for('create_post') }}" class="sidebar-link py-2" style="font-size:0.82rem;"><i class="bi bi-plus-square"></i> Yeni Gönderi Paylaş</a>
                     <a href="{{ url_for('create_event') }}" class="sidebar-link py-2" style="font-size:0.82rem;"><i class="bi bi-calendar-plus"></i> Etkinlik Oluştur</a>
                     <a href="{{ url_for('maintenance_page') }}" class="sidebar-link py-2" style="font-size:0.82rem;"><i class="bi bi-tools"></i> Arıza Bildir</a>
-                    <a href="{{ url_for('quiz_join') }}" class="sidebar-link py-2" style="font-size:0.82rem;"><i class="bi bi-joystick"></i> Yarışmaya Katıl</a>
+                    <a href="{{ url_for('quiz_join') }}" class="sidebar-link py-2 {{ '' if can('page_quiz') else 'd-none' }}" style="font-size:0.82rem;"><i class="bi bi-joystick"></i> Yarışmaya Katıl</a>
                 </div>
             </div>
         </aside>

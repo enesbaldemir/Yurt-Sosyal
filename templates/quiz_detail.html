@@ -1,448 +1,626 @@
 {% extends "base.html" %}
-{% block title %}{{ quiz.title }} — Yarışma Detayı{% endblock %}
+{% block title %}{{ quiz.title }} — Yarışma Editörü{% endblock %}
+{% block shell_class %}full-width{% endblock %}
+{% block body_class %}kq-immersive{% endblock %}
+{% block context_panel %}{% endblock %}
 {% block extra_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/quiz-arcade.css') }}">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/quiz-pro.css', v='2026093001') }}">
 {% endblock %}
 {% block content %}
-<div class="qa-scope">
+<div class="kq kq-ed" id="kqEditor">
 
-    <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
-        <div class="d-flex align-items-center gap-2">
-            <a href="{{ url_for('quiz_list') }}" class="icon-btn" title="Yarışmalara Dön">
-                <i class="bi bi-arrow-left"></i>
-            </a>
-            <span class="qa-kicker"><i class="bi bi-gear"></i> Quiz Yönetimi</span>
-        </div>
-        <form method="POST" action="{{ url_for('quiz_delete', quiz_id=quiz.id) }}" onsubmit="return confirm('Bu yarışmayı ve tüm sorularını silmek istediğinizden emin misiniz?')">
-            <button type="submit" class="qa-btn qa-btn-ghost" style="color: var(--qa-red);"><i class="bi bi-trash3"></i> Yarışmayı Sil</button>
+    <!-- ÜST BAR -->
+    <header class="kq-ed-top">
+        <a href="{{ url_for('quiz_list') }}" class="kq-icon-btn" title="Yarışmalara dön" aria-label="Yarışmalara dön"><i class="bi bi-arrow-left"></i></a>
+        <div class="kq-ed-brand kq-hide-sm" aria-hidden="true"><i class="bi bi-lightning-charge-fill"></i></div>
+        <button type="button" class="kq-ed-title" id="kqTitleBtn" data-bs-toggle="modal" data-bs-target="#kqSettings" title="Başlık ve ayarlar">
+            <i class="bi bi-pencil-square" style="color: var(--kq-purple-2);"></i>
+            <strong id="kqTitleText">{{ quiz.title }}</strong>
+            <span>Ayarlar</span>
+        </button>
+        <span class="kq-ed-save is-saved" id="kqSave" aria-live="polite"><i class="bi bi-cloud-check"></i> <span class="kq-hide-sm">Kaydedildi</span></span>
+        <div class="spacer"></div>
+        <span class="kq-pill kq-hide-sm" id="kqCount"></span>
+        {% if live_session %}
+        <a href="{{ url_for('quiz_host_screen', session_id=live_session.id) }}" class="kq-btn kq-btn-red kq-btn-sm"><span class="dot"></span><i class="bi bi-broadcast"></i> <span class="kq-hide-sm">Canlı oturuma dön</span></a>
+        {% endif %}
+        <form method="POST" action="{{ url_for('quiz_host_start', quiz_id=quiz.id) }}" id="kqStartForm" class="m-0">
+            <button type="submit" class="kq-btn kq-btn-green" id="kqStartBtn"><i class="bi bi-play-fill"></i> <span class="kq-hide-sm">Canlı </span>Başlat</button>
         </form>
-    </div>
+    </header>
 
-    <!-- HERO -->
-    <div class="qa-hero mb-4">
-        {% if live_session %}
-        <div class="qa-hero-live"><span class="qa-dot" style="width:8px;height:8px;border-radius:50%;background:#fff;display:inline-block;"></span> CANLI YARIŞMA DEVAM EDİYOR</div>
-        {% else %}
-        <div class="qa-hero-kicker">Quiz Detayı</div>
-        {% endif %}
-        <h2 class="qa-hero-title">{{ quiz.title }}</h2>
-        {% if quiz.description %}<p class="mb-0" style="opacity:0.92; max-width:520px;">{{ quiz.description }}</p>{% endif %}
-
-        <div class="qa-hero-stats">
-            <span class="qa-hero-stat"><i class="bi bi-list-ol"></i> {{ questions|length }} soru</span>
-            {% if total_seconds %}<span class="qa-hero-stat"><i class="bi bi-clock"></i> ~{{ (total_seconds / 60)|round(0, 'ceil')|int }} dk tahmini</span>{% endif %}
-            <span class="qa-hero-stat"><i class="bi bi-people"></i> {{ total_participants }} toplam katılımcı</span>
-            {% if session_count %}<span class="qa-hero-stat"><i class="bi bi-arrow-repeat"></i> {{ session_count }} kez oynatıldı</span>{% endif %}
-        </div>
-
-        {% if live_session %}
-            <a href="{{ url_for('quiz_host_screen', session_id=live_session.id) }}" class="qa-btn qa-btn-lg" style="background:#fff; color: var(--qa-purple); box-shadow:0 10px 24px -10px rgba(0,0,0,0.35);">
-                <i class="bi bi-broadcast"></i> Canlı Yayına Git
-            </a>
-        {% else %}
-            <button type="button" class="qa-btn qa-btn-lg" style="background:#fff; color: var(--qa-purple); box-shadow:0 10px 24px -10px rgba(0,0,0,0.35);"
-                    {{ 'disabled' if not questions }} data-bs-toggle="modal" data-bs-target="#qaReadyModal">
-                <i class="bi bi-play-circle"></i> Host Olarak Başlat
-            </button>
-            {% if not questions %}
-            <p class="mb-0 mt-2" style="font-size:0.8rem; opacity:0.9;"><i class="bi bi-exclamation-circle me-1"></i> Başlatmadan önce en az 1 soru eklemelisin.</p>
-            {% endif %}
-        {% endif %}
-    </div>
-
-    <!-- "Hazır mısın?" onay modalı -->
-    <div class="modal fade" id="qaReadyModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content qa-scope" style="border-radius: var(--qa-radius-lg); border:none; overflow:hidden;">
-                <div class="qa-hero" style="border-radius:0;">
-                    <div class="qa-hero-kicker">Son Kontrol</div>
-                    <h3 class="qa-hero-title" style="font-size:1.6rem;">Hazır mısın? 🚀</h3>
-                    <p class="mb-0" style="opacity:0.92;">{{ questions|length }} soruluk yarışma başlatılacak ve 6 haneli bir katılım kodu üretilecek.</p>
+    <div class="kq-ed-body">
+        <!-- SOL: SORU LİSTESİ -->
+        <aside class="kq-rail" aria-label="Sorular">
+            <div class="kq-rail-list" id="kqRail" role="listbox" aria-label="Soru listesi"></div>
+            <div class="kq-rail-foot">
+                <div class="kq-add-menu">
+                    <button type="button" data-add="quiz" title="Çoktan seçmeli soru ekle"><i class="bi bi-grid-fill"></i> Quiz<span class="long"> sorusu</span></button>
+                    <button type="button" data-add="truefalse" title="Doğru / Yanlış sorusu ekle"><i class="bi bi-toggles"></i> D / Y</button>
                 </div>
-                <div class="p-3 d-flex gap-2">
-                    <button type="button" class="qa-btn qa-btn-ghost flex-fill" data-bs-dismiss="modal">Vazgeç</button>
-                    <form method="POST" action="{{ url_for('quiz_host_start', quiz_id=quiz.id) }}" class="flex-fill">
-                        <button type="submit" class="qa-btn qa-btn-block"><i class="bi bi-rocket-takeoff"></i> Evet, Başlat!</button>
+            </div>
+        </aside>
+
+        <div class="kq-main-scroll">
+            <!-- ORTA: SORU + MEDYA + CEVAPLAR (tek ekran) -->
+            <main class="kq-canvas" id="kqCanvas">
+                <div class="kq-qinput-wrap">
+                    <label for="kqQ" class="kq-sr">Soru metni</label>
+                    <textarea id="kqQ" class="kq-qinput" rows="1" maxlength="300" placeholder="Sorunu buraya yaz"></textarea>
+                    <span class="kq-count" id="kqQCount">0/300</span>
+                </div>
+
+                <div class="kq-media" id="kqMedia">
+                    <img id="kqMediaImg" alt="Soru görseli" hidden>
+                    <div class="kq-media-empty">
+                        <div class="big"><i class="bi bi-image"></i></div>
+                        Görseli buraya sürükle ya da seç
+                    </div>
+                    <div class="kq-media-actions">
+                        <button type="button" class="kq-chip-btn" id="kqImgPick"><i class="bi bi-upload"></i> <span id="kqImgPickLbl">Görsel ekle</span></button>
+                        <button type="button" class="kq-chip-btn" id="kqImgRemove" hidden><i class="bi bi-trash3"></i> Kaldır</button>
+                        <button type="button" class="kq-chip-btn" id="kqAudioPick"><i class="bi bi-music-note-beamed"></i> Ses ekle</button>
+                    </div>
+                </div>
+
+                <div class="kq-audio" id="kqAudio" hidden>
+                    <button type="button" class="kq-audio-play" id="kqAudioPlay" aria-label="Sesi çal"><i class="bi bi-play-fill"></i></button>
+                    <span class="kq-audio-name" id="kqAudioName">Sesli soru</span>
+                    <button type="button" class="kq-audio-x" id="kqAudioRemove" title="Sesi kaldır" aria-label="Sesi kaldır"><i class="bi bi-x-lg"></i></button>
+                    <audio id="kqAudioEl" preload="none"></audio>
+                </div>
+
+                <div class="kq-answers" id="kqAnswers"></div>
+                <div class="kq-hint" id="kqHint"><i class="bi bi-check-circle-fill"></i> Doğru cevabı işaretlemek için kartın sağındaki yuvarlağa dokun</div>
+                <div class="kq-issues" id="kqIssues" aria-live="polite"></div>
+            </main>
+
+            <!-- SAĞ: AYARLAR -->
+            <aside class="kq-panel" aria-label="Soru ayarları">
+                <div>
+                    <div class="kq-field-label"><i class="bi bi-ui-checks-grid"></i> Soru tipi</div>
+                    <div class="kq-seg kq-seg-2" id="kqType">
+                        {% for key, label in quiz_types %}
+                        <button type="button" data-v="{{ key }}"><i class="bi {{ 'bi-grid-fill' if key == 'quiz' else 'bi-toggles' }}"></i>{{ label }}</button>
+                        {% endfor %}
+                    </div>
+                </div>
+                <div>
+                    <div class="kq-field-label"><i class="bi bi-stopwatch"></i> Süre sınırı</div>
+                    <div class="kq-seg kq-seg-4" id="kqTime">
+                        {% for t in time_choices %}
+                        <button type="button" data-v="{{ t }}">{% if t < 60 or t % 60 %}{{ t }} <small style="font-size:.64rem; opacity:.7;">sn</small>{% else %}{{ t // 60 }} <small style="font-size:.64rem; opacity:.7;">dk</small>{% endif %}</button>
+                        {% endfor %}
+                    </div>
+                </div>
+                <div>
+                    <div class="kq-field-label"><i class="bi bi-trophy"></i> Puanlar</div>
+                    <div class="kq-seg kq-seg-3" id="kqPoints">
+                        {% for key, label in points_modes %}
+                        <button type="button" data-v="{{ key }}"><i class="bi {{ {'standard':'bi-star-fill','double':'bi-stars','none':'bi-slash-circle'}[key] }}"></i>{{ label }}</button>
+                        {% endfor %}
+                    </div>
+                </div>
+                <div class="kq-tip">
+                    <b>Nasıl puanlanır?</b> Doğru cevap 500–1000 puan kazandırır; ne kadar hızlı cevaplanırsa o kadar çok puan. Üst üste doğru cevaplar 🔥 seri bonusu getirir.
+                    <div class="mt-2 kq-hide-sm">Kısayol: <span class="kq-kbd">Alt</span> + <span class="kq-kbd">↑</span>/<span class="kq-kbd">↓</span> sorular arası geçiş.</div>
+                </div>
+                <div class="kq-panel-actions">
+                    <button type="button" class="kq-btn kq-btn-ghost kq-btn-sm" id="kqDup"><i class="bi bi-copy"></i> Çoğalt</button>
+                    <button type="button" class="kq-btn kq-btn-ghost kq-btn-sm" id="kqDel" style="color: var(--kq-red);"><i class="bi bi-trash3"></i> Sil</button>
+                </div>
+            </aside>
+        </div>
+    </div>
+
+    <input type="file" id="kqImgInput" accept="image/*" hidden>
+    <input type="file" id="kqAudioInput" accept="audio/*" hidden>
+    <input type="file" id="kqOptImgInput" accept="image/*" hidden>
+</div>
+
+<!-- Başlık & ayarlar modalı -->
+<div class="modal fade kq-modal kq" id="kqSettings" tabindex="-1" aria-labelledby="kqSettingsTitle" aria-hidden="true" style="z-index: 1060;">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="kq-modal-head">
+                <div class="small fw-bold" style="opacity:.85;">Yarışma ayarları</div>
+                <h5 id="kqSettingsTitle">Başlık ve açıklama</h5>
+            </div>
+            <div class="p-3 p-md-4 d-grid gap-3">
+                <div>
+                    <label class="kq-field-label" for="kqMetaTitle">Başlık</label>
+                    <input type="text" class="kq-input" id="kqMetaTitle" maxlength="120" value="{{ quiz.title }}">
+                </div>
+                <div>
+                    <label class="kq-field-label" for="kqMetaDesc">Açıklama <span style="text-transform:none; font-weight:600;">(isteğe bağlı)</span></label>
+                    <textarea class="kq-input" id="kqMetaDesc" rows="3" maxlength="300" placeholder="Yarışma hakkında kısa bilgi…">{{ quiz.description or '' }}</textarea>
+                </div>
+                <div class="d-flex flex-wrap gap-2 small" style="color: var(--kq-ink-soft); font-weight:700;">
+                    <span class="kq-pill"><i class="bi bi-arrow-repeat"></i> {{ session_count }} kez oynatıldı</span>
+                    <span class="kq-pill"><i class="bi bi-people"></i> {{ total_participants }} toplam katılımcı</span>
+                </div>
+                <div class="d-flex gap-2 justify-content-between align-items-center pt-2" style="border-top:1px solid var(--kq-line);">
+                    <form method="POST" action="{{ url_for('quiz_delete', quiz_id=quiz.id) }}" class="m-0" onsubmit="return confirm('Bu yarışmayı ve tüm sorularını kalıcı olarak silmek istediğine emin misin?')">
+                        <button type="submit" class="kq-btn kq-btn-ghost kq-btn-sm" style="color: var(--kq-red);"><i class="bi bi-trash3"></i> Yarışmayı sil</button>
                     </form>
+                    <div class="d-flex gap-2">
+                        <button type="button" class="kq-btn kq-btn-ghost kq-btn-sm" data-bs-dismiss="modal">Vazgeç</button>
+                        <button type="button" class="kq-btn kq-btn-sm" id="kqMetaSave">Kaydet</button>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
-
-    <!-- KURALLAR -->
-    <div class="qa-rules mb-4">
-        <div class="qa-rule"><i class="bi bi-stopwatch"></i><strong>Süreli Sorular</strong><span>Her soru kendi süresiyle sorulur</span></div>
-        <div class="qa-rule"><i class="bi bi-lightning-charge"></i><strong>Hız Bonusu</strong><span>Hızlı doğru cevap = daha çok puan</span></div>
-        <div class="qa-rule"><i class="bi bi-trophy"></i><strong>Canlı Sıralama</strong><span>Sorular arası skor tablosu</span></div>
-        <div class="qa-rule"><i class="bi bi-phone"></i><strong>Herkes Katılır</strong><span>Telefonla 6 haneli kodla</span></div>
-    </div>
-
-    <!-- MEVCUT SORULAR -->
-    <div class="d-flex align-items-center justify-content-between mb-2">
-        <h6 class="fw-bold mb-0"><i class="bi bi-list-ol me-1"></i> Mevcut Sorular ({{ questions|length }})</h6>
-    </div>
-
-    {% if questions %}
-    <div class="d-flex flex-column gap-2 mb-4">
-        {% for q in questions %}
-        <div class="qa-qlist-item qa-fade-up" style="animation-delay: {{ loop.index0 * 40 }}ms;">
-            <div class="qa-qlist-num">{{ loop.index }}</div>
-            <div class="flex-fill min-w-0">
-                <div class="d-flex align-items-start gap-2 flex-wrap">
-                    {% if q.image_path %}
-                    <img src="{{ url_for('static', filename='uploads/quiz/' + q.image_path) }}" class="qa-thumb" alt="">
-                    {% endif %}
-                    <div class="fw-semibold small">{{ q.question_text }}</div>
-                </div>
-                <div class="qa-qlist-opts">
-                    {% for key, letter in [('option_a','A'), ('option_b','B'), ('option_c','C'), ('option_d','D')] %}
-                        {% set val = q[key] %}
-                        {% if val %}
-                        {% set img = q[key ~ '_image'] %}
-                        <span class="qa-chip {{ 'is-correct' if q.correct_option == letter|lower }}">
-                            {% if img %}<img src="{{ url_for('static', filename='uploads/quiz/' + img) }}" class="qa-thumb" style="width:16px;height:16px;" alt="">{% endif %}
-                            {{ letter }}: {{ val|truncate(24) }}
-                            {% if q.correct_option == letter|lower %}<i class="bi bi-check-circle-fill"></i>{% endif %}
-                        </span>
-                        {% endif %}
-                    {% endfor %}
-                    {% if q.audio_path %}<span class="qa-chip"><i class="bi bi-volume-up-fill"></i> Sesli soru</span>{% endif %}
-                    <span class="qa-chip"><i class="bi bi-stopwatch"></i> {{ q.time_limit }} sn</span>
-                </div>
-            </div>
-            <form method="POST" action="{{ url_for('quiz_delete_question', question_id=q.id) }}" onsubmit="return confirm('Bu soruyu silmek istediğinizden emin misiniz?')">
-                <button type="submit" class="icon-btn border-0 text-muted" title="Sil"><i class="bi bi-trash3"></i></button>
-            </form>
-        </div>
-        {% endfor %}
-    </div>
-    {% else %}
-    <div class="qa-empty mb-4">
-        <div class="qa-empty-emoji">📝</div>
-        <p class="small mb-0" style="color: var(--qa-ink-muted);">Henüz soru eklenmedi. Aşağıdaki sihirbazı kullanarak ilk sorunu ekle.</p>
-    </div>
-    {% endif %}
-
-    <!-- SORU EKLEME SİHİRBAZI -->
-    <div class="qa-bg" style="padding: 24px;">
-        <div class="qa-blob" style="width:110px;height:110px;background:var(--qa-blue);top:-30px;left:8%;"></div>
-        <h6 class="fw-bold mb-3"><i class="bi bi-plus-circle me-1"></i> Yeni Soru Ekle</h6>
-
-        <div class="qa-steps" id="qa-wizard-steps">
-            <div class="qa-step active" data-step="1"><span class="qa-step-num">1</span> Soru</div>
-            <div class="qa-step-connector"></div>
-            <div class="qa-step" data-step="2"><span class="qa-step-num">2</span> Şıklar</div>
-            <div class="qa-step-connector"></div>
-            <div class="qa-step" data-step="3"><span class="qa-step-num">3</span> Önizleme</div>
-        </div>
-
-        <form method="POST" action="{{ url_for('quiz_add_question', quiz_id=quiz.id) }}" enctype="multipart/form-data" id="qa-question-form" novalidate>
-
-            <!-- STEP 1: SORU METNİ + GÖRSEL + SES -->
-            <div class="qa-wizard-pane active" data-pane="1">
-                <div class="mb-3">
-                    <label class="form-label fw-semibold">Soru Metni</label>
-                    <textarea name="question_text" id="qa-f-question" class="form-control" rows="2" placeholder="Örn: Türkiye'nin başkenti neresidir?"></textarea>
-                    <div class="small mt-1" style="color: var(--qa-red); display:none;" id="qa-err-question">Lütfen bir soru metni yaz.</div>
-                </div>
-
-                <div class="row g-3">
-                    <div class="col-md-6">
-                        <label class="form-label fw-semibold small">Soru Görseli <span class="text-muted fw-normal">(İsteğe Bağlı)</span></label>
-                        <div class="qa-drop" id="qa-img-drop">
-                            <img id="qa-img-preview" style="display:none;" alt="">
-                            <div id="qa-img-placeholder" class="small" style="color: var(--qa-ink-muted);">
-                                <i class="bi bi-image fs-4 d-block mb-1"></i> Görsel yüklemek için tıkla
-                            </div>
-                            <button type="button" class="qa-drop-remove" id="qa-img-remove"><i class="bi bi-x"></i></button>
-                        </div>
-                        <input type="file" name="question_image" id="qa-img-input" accept="image/*" class="d-none">
-                    </div>
-
-                    <div class="col-md-6">
-                        <label class="form-label fw-semibold small">🔊 Sesli Soru <span class="text-muted fw-normal">(İsteğe Bağlı)</span></label>
-                        <div class="qa-drop qa-audio-drop" id="qa-audio-drop">
-                            <i class="bi bi-mic-fill"></i>
-                            <div id="qa-audio-placeholder" class="small" style="color: var(--qa-ink-muted);">
-                                Ses dosyası yükle (mp3, wav, m4a...)
-                            </div>
-                            <div id="qa-audio-name" class="qa-audio-name" style="display:none;"></div>
-                            <button type="button" class="qa-drop-remove" id="qa-audio-remove"><i class="bi bi-x"></i></button>
-                        </div>
-                        <input type="file" name="question_audio" id="qa-audio-input" accept="audio/*" class="d-none">
-                        <p class="small mt-1 mb-0" style="color: var(--qa-ink-muted);">Öğrenciler soruyu ekrana basıp dinleyebilir — dil, telaffuz veya müzik soruları için ideal.</p>
-                    </div>
-                </div>
-
-                <div class="d-flex justify-content-end mt-4">
-                    <button type="button" class="qa-btn" data-wizard-next="2">Devam Et <i class="bi bi-arrow-right"></i></button>
-                </div>
-            </div>
-
-            <!-- STEP 2: ŞIKLAR + DOĞRU CEVAP + ŞIK GÖRSELLERİ -->
-            <div class="qa-wizard-pane" data-pane="2">
-                <p class="small mb-3" style="color: var(--qa-ink-muted);">Doğru şıkkı seçmek için karta tıkla. C ve D isteğe bağlıdır, her şıkka küçük bir görsel de ekleyebilirsin.</p>
-
-                <div class="qa-correct-grid mb-2">
-                    {% for letter, cls, req in [('a','qa-opt-A', true), ('b','qa-opt-B', true), ('c','qa-opt-C', false), ('d','qa-opt-D', false)] %}
-                    <label class="qa-opt-card {{ cls }} {{ 'is-correct' if letter == 'a' }}" data-opt-card="{{ letter }}">
-                        <input type="radio" name="correct_option" value="{{ letter }}" class="visually-hidden qa-correct-radio" {{ 'checked' if letter == 'a' }}>
-                        <div class="d-flex align-items-center justify-content-between">
-                            <span class="qa-opt-label">Şık {{ letter|upper }}{{ '' if req else ' · opsiyonel' }}</span>
-                            <button type="button" class="icon-btn border-0" style="background:rgba(255,255,255,0.25); width:26px;height:26px;color:inherit;" data-opt-img-trigger="{{ letter }}" title="Görsel ekle" onclick="event.preventDefault(); event.stopPropagation();">
-                                <i class="bi bi-image"></i>
-                            </button>
-                        </div>
-                        <input type="text" name="option_{{ letter }}" id="qa-f-option-{{ letter }}" class="qa-opt-input" placeholder="{{ letter|upper }} şıkkı yaz..." onclick="event.stopPropagation();">
-                        <img id="qa-opt-thumb-{{ letter }}" style="display:none; width:100%; max-height:70px; object-fit:cover; border-radius:8px; margin-top:4px;" alt="">
-                        <input type="file" name="option_{{ letter }}_image" id="qa-opt-img-input-{{ letter }}" accept="image/*" class="d-none">
-                    </label>
-                    {% endfor %}
-                </div>
-                <div class="small mb-3" style="color: var(--qa-red); display:none;" id="qa-err-options">En az A ve B şıklarını doldurup doğru cevabı işaretle.</div>
-
-                <div class="row g-3 mb-3">
-                    <div class="col-6">
-                        <label class="form-label fw-semibold small">Süre Limiti (saniye)</label>
-                        <input type="number" name="time_limit" id="qa-f-time" class="form-control" value="20" min="5" max="120">
-                    </div>
-                </div>
-
-                <div class="d-flex justify-content-between mt-2">
-                    <button type="button" class="qa-btn qa-btn-ghost" data-wizard-prev="1"><i class="bi bi-arrow-left"></i> Geri</button>
-                    <button type="button" class="qa-btn" data-wizard-next="3">Önizle <i class="bi bi-arrow-right"></i></button>
-                </div>
-            </div>
-
-            <!-- STEP 3: ÖNİZLEME + YAYINLA -->
-            <div class="qa-wizard-pane" data-pane="3">
-                <p class="small mb-3" style="color: var(--qa-ink-muted);">Öğrencinin ekranında böyle görünecek:</p>
-
-                <div class="qa-question-card mb-3" style="max-width:520px; margin-inline:auto;">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <span class="qa-pill qa-pill-soft">Önizleme</span>
-                        <span class="qa-pill qa-pill-soft" id="qa-preview-time">20 sn</span>
-                    </div>
-                    <div class="qa-question-text" id="qa-preview-text">Soru metni burada görünecek</div>
-                    <img id="qa-preview-image" class="qa-question-media" style="display:none;" alt="">
-                    <div id="qa-preview-audio" class="qa-audio-player" style="display:none;">
-                        <div class="qa-audio-play-btn"><i class="bi bi-play-fill"></i></div>
-                        <div class="qa-audio-wave"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
-                    </div>
-                    <div class="qa-answer-grid" id="qa-preview-options"></div>
-                </div>
-
-                <div class="d-flex justify-content-between mt-4">
-                    <button type="button" class="qa-btn qa-btn-ghost" data-wizard-prev="2"><i class="bi bi-arrow-left"></i> Geri</button>
-                    <button type="submit" class="qa-btn qa-btn-lg"><i class="bi bi-check-circle"></i> Soruyu Ekle</button>
-                </div>
-            </div>
-
-        </form>
-    </div>
-
 </div>
 {% endblock %}
 
 {% block extra_js %}
-<script src="{{ url_for('static', filename='js/quiz-arcade.js') }}"></script>
+<script src="{{ url_for('static', filename='js/quiz-pro.js', v='2026093001') }}"></script>
 <script>
 (function () {
-    var form = document.getElementById('qa-question-form');
+    'use strict';
+    var QUIZ_ID = {{ quiz.id }};
+    var questions = {{ questions|tojson }};
+    var currentId = {{ (focus_question or (questions[0].id if questions else None))|tojson }};
+    var TIME_CHOICES = {{ time_choices|tojson }};
+    var URLS = {
+        meta: '/api/quiz/' + QUIZ_ID + '/meta',
+        add: '/api/quiz/' + QUIZ_ID + '/questions',
+        reorder: '/api/quiz/' + QUIZ_ID + '/reorder',
+        q: function (id) { return '/api/quiz/question/' + id; }
+    };
+    var LETTERS = ['a', 'b', 'c', 'd'];
+    var $ = function (id) { return document.getElementById(id); };
+    var KQ = window.KQ;
 
-    // ---------- Genel görsel damla-bırak yardımcı fonksiyonu ----------
-    function wireImageDrop(dropId, inputId, previewId, placeholderId, removeId) {
-        var drop = document.getElementById(dropId), input = document.getElementById(inputId);
-        var preview = document.getElementById(previewId), placeholder = document.getElementById(placeholderId);
-        var removeBtn = document.getElementById(removeId);
-        if (!drop || !input) return;
-        drop.addEventListener('click', function (e) {
-            if (removeBtn && (e.target === removeBtn || removeBtn.contains(e.target))) return;
-            input.click();
-        });
-        input.addEventListener('change', function () {
-            var file = input.files[0];
-            if (!file) return;
-            var reader = new FileReader();
-            reader.onload = function (e) {
-                if (preview) { preview.src = e.target.result; preview.style.display = 'block'; }
-                if (placeholder) placeholder.style.display = 'none';
-                if (removeBtn) removeBtn.style.display = 'flex';
-                updatePreview();
-            };
-            reader.readAsDataURL(file);
-        });
-        if (removeBtn) {
-            removeBtn.addEventListener('click', function (e) {
-                e.stopPropagation();
-                input.value = '';
-                if (preview) preview.style.display = 'none';
-                if (placeholder) placeholder.style.display = 'block';
-                removeBtn.style.display = 'none';
-                updatePreview();
+    // ---------------- Yardımcılar ----------------
+    function find(id) { for (var i = 0; i < questions.length; i++) if (questions[i].id === id) return questions[i]; return null; }
+    function idx(id) { for (var i = 0; i < questions.length; i++) if (questions[i].id === id) return i; return -1; }
+    function cur() { return find(currentId); }
+    function localIssues(q) {
+        var issues = [];
+        if (!(q.question_text || '').trim()) issues.push('Soru metni eksik');
+        var filled = KQ.filledLetters(q);
+        if (filled.length < 2) issues.push('En az 2 cevap gerekli');
+        if (filled.indexOf(q.correct_option) === -1) issues.push('Doğru cevabı işaretle');
+        return issues;
+    }
+    function api(url, body, isForm) {
+        var opts = { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' };
+        if (isForm) opts.body = body;
+        else { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body || {}); }
+        return fetch(url, opts).then(function (r) {
+            return r.json().catch(function () { return { ok: false, error: 'Sunucu yanıtı okunamadı.' }; }).then(function (j) {
+                if (!r.ok || !j.ok) throw new Error(j.error || 'İşlem başarısız.');
+                return j;
             });
-        }
+        });
     }
 
-    wireImageDrop('qa-img-drop', 'qa-img-input', 'qa-img-preview', 'qa-img-placeholder', 'qa-img-remove');
-
-    // Ses dosyası (önizleme yerine sadece isim gösterilir)
-    (function () {
-        var drop = document.getElementById('qa-audio-drop'), input = document.getElementById('qa-audio-input');
-        var nameEl = document.getElementById('qa-audio-name'), placeholder = document.getElementById('qa-audio-placeholder');
-        var removeBtn = document.getElementById('qa-audio-remove');
-        drop.addEventListener('click', function (e) {
-            if (e.target === removeBtn || removeBtn.contains(e.target)) return;
-            input.click();
+    // ---------------- Kaydetme durumu ----------------
+    var saveEl = $('kqSave'), inflight = 0, pending = {}, saveTimer = null;
+    function setSave(state, msg) {
+        saveEl.classList.toggle('is-saved', state === 'saved');
+        saveEl.classList.toggle('is-error', state === 'error');
+        var icon = state === 'saving' ? '<span class="spin"></span>' : state === 'error' ? '<i class="bi bi-exclamation-triangle"></i>' : '<i class="bi bi-cloud-check"></i>';
+        var text = msg || (state === 'saving' ? 'Kaydediliyor…' : state === 'error' ? 'Kaydedilemedi' : 'Kaydedildi');
+        saveEl.innerHTML = icon + ' <span class="kq-hide-sm">' + text + '</span>';
+    }
+    function queue(qid, fields, immediate) {
+        pending[qid] = Object.assign(pending[qid] || {}, fields);
+        var q = find(qid); if (q) Object.assign(q, fields);
+        refreshDerived(qid);
+        setSave('saving');
+        clearTimeout(saveTimer);
+        saveTimer = setTimeout(flush, immediate ? 0 : 650);
+    }
+    function flush() {
+        var ids = Object.keys(pending);
+        if (!ids.length) return Promise.resolve();
+        var jobs = ids.map(function (qid) {
+            var body = pending[qid]; delete pending[qid];
+            inflight++;
+            return api(URLS.q(qid), body).then(function (j) {
+                var q = find(j.question.id);
+                if (q) {
+                    // Yazmaya devam edilen alanların üzerine yazma
+                    var still = pending[qid] || {};
+                    Object.keys(j.question).forEach(function (k) { if (!(k in still)) q[k] = j.question[k]; });
+                    refreshDerived(q.id);
+                    if (q.id === currentId && 'qtype' in body) renderEditor();
+                }
+            }).catch(function (e) {
+                pending[qid] = Object.assign(body, pending[qid] || {});
+                KQ.toast(e.message, true); setSave('error');
+                throw e;
+            }).finally(function () { inflight--; });
         });
-        input.addEventListener('change', function () {
-            var f = input.files[0];
-            if (!f) return;
-            nameEl.textContent = '🎧 ' + f.name;
-            nameEl.style.display = 'block';
-            placeholder.style.display = 'none';
-            removeBtn.style.display = 'flex';
-            updatePreview();
-        });
-        removeBtn.addEventListener('click', function (e) {
-            e.stopPropagation();
-            input.value = '';
-            nameEl.style.display = 'none';
-            placeholder.style.display = 'block';
-            removeBtn.style.display = 'none';
-            updatePreview();
-        });
-    })();
-
-    // Şık görselleri (mini, kart üzerindeki resim düğmesi)
-    ['a', 'b', 'c', 'd'].forEach(function (letter) {
-        var trigger = document.querySelector('[data-opt-img-trigger="' + letter + '"]');
-        var input = document.getElementById('qa-opt-img-input-' + letter);
-        var thumb = document.getElementById('qa-opt-thumb-' + letter);
-        if (!trigger || !input) return;
-        trigger.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); input.click(); });
-        input.addEventListener('change', function () {
-            var f = input.files[0];
-            if (!f) return;
-            var reader = new FileReader();
-            reader.onload = function (e) {
-                thumb.src = e.target.result;
-                thumb.style.display = 'block';
-                updatePreview();
-            };
-            reader.readAsDataURL(f);
-        });
+        return Promise.all(jobs).then(function () { if (!inflight && !Object.keys(pending).length) setSave('saved'); });
+    }
+    window.addEventListener('beforeunload', function (e) {
+        if (Object.keys(pending).length || inflight) { flush(); e.preventDefault(); e.returnValue = ''; }
     });
 
-    // ---------- Doğru cevap kartları ----------
-    var optCards = document.querySelectorAll('[data-opt-card]');
-    optCards.forEach(function (card) {
-        card.addEventListener('click', function (e) {
-            if (e.target.tagName === 'INPUT' && e.target.type === 'text') return;
-            var radio = card.querySelector('.qa-correct-radio');
-            radio.checked = true;
-            optCards.forEach(function (c) { c.classList.remove('is-correct'); });
-            card.classList.add('is-correct');
-            updatePreview();
+    // ---------------- Sol ray ----------------
+    var rail = $('kqRail');
+    function slideHtml(q, i) {
+        var issues = localIssues(q), filled = KQ.filledLetters(q);
+        var letters = q.qtype === 'truefalse' ? ['a', 'b'] : LETTERS;
+        var bars = letters.map(function (l) {
+            return '<i class="kq-c-' + l + (filled.indexOf(l) > -1 ? ' filled' : '') + (q.correct_option === l && filled.indexOf(l) > -1 ? ' correct' : '') + '"></i>';
+        }).join('');
+        var img = q.image_path ? ' style="background-image:url(\'/static/uploads/quiz/' + encodeURIComponent(q.image_path) + '\')"' : '';
+        return '<div class="kq-slide-num">' + (i + 1) + '</div>' +
+            '<div><div class="kq-slide-meta"><i class="bi ' + (q.qtype === 'truefalse' ? 'bi-toggles' : 'bi-grid-fill') + '"></i>' +
+            (q.qtype === 'truefalse' ? 'Doğru/Yanlış' : 'Quiz') + ' · ' + q.time_limit + ' sn</div>' +
+            '<div class="kq-slide-card">' +
+            '<div class="kq-slide-q' + ((q.question_text || '').trim() ? '' : ' is-empty') + '">' + KQ.esc((q.question_text || '').trim() || 'Soru') + '</div>' +
+            '<div class="kq-slide-img"' + img + '>' + (q.image_path ? '' : '<i class="bi bi-image"></i>') + '</div>' +
+            '<div class="kq-slide-opts">' + bars + '</div></div></div>' +
+            (issues.length ? '<span class="kq-slide-warn" title="' + KQ.esc(issues.join(', ')) + '">!</span>' : '') +
+            '<div class="kq-slide-tools"><button type="button" data-act="dup" title="Çoğalt" aria-label="Çoğalt"><i class="bi bi-copy"></i></button>' +
+            '<button type="button" data-act="del" title="Sil" aria-label="Sil"><i class="bi bi-trash3"></i></button></div>';
+    }
+    function renderRail() {
+        rail.innerHTML = '';
+        questions.forEach(function (q, i) {
+            var el = document.createElement('div');
+            el.className = 'kq-slide' + (q.id === currentId ? ' is-active' : '');
+            el.dataset.id = q.id; el.tabIndex = 0; el.draggable = true;
+            el.setAttribute('role', 'option'); el.setAttribute('aria-selected', q.id === currentId ? 'true' : 'false');
+            el.innerHTML = slideHtml(q, i);
+            rail.appendChild(el);
         });
-        var textInput = card.querySelector('.qa-opt-input');
-        if (textInput) textInput.addEventListener('input', updatePreview);
-    });
-
-    // ---------- Sihirbaz adım geçişleri ----------
-    var panes = document.querySelectorAll('.qa-wizard-pane');
-    var steps = document.querySelectorAll('#qa-wizard-steps .qa-step');
-
-    function goToStep(n) {
-        panes.forEach(function (p) { p.classList.toggle('active', p.dataset.pane === String(n)); });
-        steps.forEach(function (s) {
-            var sn = Number(s.dataset.step);
-            s.classList.toggle('active', sn === n);
-            s.classList.toggle('done', sn < n);
-        });
-        if (n === 3) updatePreview();
+        $('kqCount').textContent = questions.length + ' soru';
+        var active = rail.querySelector('.is-active');
+        if (active && active.scrollIntoView) active.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    }
+    function refreshDerived(qid) {
+        var q = find(qid); if (!q) return;
+        var el = rail.querySelector('[data-id="' + qid + '"]');
+        if (el) el.innerHTML = slideHtml(q, idx(qid));
+        if (qid === currentId) renderIssues();
     }
 
-    document.querySelectorAll('[data-wizard-next]').forEach(function (btn) {
-        btn.addEventListener('click', function () {
-            var target = Number(btn.dataset.wizardNext);
-            if (target === 2 && !validateStep1()) return;
-            if (target === 3 && !validateStep2()) return;
-            goToStep(target);
+    rail.addEventListener('click', function (e) {
+        var slide = e.target.closest('.kq-slide'); if (!slide) return;
+        var id = Number(slide.dataset.id), act = e.target.closest('[data-act]');
+        if (act) { e.stopPropagation(); if (act.dataset.act === 'dup') duplicate(id); else removeQ(id); return; }
+        select(id);
+    });
+    rail.addEventListener('keydown', function (e) {
+        var slide = e.target.closest('.kq-slide'); if (!slide) return;
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); select(Number(slide.dataset.id)); }
+        if (e.key === 'ArrowDown' || e.key === 'ArrowRight') { e.preventDefault(); step(1, true); }
+        if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') { e.preventDefault(); step(-1, true); }
+    });
+    document.addEventListener('keydown', function (e) {
+        if (e.altKey && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) { e.preventDefault(); step(e.key === 'ArrowDown' ? 1 : -1, false); }
+    });
+    function step(dir, focusRail) {
+        var i = idx(currentId) + dir;
+        if (i < 0 || i >= questions.length) return;
+        select(questions[i].id);
+        if (focusRail) { var el = rail.querySelector('[data-id="' + currentId + '"]'); if (el) el.focus(); }
+    }
+
+    // Sürükle-bırak ile sıralama
+    var dragId = null;
+    rail.addEventListener('dragstart', function (e) {
+        var s = e.target.closest('.kq-slide'); if (!s) return;
+        dragId = Number(s.dataset.id); s.classList.add('is-dragging');
+        e.dataTransfer.effectAllowed = 'move';
+        try { e.dataTransfer.setData('text/plain', String(dragId)); } catch (err) {}
+    });
+    rail.addEventListener('dragend', function () {
+        dragId = null;
+        rail.querySelectorAll('.kq-slide').forEach(function (s) { s.classList.remove('is-dragging', 'drop-before', 'drop-after'); });
+    });
+    function dropPos(e, s) {
+        var r = s.getBoundingClientRect(), horiz = getComputedStyle(rail).flexDirection === 'row';
+        return horiz ? (e.clientX < r.left + r.width / 2 ? 'before' : 'after') : (e.clientY < r.top + r.height / 2 ? 'before' : 'after');
+    }
+    rail.addEventListener('dragover', function (e) {
+        var s = e.target.closest('.kq-slide'); if (!s || dragId == null) return;
+        e.preventDefault();
+        rail.querySelectorAll('.kq-slide').forEach(function (x) { x.classList.remove('drop-before', 'drop-after'); });
+        if (Number(s.dataset.id) !== dragId) s.classList.add('drop-' + dropPos(e, s));
+    });
+    rail.addEventListener('drop', function (e) {
+        var s = e.target.closest('.kq-slide'); if (!s || dragId == null) return;
+        e.preventDefault();
+        var target = Number(s.dataset.id); if (target === dragId) return;
+        var pos = dropPos(e, s), moving = questions.splice(idx(dragId), 1)[0];
+        var ti = idx(target) + (pos === 'after' ? 1 : 0);
+        questions.splice(ti, 0, moving);
+        renderRail();
+        setSave('saving');
+        api(URLS.reorder, { order: questions.map(function (q) { return q.id; }) }).then(function () { setSave('saved'); })
+            .catch(function (err) { KQ.toast(err.message, true); setSave('error'); });
+    });
+
+    // ---------------- Soru ekle / çoğalt / sil ----------------
+    document.querySelectorAll('[data-add]').forEach(function (b) {
+        b.addEventListener('click', function () { addQ(b.dataset.add); });
+    });
+    function applyOrder(order) {
+        questions.sort(function (a, b) { return order.indexOf(a.id) - order.indexOf(b.id); });
+    }
+    function addQ(qtype) {
+        setSave('saving');
+        flush().catch(function () {}).then(function () {
+            return api(URLS.add, { qtype: qtype, after_id: currentId });
+        }).then(function (j) {
+            questions.push(j.question); applyOrder(j.order);
+            currentId = j.question.id; renderRail(); select(j.question.id); setSave('saved');
+            setTimeout(function () { $('kqQ').focus(); }, 60);
+        }).catch(function (e) { KQ.toast(e.message, true); setSave('error'); });
+    }
+    function duplicate(id) {
+        setSave('saving');
+        flush().catch(function () {}).then(function () { return api(URLS.q(id) + '/duplicate', {}); })
+            .then(function (j) { questions.push(j.question); applyOrder(j.order); currentId = j.question.id; renderRail(); select(j.question.id); setSave('saved'); KQ.toast('Soru çoğaltıldı'); })
+            .catch(function (e) { KQ.toast(e.message, true); setSave('error'); });
+    }
+    function removeQ(id) {
+        if (questions.length <= 1) { KQ.toast('Yarışmada en az bir soru kalmalı.', true); return; }
+        var q = find(id), label = (q.question_text || '').trim() ? '"' + q.question_text.trim().slice(0, 40) + '"' : 'Bu soru';
+        if (!confirm(label + ' silinsin mi?')) return;
+        delete pending[id];
+        setSave('saving');
+        api(URLS.q(id) + '/delete', {}).then(function (j) {
+            var i = idx(id);
+            questions.splice(i, 1); applyOrder(j.order);
+            if (currentId === id) currentId = questions[Math.max(0, i - 1)].id;
+            renderRail(); renderEditor(); setSave('saved'); KQ.toast('Soru silindi');
+        }).catch(function (e) { KQ.toast(e.message, true); setSave('error'); });
+    }
+    $('kqDup').addEventListener('click', function () { duplicate(currentId); });
+    $('kqDel').addEventListener('click', function () { removeQ(currentId); });
+
+    // ---------------- Editör (orta + sağ) ----------------
+    var qInput = $('kqQ');
+    function autosize(el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; }
+    function select(id) {
+        if (!find(id)) return;
+        currentId = id;
+        rail.querySelectorAll('.kq-slide').forEach(function (s) {
+            var on = Number(s.dataset.id) === id;
+            s.classList.toggle('is-active', on); s.setAttribute('aria-selected', on ? 'true' : 'false');
+            if (on && s.scrollIntoView) s.scrollIntoView({ block: 'nearest', inline: 'nearest' });
         });
-    });
-    document.querySelectorAll('[data-wizard-prev]').forEach(function (btn) {
-        btn.addEventListener('click', function () { goToStep(Number(btn.dataset.wizardPrev)); });
-    });
-
-    function validateStep1() {
-        var q = document.getElementById('qa-f-question');
-        var err = document.getElementById('qa-err-question');
-        var ok = q.value.trim().length > 0;
-        err.style.display = ok ? 'none' : 'block';
-        if (!ok) q.focus();
-        return ok;
+        renderEditor();
+        try { history.replaceState(null, '', '?q=' + id); } catch (e) {}
     }
-
-    function validateStep2() {
-        var a = document.getElementById('qa-f-option-a').value.trim();
-        var b = document.getElementById('qa-f-option-b').value.trim();
-        var err = document.getElementById('qa-err-options');
-        var ok = a.length > 0 && b.length > 0;
-        err.style.display = ok ? 'none' : 'block';
-        return ok;
+    function renderEditor() {
+        var q = cur(); if (!q) return;
+        qInput.value = q.question_text || '';
+        $('kqQCount').textContent = qInput.value.length + '/300';
+        autosize(qInput);
+        renderMedia(q); renderAnswers(q); renderSettings(q); renderIssues();
     }
+    function renderIssues() {
+        var q = cur(); if (!q) return;
+        var issues = localIssues(q);
+        $('kqIssues').innerHTML = issues.map(function (t) { return '<span class="kq-issue"><i class="bi bi-exclamation-circle"></i>' + KQ.esc(t) + '</span>'; }).join('');
+    }
+    qInput.addEventListener('input', function () {
+        autosize(qInput);
+        $('kqQCount').textContent = qInput.value.length + '/300';
+        queue(currentId, { question_text: qInput.value });
+    });
 
-    // Son adımda submit öncesi tekrar doğrula (kullanıcı adımları atlamasa da güvenlik amaçlı)
-    form.addEventListener('submit', function (e) {
-        if (!validateStep1() || !validateStep2()) {
+    // Medya
+    var media = $('kqMedia'), mediaImg = $('kqMediaImg');
+    function renderMedia(q) {
+        var has = !!q.image_path;
+        media.classList.toggle('has-image', has);
+        mediaImg.hidden = !has;
+        if (has) mediaImg.src = '/static/uploads/quiz/' + encodeURIComponent(q.image_path);
+        $('kqImgRemove').hidden = !has;
+        $('kqImgPickLbl').textContent = has ? 'Değiştir' : 'Görsel ekle';
+        var au = $('kqAudio');
+        au.hidden = !q.audio_path;
+        if (q.audio_path) { $('kqAudioEl').src = '/static/uploads/quiz/' + encodeURIComponent(q.audio_path); $('kqAudioName').textContent = '🎧 Sesli soru eklendi'; }
+        $('kqAudioPick').hidden = !!q.audio_path;
+    }
+    function upload(field, file, extra) {
+        var qid = currentId, fd = new FormData();
+        fd.append(field, file);
+        Object.keys(extra || {}).forEach(function (k) { fd.append(k, extra[k]); });
+        setSave('saving', 'Yükleniyor…');
+        return flush().catch(function () {}).then(function () { return api(URLS.q(qid), fd, true); }).then(function (j) {
+            var q = find(qid); Object.assign(q, j.question);
+            refreshDerived(qid); if (qid === currentId) { renderMedia(q); renderAnswers(q); }
+            setSave('saved');
+        }).catch(function (e) { KQ.toast(e.message, true); setSave('error'); });
+    }
+    function removeFile(flag) {
+        var qid = currentId, body = {}; body[flag] = 1;
+        setSave('saving');
+        return api(URLS.q(qid), body).then(function (j) {
+            var q = find(qid); Object.assign(q, j.question); refreshDerived(qid);
+            if (qid === currentId) { renderMedia(q); renderAnswers(q); }
+            setSave('saved');
+        }).catch(function (e) { KQ.toast(e.message, true); setSave('error'); });
+    }
+    function checkImage(f) {
+        if (!f) return false;
+        if (!/^image\//.test(f.type)) { KQ.toast('Lütfen bir görsel dosyası seç.', true); return false; }
+        if (f.size > 8 * 1024 * 1024) { KQ.toast('Görsel en fazla 8 MB olabilir.', true); return false; }
+        return true;
+    }
+    $('kqImgPick').addEventListener('click', function () { $('kqImgInput').click(); });
+    $('kqImgInput').addEventListener('change', function () { var f = this.files[0]; if (checkImage(f)) upload('question_image', f); this.value = ''; });
+    $('kqImgRemove').addEventListener('click', function () { removeFile('remove_image'); });
+    $('kqAudioPick').addEventListener('click', function () { $('kqAudioInput').click(); });
+    $('kqAudioInput').addEventListener('change', function () {
+        var f = this.files[0]; this.value = '';
+        if (!f) return;
+        if (f.size > 12 * 1024 * 1024) { KQ.toast('Ses dosyası en fazla 12 MB olabilir.', true); return; }
+        upload('question_audio', f);
+    });
+    $('kqAudioRemove').addEventListener('click', function () { $('kqAudioEl').pause(); removeFile('remove_audio'); });
+    $('kqAudioPlay').addEventListener('click', function () {
+        var a = $('kqAudioEl');
+        if (a.paused) a.play().catch(function () {}); else a.pause();
+    });
+    $('kqAudioEl').addEventListener('play', function () { $('kqAudioPlay').innerHTML = '<i class="bi bi-pause-fill"></i>'; });
+    ['pause', 'ended'].forEach(function (ev) { $('kqAudioEl').addEventListener(ev, function () { $('kqAudioPlay').innerHTML = '<i class="bi bi-play-fill"></i>'; }); });
+    ['dragenter', 'dragover'].forEach(function (ev) {
+        media.addEventListener(ev, function (e) { if (dragId != null) return; e.preventDefault(); media.classList.add('is-drag'); });
+    });
+    ['dragleave', 'drop'].forEach(function (ev) { media.addEventListener(ev, function () { media.classList.remove('is-drag'); }); });
+    media.addEventListener('drop', function (e) {
+        if (dragId != null) return;
+        e.preventDefault();
+        var f = e.dataTransfer.files && e.dataTransfer.files[0];
+        if (checkImage(f)) upload('question_image', f);
+    });
+
+    // Cevaplar
+    var answersBox = $('kqAnswers'), optImgFor = null;
+    function renderAnswers(q) {
+        var tf = q.qtype === 'truefalse', letters = tf ? ['a', 'b'] : LETTERS;
+        answersBox.classList.toggle('is-tf', tf);
+        answersBox.innerHTML = '';
+        letters.forEach(function (l, i) {
+            var val = q['option_' + l] || '', img = q['option_' + l + '_image'];
+            var filled = !!(val.trim() || img), correct = q.correct_option === l;
+            var el = document.createElement('div');
+            el.className = 'kq-ans kq-c-' + l + (filled ? ' is-filled' : '') + (correct ? ' is-correct' : '');
+            el.dataset.l = l;
+            var label = tf ? (l === 'a' ? 'Doğru' : 'Yanlış') : ('Cevap ' + (i + 1) + (i > 1 ? ' · isteğe bağlı' : ''));
+            el.innerHTML =
+                '<div class="kq-ans-shape">' + KQ.shape(l) + '</div>' +
+                (img ? '<img class="kq-ans-img" src="/static/uploads/quiz/' + encodeURIComponent(img) + '" alt="">' : '') +
+                '<div class="kq-ans-body"><span class="kq-ans-label">' + label + '</span>' +
+                '<textarea class="kq-ans-input" rows="1" maxlength="120" aria-label="' + label + '" placeholder="' + (tf ? '' : 'Cevap ' + (i + 1) + (i > 1 ? ' ekle (isteğe bağlı)' : ' ekle')) + '"' + (tf ? ' readonly' : '') + '></textarea></div>' +
+                '<div class="kq-ans-tools">' +
+                '<button type="button" class="kq-correct" aria-pressed="' + correct + '" title="Doğru cevap olarak işaretle" aria-label="' + label + ' doğru cevap"><i class="bi bi-check-lg"></i></button>' +
+                (tf ? '' : '<button type="button" class="kq-ans-imgbtn" title="' + (img ? 'Görseli kaldır' : 'Şıkka görsel ekle') + '" aria-label="Şık görseli"><i class="bi ' + (img ? 'bi-x-lg' : 'bi-image') + '"></i></button>') +
+                '</div>';
+            var ta = el.querySelector('textarea');
+            ta.value = val;
+            answersBox.appendChild(el);
+            autosize(ta);
+        });
+    }
+    answersBox.addEventListener('input', function (e) {
+        var ta = e.target.closest('.kq-ans-input'); if (!ta) return;
+        var card = ta.closest('.kq-ans'), l = card.dataset.l, q = cur(), f = {};
+        f['option_' + l] = ta.value;
+        autosize(ta);
+        card.classList.toggle('is-filled', !!(ta.value.trim() || q['option_' + l + '_image']));
+        queue(currentId, f);
+    });
+    answersBox.addEventListener('keydown', function (e) {
+        var ta = e.target.closest('.kq-ans-input');
+        if (ta && e.key === 'Enter') {
             e.preventDefault();
-            goToStep(!validateStep1() ? 1 : 2);
+            var all = answersBox.querySelectorAll('.kq-ans-input'), i = Array.prototype.indexOf.call(all, ta);
+            if (all[i + 1]) all[i + 1].focus();
         }
     });
-
-    // ---------- Canlı önizleme ----------
-    var optColors = { a: 'qa-opt-A', b: 'qa-opt-B', c: 'qa-opt-C', d: 'qa-opt-D' };
-    function updatePreview() {
-        var text = document.getElementById('qa-f-question').value.trim();
-        document.getElementById('qa-preview-text').textContent = text || 'Soru metni burada görünecek';
-
-        var imgInput = document.getElementById('qa-img-input');
-        var previewImg = document.getElementById('qa-preview-image');
-        if (imgInput.files[0]) {
-            previewImg.src = document.getElementById('qa-img-preview').src;
-            previewImg.style.display = 'block';
-        } else {
-            previewImg.style.display = 'none';
+    answersBox.addEventListener('click', function (e) {
+        var card = e.target.closest('.kq-ans'); if (!card) return;
+        var l = card.dataset.l, q = cur();
+        if (e.target.closest('.kq-correct')) {
+            answersBox.querySelectorAll('.kq-ans').forEach(function (c) {
+                var on = c === card;
+                c.classList.toggle('is-correct', on);
+                c.querySelector('.kq-correct').setAttribute('aria-pressed', on ? 'true' : 'false');
+            });
+            card.classList.remove('pop'); void card.offsetWidth; card.classList.add('pop');
+            queue(currentId, { correct_option: l }, true);
+            if (!(q['option_' + l] || '').trim() && !q['option_' + l + '_image']) {
+                var ta = card.querySelector('textarea'); if (ta && !ta.readOnly) ta.focus();
+            }
+            return;
         }
+        if (e.target.closest('.kq-ans-imgbtn')) {
+            if (q['option_' + l + '_image']) { removeFile('remove_option_' + l + '_image'); }
+            else { optImgFor = l; $('kqOptImgInput').click(); }
+        }
+    });
+    $('kqOptImgInput').addEventListener('change', function () {
+        var f = this.files[0]; this.value = '';
+        if (optImgFor && checkImage(f)) upload('option_' + optImgFor + '_image', f);
+    });
 
-        var audioInput = document.getElementById('qa-audio-input');
-        document.getElementById('qa-preview-audio').style.display = audioInput.files[0] ? 'flex' : 'none';
-
-        var time = document.getElementById('qa-f-time').value || 20;
-        document.getElementById('qa-preview-time').textContent = time + ' sn';
-
-        var correct = (document.querySelector('.qa-correct-radio:checked') || {}).value;
-        var box = document.getElementById('qa-preview-options');
-        box.innerHTML = '';
-        ['a', 'b', 'c', 'd'].forEach(function (letter) {
-            var val = document.getElementById('qa-f-option-' + letter).value.trim();
-            if (!val) return;
-            var thumb = document.getElementById('qa-opt-thumb-' + letter);
-            var btn = document.createElement('div');
-            btn.className = 'qa-answer-btn ' + optColors[letter];
-            btn.innerHTML =
-                '<span class="qa-answer-letter">' + letter.toUpperCase() + '</span>' +
-                (thumb && thumb.style.display === 'block' ? '<img class="qa-answer-img" src="' + thumb.src + '">' : '') +
-                '<span class="qa-answer-text"></span>' +
-                (letter === correct ? '<span class="qa-answer-check"><i class="bi bi-check-circle-fill"></i></span>' : '');
-            btn.querySelector('.qa-answer-text').textContent = val;
-            if (letter === correct) btn.classList.add('is-revealed-correct');
-            box.appendChild(btn);
-        });
+    // Sağ panel
+    function segSet(boxId, value) {
+        $(boxId).querySelectorAll('button').forEach(function (b) { b.classList.toggle('is-on', String(b.dataset.v) === String(value)); b.setAttribute('aria-pressed', String(b.dataset.v) === String(value)); });
     }
+    function renderSettings(q) {
+        segSet('kqType', q.qtype || 'quiz');
+        var t = TIME_CHOICES.indexOf(q.time_limit) > -1 ? q.time_limit : null;
+        segSet('kqTime', t);
+        segSet('kqPoints', q.points_mode || 'standard');
+        $('kqHint').style.display = '';
+    }
+    $('kqType').addEventListener('click', function (e) {
+        var b = e.target.closest('button'); if (!b) return;
+        var q = cur(); if (q.qtype === b.dataset.v) return;
+        var hasCD = (q.option_c || '').trim() || (q.option_d || '').trim();
+        if (b.dataset.v === 'truefalse' && hasCD && !confirm('Doğru/Yanlış tipine geçince C ve D cevapları silinecek. Devam edilsin mi?')) return;
+        var f = { qtype: b.dataset.v };
+        if (b.dataset.v === 'truefalse') { Object.assign(f, { option_a: 'Doğru', option_b: 'Yanlış', option_c: '', option_d: '' }); if (['a', 'b'].indexOf(q.correct_option) < 0) f.correct_option = 'a'; }
+        else if (q.option_a === 'Doğru' && q.option_b === 'Yanlış') { Object.assign(f, { option_a: '', option_b: '' }); }
+        queue(currentId, f, true);
+        renderEditor();
+    });
+    $('kqTime').addEventListener('click', function (e) {
+        var b = e.target.closest('button'); if (!b) return;
+        segSet('kqTime', b.dataset.v);
+        queue(currentId, { time_limit: Number(b.dataset.v) }, true);
+    });
+    $('kqPoints').addEventListener('click', function (e) {
+        var b = e.target.closest('button'); if (!b) return;
+        segSet('kqPoints', b.dataset.v);
+        queue(currentId, { points_mode: b.dataset.v }, true);
+    });
 
-    updatePreview();
+    // ---------------- Başlık / ayarlar ----------------
+    $('kqMetaSave').addEventListener('click', function () {
+        var title = $('kqMetaTitle').value.trim(), desc = $('kqMetaDesc').value.trim();
+        api(URLS.meta, { title: title, description: desc }).then(function (j) {
+            $('kqTitleText').textContent = j.title; document.title = j.title + ' — Yarışma Editörü';
+            bootstrap.Modal.getOrCreateInstance($('kqSettings')).hide();
+            KQ.toast('Yarışma bilgileri kaydedildi');
+        }).catch(function (e) { KQ.toast(e.message, true); });
+    });
+    $('kqSettings').addEventListener('shown.bs.modal', function () { $('kqMetaTitle').focus(); $('kqMetaTitle').select(); });
+
+    // ---------------- Başlat ----------------
+    $('kqStartForm').addEventListener('submit', function (e) {
+        e.preventDefault();
+        var form = this, btn = $('kqStartBtn');
+        btn.disabled = true;
+        flush().catch(function () {}).then(function () {
+            for (var i = 0; i < questions.length; i++) {
+                var iss = localIssues(questions[i]);
+                if (iss.length) {
+                    select(questions[i].id);
+                    KQ.toast((i + 1) + '. soru eksik: ' + iss.join(', '), true);
+                    btn.disabled = false;
+                    return;
+                }
+            }
+            form.submit();
+        });
+    });
+
+    // ---------------- Başlangıç ----------------
+    {% for category, message in get_flashed_messages(with_categories=true) %}
+    KQ.toast({{ message|tojson }}, {{ 'true' if category in ('danger', 'warning', 'error') else 'false' }});
+    {% endfor %}
+    renderRail();
+    renderEditor();
+    {% if request.args.get('new') %}
+    setTimeout(function () { qInput.focus(); }, 150);
+    {% endif %}
 })();
 </script>
 {% endblock %}
