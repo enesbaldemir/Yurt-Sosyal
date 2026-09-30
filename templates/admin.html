@@ -3,14 +3,108 @@
 {% block title %}Yönetim Paneli — Yurt Sosyal{% endblock %}
 {% block shell_class %}full-width{% endblock %}
 {% block context_panel %}{% endblock %}
+{% block extra_css %}
+<style>
+    .admin-tabs-scroll { flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; }
+    .admin-tabs-scroll .nav-link { white-space: nowrap; }
+    .rp-intro { display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem; flex-wrap: wrap; }
+    .rp-layout { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 1rem; align-items: start; }
+    .rp-list { position: sticky; top: calc(var(--header-height) + 12px); overflow: hidden; }
+    .rp-items { max-height: 62vh; overflow-y: auto; padding: .35rem; display: flex; flex-direction: column; gap: 2px; }
+    .rp-item { display: flex; align-items: center; gap: .6rem; padding: .55rem .6rem; border-radius: var(--radius-sm); cursor: pointer; border: 1px solid transparent; transition: background .15s, border-color .15s; position: relative; }
+    .rp-item:hover { background: var(--hover); }
+    .rp-item.is-active { background: color-mix(in srgb, var(--rc) 9%, var(--surface)); border-color: color-mix(in srgb, var(--rc) 35%, transparent); }
+    .rp-item:focus-visible { outline: 2px solid var(--rc); outline-offset: 1px; }
+    .rp-item.is-dragging { opacity: .4; }
+    .rp-item.drop-before { box-shadow: 0 -2px 0 var(--gold); }
+    .rp-item.drop-after { box-shadow: 0 2px 0 var(--gold); }
+    .rp-dot { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; flex: 0 0 auto; color: var(--rc); background: color-mix(in srgb, var(--rc) 14%, transparent); font-size: 1rem; }
+    .rp-item-title { font-weight: 700; font-size: .86rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .rp-item-meta { font-size: .7rem; color: var(--text-muted); display: flex; gap: .4rem; align-items: center; }
+    .rp-item .count { margin-left: auto; font-size: .7rem; font-weight: 700; color: var(--text-muted); background: var(--hover); border-radius: 999px; padding: 1px 8px; flex: 0 0 auto; }
+    .rp-list-foot { font-size: .68rem; color: var(--text-faint); padding: .5rem .8rem; border-top: 1px solid var(--border); }
+    .rp-editor { overflow: hidden; }
+    .rp-ed-head { display: flex; align-items: center; gap: .9rem; padding: 1rem 1.1rem; border-bottom: 1px solid var(--border); flex-wrap: wrap;
+        background: linear-gradient(135deg, color-mix(in srgb, var(--rc, #6b7280) 10%, var(--surface)), var(--surface)); }
+    .rp-ed-avatar { width: 48px; height: 48px; border-radius: 14px; display: grid; place-items: center; font-size: 1.35rem; color: #fff; background: var(--rc, #6b7280); box-shadow: 0 8px 18px -8px var(--rc, #6b7280); flex: 0 0 auto; }
+    .rp-dirty { font-size: .72rem; font-weight: 700; color: var(--warning); }
+    .rp-body { padding: 1.1rem; }
+    .rp-lock-note { background: var(--warning-bg); color: var(--warning); border-radius: var(--radius-sm); padding: .55rem .8rem; font-size: .8rem; font-weight: 600; margin-bottom: 1rem; }
+    .rp-swatches, .rp-icons { display: flex; flex-wrap: wrap; gap: .35rem; }
+    .rp-swatch { width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--surface); background: var(--sw); box-shadow: 0 0 0 1px var(--border); cursor: pointer; padding: 0; transition: transform .12s; position: relative; }
+    .rp-swatch:hover { transform: scale(1.12); }
+    .rp-swatch.is-on { box-shadow: 0 0 0 2px var(--text); }
+    .rp-swatch-custom { display: grid; place-items: center; background: conic-gradient(red, yellow, lime, aqua, blue, magenta, red); color: #fff; font-size: .7rem; overflow: hidden; }
+    .rp-swatch-custom input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+    .rp-icon { width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text-muted); cursor: pointer; display: grid; place-items: center; transition: all .12s; }
+    .rp-icon:hover { color: var(--text); border-color: var(--border-strong); }
+    .rp-icon.is-on { background: var(--rc); color: #fff; border-color: var(--rc); }
+    .rp-presets { display: flex; flex-wrap: wrap; gap: .35rem; align-items: center; padding: .6rem .7rem; border-radius: var(--radius-md); background: var(--hover); }
+    .rp-presets button { border: 1px solid var(--border); background: var(--surface); color: var(--text); border-radius: 999px; font-size: .74rem; font-weight: 600; padding: .2rem .7rem; cursor: pointer; }
+    .rp-presets button:hover { border-color: var(--gold); color: var(--gold); }
+    .rp-section { border-top: 1px solid var(--border); padding-top: 1rem; margin-top: 1rem; }
+    .rp-section-head { display: flex; justify-content: space-between; align-items: flex-start; gap: .8rem; margin-bottom: .7rem; flex-wrap: wrap; }
+    .rp-perm-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: .5rem; }
+    .rp-perm { display: flex; gap: .65rem; align-items: flex-start; padding: .65rem .75rem; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); cursor: pointer; transition: border-color .15s, background .15s; user-select: none; }
+    .rp-perm:hover { border-color: var(--border-strong); }
+    .rp-perm.is-on { border-color: color-mix(in srgb, var(--rc, #6b7280) 45%, transparent); background: color-mix(in srgb, var(--rc, #6b7280) 6%, var(--surface)); }
+    .rp-perm.is-disabled { opacity: .55; cursor: not-allowed; }
+    .rp-perm.is-full { grid-column: 1 / -1; }
+    .rp-perm-ico { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; background: var(--hover); color: var(--text-muted); flex: 0 0 auto; }
+    .rp-perm.is-on .rp-perm-ico { background: var(--rc, #6b7280); color: #fff; }
+    .rp-perm-txt { flex: 1; min-width: 0; }
+    .rp-perm-txt b { font-size: .82rem; display: block; }
+    .rp-perm-txt span { font-size: .72rem; color: var(--text-muted); line-height: 1.35; display: block; }
+    .rp-switch { width: 36px; height: 20px; border-radius: 999px; background: var(--border-strong); position: relative; flex: 0 0 auto; transition: background .15s; margin-top: 4px; }
+    .rp-switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.25); transition: transform .18s; }
+    .rp-perm.is-on .rp-switch { background: var(--rc, var(--success)); }
+    .rp-perm.is-on .rp-switch::after { transform: translateX(16px); }
+    .rp-members { display: flex; flex-wrap: wrap; gap: .35rem; }
+    .rp-member { display: inline-flex; align-items: center; gap: .35rem; font-size: .76rem; font-weight: 600; padding: .2rem .6rem .2rem .25rem; border-radius: 999px; background: var(--hover); color: var(--text); text-decoration: none; }
+    .rp-member .av { width: 20px; height: 20px; border-radius: 50%; background: var(--rc, #6b7280); color: #fff; display: grid; place-items: center; font-size: .62rem; }
+    .rp-matrix th, .rp-matrix td { font-size: .74rem; text-align: center; vertical-align: middle; white-space: nowrap; }
+    .rp-matrix th:first-child, .rp-matrix td:first-child { text-align: left; position: sticky; left: 0; background: var(--surface); z-index: 1; }
+    .rp-matrix thead th { position: sticky; top: 0; background: var(--surface); z-index: 2; }
+    .rp-matrix .yes { color: var(--success); font-weight: 800; }
+    .rp-matrix .no { color: var(--text-faint); }
+    .rp-toast { position: fixed; left: 50%; bottom: 84px; transform: translate(-50%, 16px); opacity: 0; z-index: 2000; background: var(--text); color: var(--bg); padding: .6rem 1rem; border-radius: 10px; font-weight: 600; font-size: .85rem; transition: all .25s; pointer-events: none; max-width: calc(100vw - 32px); }
+    .rp-toast.show { opacity: 1; transform: translate(-50%, 0); }
+    .rp-toast.err { background: var(--danger); color: #fff; }
+    @media (max-width: 991.98px) {
+        .rp-layout { grid-template-columns: 1fr; }
+        .rp-list { position: static; }
+        .rp-items { flex-direction: row; overflow-x: auto; max-height: none; }
+        .rp-item { flex: 0 0 auto; min-width: 190px; }
+        .rp-list-foot { display: none; }
+    }
+</style>
+{% endblock %}
 {% block content %}
 
-<div class="d-flex align-items-center justify-content-between mb-4">
+{% set admin_tabs = [
+    ('tab-attendance', ['manage_attendance'], 'bi-clipboard-check', 'Yoklamalar'),
+    ('tab-users', ['manage_users'], 'bi-people', 'Öğrenciler'),
+    ('tab-roles', ['manage_roles'], 'bi-person-gear', 'Roller & Yetkiler'),
+    ('tab-events', ['manage_events'], 'bi-calendar3', 'Etkinlikler'),
+    ('tab-menu', ['manage_menu'], 'bi-cup-hot', 'Menü & Excel'),
+    ('tab-announce', ['manage_announcements', 'manage_polls'], 'bi-megaphone', 'Duyuru & Anket'),
+    ('tab-maint', ['manage_maintenance'], 'bi-tools', 'Talepler'),
+    ('tab-laundry', ['manage_laundry'], 'bi-basket', 'Çamaşırhane'),
+    ('tab-messages', ['moderate_content'], 'bi-chat-dots', 'Mesajlar'),
+    ('tab-analytics', ['view_analytics'], 'bi-bar-chart', 'Analitik & Rapor'),
+] %}
+{% set ns = namespace(first=None, count=0) %}
+{% for t in admin_tabs %}{% set ok = namespace(v=False) %}{% for pk in t[1] %}{% if can(pk) %}{% set ok.v = True %}{% endif %}{% endfor %}{% if ok.v %}{% set ns.count = ns.count + 1 %}{% if not ns.first %}{% set ns.first = t[0] %}{% endif %}{% endif %}{% endfor %}
+{% set first_tab = ns.first %}
+
+<div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
     <div>
         <span class="kicker">Yönetim & Moderasyon</span>
         <h3 class="serif-heading mb-0" style="font-size: 2rem;">Yönetim Paneli</h3>
     </div>
-    <span class="badge-tag badge-gold"><i class="bi bi-shield-check me-1"></i> Admin Yetkisi</span>
+    <span class="role-badge {{ current_role_info.class }}" style="font-size:.8rem; padding:5px 12px;">
+        <i class="bi {{ current_role_info.icon }} me-1"></i>{{ current_role_info.title }}{% if not is_full_admin %} · {{ ns.count }} yetki alanı{% endif %}
+    </span>
 </div>
 
 <!-- ===================== NOTION/LINEAR STİLİ METRİK KARTLARI ===================== -->
@@ -42,21 +136,18 @@
 </div>
 
 <!-- ===================== SEKMELER ===================== -->
-<ul class="nav nav-tabs mb-4" id="adminTabs" role="tablist">
-    <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-attendance" type="button"><i class="bi bi-clipboard-check me-1"></i> Yoklamalar</button></li>
-    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-users" type="button"><i class="bi bi-people me-1"></i> Öğrenciler</button></li>
-    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-events" type="button"><i class="bi bi-calendar3 me-1"></i> Etkinlikler</button></li>
-    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-menu" type="button"><i class="bi bi-cup-hot me-1"></i> Menü & Excel</button></li>
-    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-announce" type="button"><i class="bi bi-megaphone me-1"></i> Duyurular</button></li>
-    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-maint" type="button"><i class="bi bi-tools me-1"></i> Talepler</button></li>
-    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-laundry" type="button">{{ icons.washing_machine_icon(16, 'me-1') }} Çamaşırhane</button></li>
-    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-messages" type="button"><i class="bi bi-chat-dots me-1"></i> Mesajlar</button></li>
-    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-analytics" type="button"><i class="bi bi-bar-chart me-1"></i> Analitik & Rapor</button></li>
+<ul class="nav nav-tabs mb-4 admin-tabs-scroll" id="adminTabs" role="tablist">
+    {% for t in admin_tabs %}{% set ok = namespace(v=False) %}{% for pk in t[1] %}{% if can(pk) %}{% set ok.v = True %}{% endif %}{% endfor %}
+    {% if ok.v %}
+    <li class="nav-item"><button class="nav-link {{ 'active' if t[0] == first_tab }}" data-bs-toggle="tab" data-bs-target="#{{ t[0] }}" type="button" role="tab"><i class="bi {{ t[2] }} me-1"></i> {{ t[3] }}</button></li>
+    {% endif %}
+    {% endfor %}
 </ul>
 
 <div class="tab-content">
     <!-- 1. YOKLAMALAR -->
-    <div class="tab-pane fade show active" id="tab-attendance">
+    {% if can('manage_attendance') %}
+    <div class="tab-pane fade {{ 'show active' if first_tab == 'tab-attendance' }}" id="tab-attendance">
         <div class="card card-pad mb-3">
             <div class="d-flex align-items-center justify-content-between gap-3 flex-wrap">
                 <div>
@@ -121,38 +212,54 @@
             </div>
         </div>
     </div>
+    {% endif %}
 
     <!-- 2. KULLANICILAR / ÖĞRENCİLER -->
-    <div class="tab-pane fade" id="tab-users">
+    {% if can('manage_users') %}
+    <div class="tab-pane fade {{ 'show active' if first_tab == 'tab-users' }}" id="tab-users">
+        <div class="card card-pad-sm mb-3">
+            <div class="d-flex flex-wrap gap-2 align-items-center">
+                <div class="position-relative flex-fill" style="min-width:220px;">
+                    <i class="bi bi-search position-absolute" style="left:12px; top:50%; transform:translateY(-50%); color:var(--text-faint);"></i>
+                    <input type="search" id="userSearch" class="form-control form-control-sm" style="padding-left:34px;" placeholder="İsim, kullanıcı adı ya da oda ara…">
+                </div>
+                <select id="userRoleFilter" class="form-select form-select-sm" style="max-width:230px;">
+                    <option value="">Tüm roller</option>
+                    {% for key, r_info in user_roles.items() %}
+                    <option value="{{ key }}">{{ r_info.title }} ({{ role_counts.get(key, 0) }})</option>
+                    {% endfor %}
+                </select>
+                <span class="badge-tag" id="userCountTag">{{ users|length }} kullanıcı</span>
+            </div>
+        </div>
         <div class="card">
             <div class="table-responsive">
-                <table class="table table-hover mb-0 align-middle">
+                <table class="table table-hover mb-0 align-middle" id="usersTable">
                     <thead>
                         <tr>
-                            <th>ID</th>
                             <th>Kullanıcı</th>
-                            <th>Kullanıcı Adı</th>
                             <th>Oda</th>
                             <th>Yurt Durumu</th>
-                            <th>Atanmış Rol & Yetki</th>
+                            <th>Rol & Yetki</th>
                             <th class="text-end">İşlemler</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for user in users %}
-                        {% set u_role_key = user.role or ('yurt_muduru' if user.is_admin else 'ogrenci') %}
-                        {% set u_role = user_roles.get(u_role_key, user_roles['ogrenci']) %}
-                        <tr>
-                            <td class="text-muted small">#{{ user.id }}</td>
+                        {% set u_role_key = user.role if user.role in user_roles else ('yurt_muduru' if user.id == 1 else 'ogrenci') %}
+                        {% set u_role = user_roles[u_role_key] %}
+                        <tr data-user-row data-role="{{ u_role_key }}" data-search="{{ (user.full_name or '')|lower }} {{ user.username|lower }} {{ (user.room_number or '')|lower }}">
                             <td>
-                                <div>
-                                    <a href="{{ url_for('profile', username=user.username) }}" class="fw-bold text-decoration-none d-block">{{ user.full_name }}</a>
-                                    <span class="role-badge {{ u_role.class }}" style="font-size:0.68rem; padding:1px 6px;">
-                                        <i class="bi {{ u_role.icon }} me-1"></i>{{ u_role.badge }}
+                                <div class="d-flex align-items-center gap-2">
+                                    <span class="avatar" style="width:34px;height:34px;font-size:.75rem; flex:0 0 auto;">
+                                        {% if user.profile_photo %}<img src="{{ url_for('static', filename='uploads/profiles/' + user.profile_photo) }}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">{% else %}{{ (user.full_name or user.username)[0]|upper }}{% endif %}
                                     </span>
+                                    <div class="min-w-0">
+                                        <a href="{{ url_for('profile', username=user.username) }}" class="fw-bold text-decoration-none d-block text-truncate">{{ user.full_name or user.username }}</a>
+                                        <span class="text-muted small">@{{ user.username }} · #{{ user.id }}</span>
+                                    </div>
                                 </div>
                             </td>
-                            <td class="text-muted small">@{{ user.username }}</td>
                             <td>{{ user.room_number or '-' }}</td>
                             <td>
                                 <a href="{{ url_for('toggle_in_dorm', user_id=user.id) }}" class="text-decoration-none">
@@ -164,17 +271,25 @@
                                 </a>
                             </td>
                             <td>
-                                <form method="POST" action="{{ url_for('set_user_role', user_id=user.id) }}" class="d-flex align-items-center gap-2">
-                                    <select name="role" class="form-select form-select-sm" onchange="this.form.submit()" style="min-width:180px; font-size:0.78rem; font-weight:600;">
+                                <div class="d-flex align-items-center gap-2 flex-wrap">
+                                    <span class="role-badge {{ u_role.class }}" data-role-badge style="font-size:0.7rem; padding:2px 8px;">
+                                        <i class="bi {{ u_role.icon }} me-1"></i>{{ u_role.badge }}
+                                    </span>
+                                    {% if user.id == 1 %}
+                                    <span class="text-muted small"><i class="bi bi-lock-fill"></i> Kurucu hesap</span>
+                                    {% else %}
+                                    <select class="form-select form-select-sm role-select" data-user-id="{{ user.id }}" data-prev="{{ u_role_key }}" aria-label="{{ user.full_name }} için rol" style="min-width:170px; max-width:220px; font-size:0.78rem; font-weight:600;">
                                         {% for key, r_info in user_roles.items() %}
-                                        <option value="{{ key }}" {{ 'selected' if u_role_key == key }}>{{ r_info.title }}</option>
+                                        {% set restricted = (r_info.permissions.get('full_admin') or r_info.permissions.get('manage_roles')) and not is_full_admin %}
+                                        <option value="{{ key }}" {{ 'selected' if u_role_key == key }} {{ 'disabled' if restricted and u_role_key != key }}>{{ r_info.title }}{{ ' 🔒' if restricted else '' }}</option>
                                         {% endfor %}
                                     </select>
-                                </form>
+                                    {% endif %}
+                                </div>
                             </td>
-                            <td class="text-end">
+                            <td class="text-end text-nowrap">
                                 <a href="{{ url_for('profile', username=user.username) }}" class="btn btn-secondary btn-sm me-1" title="Profili Gör"><i class="bi bi-person"></i></a>
-                                {% if user.id != session.user_id %}
+                                {% if user.id != session.user_id and user.id != 1 %}
                                 <a href="{{ url_for('delete_user', user_id=user.id) }}" class="btn btn-soft-danger btn-sm" onclick="return confirm('Bu kullanıcı hesabını kalıcı olarak silmek istediğinizden emin misiniz?')" title="Kullanıcıyı Sil">
                                     <i class="bi bi-trash3"></i>
                                 </a>
@@ -184,12 +299,159 @@
                         {% endfor %}
                     </tbody>
                 </table>
+                <div class="text-center text-muted small py-4" id="usersEmpty" hidden>Aramana uyan kullanıcı yok.</div>
             </div>
         </div>
     </div>
+    {% endif %}
+
+    <!-- 2b. ROLLER & YETKİLER -->
+    {% if can('manage_roles') %}
+    <div class="tab-pane fade {{ 'show active' if first_tab == 'tab-roles' }}" id="tab-roles">
+        <div class="rp-intro mb-3">
+            <div>
+                <span class="kicker">Erişim Kontrolü</span>
+                <h5 class="fw-bold mb-1">Roller & Yetkiler</h5>
+                <p class="text-muted small mb-0">Her rol için hangi sayfalara girilebileceğini ve hangi yönetim işlemlerinin yapılabileceğini belirle. Değişiklikler kaydettiğin anda o roldeki herkese uygulanır.</p>
+            </div>
+            <div class="d-flex gap-2 flex-wrap">
+                <button type="button" class="btn btn-secondary btn-sm" id="rpMatrixBtn"><i class="bi bi-grid-3x3-gap me-1"></i> Yetki matrisi</button>
+                <button type="button" class="btn btn-primary btn-sm" id="rpNewBtn"><i class="bi bi-plus-lg me-1"></i> Yeni rol</button>
+            </div>
+        </div>
+
+        <div class="rp-layout">
+            <!-- Rol listesi -->
+            <aside class="rp-list card">
+                <div class="p-2 border-bottom" style="border-color: var(--border) !important;">
+                    <div class="position-relative">
+                        <i class="bi bi-search position-absolute" style="left:10px; top:50%; transform:translateY(-50%); color:var(--text-faint); font-size:.8rem;"></i>
+                        <input type="search" class="form-control form-control-sm" id="rpSearch" placeholder="Rol ara…" style="padding-left:30px;">
+                    </div>
+                </div>
+                <div class="rp-items" id="rpItems" role="listbox" aria-label="Roller"></div>
+                <div class="rp-list-foot">Sürükleyerek sıralayabilirsin · <i class="bi bi-lock-fill"></i> temel roller silinemez</div>
+            </aside>
+
+            <!-- Rol düzenleyici -->
+            <section class="rp-editor card" id="rpEditor" aria-live="polite">
+                <header class="rp-ed-head">
+                    <div class="rp-ed-avatar" id="rpAvatar"><i class="bi bi-person"></i></div>
+                    <div class="min-w-0 flex-fill">
+                        <div class="d-flex align-items-center gap-2 flex-wrap">
+                            <h5 class="fw-bold mb-0 text-truncate" id="rpHeadTitle">Rol</h5>
+                            <span class="role-badge" id="rpPreviewBadge"><i class="bi bi-person me-1"></i><span>Rozet</span></span>
+                            <span class="rp-dirty" id="rpDirty" hidden>● Kaydedilmemiş değişiklik</span>
+                        </div>
+                        <div class="text-muted small" id="rpHeadMeta"></div>
+                    </div>
+                    <div class="d-flex gap-2 flex-wrap">
+                        <button type="button" class="btn btn-secondary btn-sm" id="rpDupBtn" title="Bu rolü kopyalayarak yeni rol oluştur"><i class="bi bi-copy"></i><span class="d-none d-md-inline ms-1">Kopyala</span></button>
+                        <button type="button" class="btn btn-soft-danger btn-sm" id="rpDelBtn"><i class="bi bi-trash3"></i><span class="d-none d-md-inline ms-1">Sil</span></button>
+                        <button type="button" class="btn btn-primary btn-sm" id="rpSaveBtn"><i class="bi bi-check2 me-1"></i> Kaydet</button>
+                    </div>
+                </header>
+
+                <div class="rp-body">
+                    <div class="rp-lock-note" id="rpLockNote" hidden><i class="bi bi-shield-lock-fill"></i> <span></span></div>
+
+                    <div class="row g-3 mb-2">
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold" for="rpTitle">Rol adı</label>
+                            <input type="text" class="form-control form-control-sm" id="rpTitle" maxlength="60" placeholder="Örn: Kütüphane Sorumlusu">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold" for="rpBadge">Rozet metni <span class="text-muted fw-normal">(profilde görünür)</span></label>
+                            <input type="text" class="form-control form-control-sm" id="rpBadge" maxlength="30" placeholder="Örn: Kütüphane">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label small fw-semibold" for="rpDesc">Açıklama</label>
+                            <input type="text" class="form-control form-control-sm" id="rpDesc" maxlength="200" placeholder="Bu rol ne iş yapar?">
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-5">
+                            <div class="form-label small fw-semibold">Renk</div>
+                            <div class="rp-swatches" id="rpColors">
+                                {% for c in role_color_palette %}<button type="button" class="rp-swatch" data-color="{{ c }}" style="--sw: {{ c }};" aria-label="Renk {{ c }}"></button>{% endfor %}
+                                <label class="rp-swatch rp-swatch-custom" title="Özel renk"><i class="bi bi-eyedropper"></i><input type="color" id="rpColorCustom" value="#6b7280"></label>
+                            </div>
+                        </div>
+                        <div class="col-md-7">
+                            <div class="form-label small fw-semibold">İkon</div>
+                            <div class="rp-icons" id="rpIcons">
+                                {% for ic in role_icon_choices %}<button type="button" class="rp-icon" data-icon="{{ ic }}" aria-label="{{ ic }}"><i class="bi {{ ic }}"></i></button>{% endfor %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="rp-presets mb-3">
+                        <span class="small fw-semibold text-muted me-1"><i class="bi bi-magic"></i> Hızlı şablon:</span>
+                        <button type="button" data-preset="student">Öğrenci</button>
+                        <button type="button" data-preset="floor">Kat sorumlusu</button>
+                        <button type="button" data-preset="kitchen">Yemekhane</button>
+                        <button type="button" data-preset="events">Etkinlik ekibi</button>
+                        <button type="button" data-preset="moderator">Moderatör</button>
+                        <button type="button" data-preset="restricted">Kısıtlı misafir</button>
+                        {% if is_full_admin %}<button type="button" data-preset="full">Tam yönetici</button>{% endif %}
+                    </div>
+
+                    <div class="rp-section">
+                        <div class="rp-section-head">
+                            <div>
+                                <div class="fw-bold"><i class="bi bi-window-stack me-1"></i> Sayfa Erişimi</div>
+                                <div class="text-muted small">Bu roldeki kişiler hangi sayfaları görebilir ve kullanabilir?</div>
+                            </div>
+                            <div class="d-flex gap-1">
+                                <button type="button" class="btn btn-secondary btn-sm py-0" data-bulk="pages-on">Tümü açık</button>
+                                <button type="button" class="btn btn-secondary btn-sm py-0" data-bulk="pages-off">Tümü kapalı</button>
+                            </div>
+                        </div>
+                        <div class="rp-perm-grid" id="rpPages"></div>
+                    </div>
+
+                    <div class="rp-section">
+                        <div class="rp-section-head">
+                            <div>
+                                <div class="fw-bold"><i class="bi bi-shield-check me-1"></i> Yönetim Yetkileri</div>
+                                <div class="text-muted small">En az bir yönetim yetkisi olan roller Yönetim Paneli'ni görür; panelde yalnızca yetkili oldukları sekmeler açılır.</div>
+                            </div>
+                        </div>
+                        <div class="rp-perm-grid" id="rpAdmin"></div>
+                    </div>
+
+                    <div class="rp-section">
+                        <div class="rp-section-head">
+                            <div class="fw-bold"><i class="bi bi-people me-1"></i> Bu roldeki kişiler <span class="badge-tag ms-1" id="rpMembersCount">0</span></div>
+                            <button type="button" class="btn btn-link btn-sm p-0" id="rpGoUsers">Kullanıcılar sekmesinde rol ata →</button>
+                        </div>
+                        <div class="rp-members" id="rpMembers"></div>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <!-- Yetki matrisi -->
+        <div class="modal fade" id="rpMatrixModal" tabindex="-1" aria-labelledby="rpMatrixTitle" aria-hidden="true">
+            <div class="modal-dialog modal-xl modal-dialog-scrollable">
+                <div class="modal-content" style="background: var(--surface); color: var(--text);">
+                    <div class="modal-header" style="border-color: var(--border);">
+                        <h5 class="modal-title fw-bold" id="rpMatrixTitle"><i class="bi bi-grid-3x3-gap me-1"></i> Yetki Matrisi</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Kapat"></button>
+                    </div>
+                    <div class="modal-body p-0">
+                        <div class="table-responsive"><table class="table table-sm mb-0 rp-matrix" id="rpMatrix"></table></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
 
     <!-- 3. ETKİNLİKLER -->
-    <div class="tab-pane fade" id="tab-events">
+    {% if can('manage_events') %}
+    <div class="tab-pane fade {{ 'show active' if first_tab == 'tab-events' }}" id="tab-events">
         <div class="card">
             <div class="table-responsive">
                 <table class="table table-hover mb-0">
@@ -224,9 +486,11 @@
             </div>
         </div>
     </div>
+    {% endif %}
 
     <!-- 4. MENÜ & EXCEL AKTARIMI -->
-    <div class="tab-pane fade" id="tab-menu">
+    {% if can('manage_menu') %}
+    <div class="tab-pane fade {{ 'show active' if first_tab == 'tab-menu' }}" id="tab-menu">
         <div class="row g-4 mb-4">
             <!-- EXCEL YÜKLEME -->
             <div class="col-lg-6">
@@ -394,9 +658,12 @@
             </div>
         </div>
     </div>
+    {% endif %}
 
     <!-- 5. DUYURULAR -->
-    <div class="tab-pane fade" id="tab-announce">
+    {% if (can('manage_announcements') or can('manage_polls')) %}
+    <div class="tab-pane fade {{ 'show active' if first_tab == 'tab-announce' }}" id="tab-announce">
+        {% if can('manage_announcements') %}
         <div class="card card-pad mb-4">
             <div class="section-title mb-3">
                 <span><i class="bi bi-plus-circle me-1"></i> Yeni Duyuru Yayınla</span>
@@ -454,6 +721,8 @@
             {% endfor %}
         </div>
 
+        {% endif %}
+        {% if can('manage_polls') %}
         <!-- ANA SAYFA ANKETİ -->
         <div class="card card-pad mt-4">
             <div class="section-title mb-3">
@@ -494,10 +763,13 @@
                 {% endfor %}
             </div>
         </div>
+        {% endif %}
     </div>
+    {% endif %}
 
     <!-- 6. ARIZA & TALEPLER -->
-    <div class="tab-pane fade" id="tab-maint">
+    {% if can('manage_maintenance') %}
+    <div class="tab-pane fade {{ 'show active' if first_tab == 'tab-maint' }}" id="tab-maint">
         <div class="card">
             <div class="table-responsive">
                 <table class="table table-hover mb-0">
@@ -545,10 +817,12 @@
             </div>
         </div>
     </div>
+    {% endif %}
 
     <!-- 7. MESAJ MODERASYONU -->
     <!-- ÇAMAŞIRHANE -->
-    <div class="tab-pane fade" id="tab-laundry">
+    {% if can('manage_laundry') %}
+    <div class="tab-pane fade {{ 'show active' if first_tab == 'tab-laundry' }}" id="tab-laundry">
         <div class="row g-4">
             <div class="col-lg-5">
                 <div class="card card-pad h-100">
@@ -589,8 +863,10 @@
             </div>
         </div>
     </div>
+    {% endif %}
 
-    <div class="tab-pane fade" id="tab-messages">
+    {% if can('moderate_content') %}
+    <div class="tab-pane fade {{ 'show active' if first_tab == 'tab-messages' }}" id="tab-messages">
         <div class="card">
             <div class="table-responsive">
                 <table class="table table-hover mb-0">
@@ -622,9 +898,11 @@
             </div>
         </div>
     </div>
+    {% endif %}
 
     <!-- 8. ANALİTİK VE GERİ BİLDİRİM RAPORU -->
-    <div class="tab-pane fade" id="tab-analytics">
+    {% if can('view_analytics') %}
+    <div class="tab-pane fade {{ 'show active' if first_tab == 'tab-analytics' }}" id="tab-analytics">
         <div class="card card-pad mb-4">
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <div>
@@ -706,6 +984,7 @@
             </div>
         </div>
     </div>
+    {% endif %}
 </div>
 
 {% endblock %}
@@ -723,5 +1002,331 @@ function loadMenuToAdminForm(date, b, d, s) {
     if (sInput) sInput.value = s || '';
     if (dInput) dInput.scrollIntoView({ behavior: 'smooth' });
 }
+</script>
+<div class="rp-toast" id="rpToast" role="status"></div>
+<script>
+(function () {
+    'use strict';
+    var $ = function (id) { return document.getElementById(id); };
+    function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+    var toastT = null;
+    function toast(msg, err) {
+        var t = $('rpToast'); t.textContent = msg; t.classList.toggle('err', !!err); t.classList.add('show');
+        clearTimeout(toastT); toastT = setTimeout(function () { t.classList.remove('show'); }, 2800);
+    }
+    function post(url, body) {
+        return fetch(url, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }, body: JSON.stringify(body || {}) })
+            .then(function (r) { return r.json().catch(function () { return { ok: false, error: 'Sunucu yanıtı okunamadı.' }; }).then(function (j) { if (!r.ok || !j.ok) throw new Error(j.error || 'İşlem başarısız.'); return j; }); });
+    }
+
+    // ---------- Sekme hatırlama ----------
+    var tabs = document.querySelectorAll('#adminTabs [data-bs-toggle="tab"]');
+    tabs.forEach(function (b) { b.addEventListener('shown.bs.tab', function () { try { sessionStorage.setItem('admin-tab', b.dataset.bsTarget); } catch (e) {} }); });
+    try {
+        var want = location.hash && document.querySelector('#adminTabs [data-bs-target="' + location.hash + '"]') ? location.hash : sessionStorage.getItem('admin-tab');
+        var btn = want && document.querySelector('#adminTabs [data-bs-target="' + want + '"]');
+        if (btn && window.bootstrap) bootstrap.Tab.getOrCreateInstance(btn).show();
+    } catch (e) {}
+
+    // ---------- Kullanıcılar: arama, filtre, anında rol atama ----------
+    var uSearch = $('userSearch'), uFilter = $('userRoleFilter');
+    function filterUsers() {
+        if (!uSearch) return;
+        var q = uSearch.value.trim().toLocaleLowerCase('tr-TR'), r = uFilter.value, n = 0;
+        document.querySelectorAll('[data-user-row]').forEach(function (row) {
+            var ok = (!q || row.dataset.search.indexOf(q) > -1) && (!r || row.dataset.role === r);
+            row.hidden = !ok; if (ok) n++;
+        });
+        $('userCountTag').textContent = n + ' kullanıcı';
+        $('usersEmpty').hidden = n > 0;
+    }
+    if (uSearch) { uSearch.addEventListener('input', filterUsers); uFilter.addEventListener('change', filterUsers); }
+    document.querySelectorAll('.role-select').forEach(function (sel) {
+        sel.addEventListener('change', function () {
+            var uid = sel.dataset.userId, prev = sel.dataset.prev, role = sel.value;
+            sel.disabled = true;
+            post('/admin/user/' + uid + '/role', { role: role }).then(function (j) {
+                var row = sel.closest('tr'), badge = row.querySelector('[data-role-badge]');
+                badge.className = 'role-badge ' + j.role_class;
+                badge.innerHTML = '<i class="bi ' + esc(j.role_icon) + ' me-1"></i>' + esc(j.role_badge);
+                row.dataset.role = j.role; sel.dataset.prev = j.role;
+                if (window.RP) RP.memberMoved(Number(uid), prev, j.role);
+                toast(j.message);
+            }).catch(function (e) { sel.value = prev; toast(e.message, true); })
+              .finally(function () { sel.disabled = false; });
+        });
+    });
+
+    // ---------- Roller & Yetkiler ----------
+    if (!$('rpItems')) return;
+    var roles = {{ roles_payload|tojson }};
+    var CAT = {{ perm_catalog|tojson }};
+    var IS_FULL = {{ 'true' if is_full_admin else 'false' }};
+    var USERS = [{% for u in users %}{ id: {{ u.id }}, name: {{ (u.full_name or u.username)|tojson }}, username: {{ u.username|tojson }}, role: {{ (u.role if u.role in user_roles else 'ogrenci')|tojson }} }{{ ',' if not loop.last }}{% endfor %}];
+    var PAGE_KEYS = CAT.pages.map(function (p) { return p.key; }), ADMIN_KEYS = CAT.admin.map(function (p) { return p.key; });
+    var PRESETS = {
+        student: { pages: 'all', admin: [] },
+        floor: { pages: 'all', admin: ['manage_attendance'] },
+        kitchen: { pages: 'all', admin: ['manage_menu', 'manage_polls'] },
+        events: { pages: 'all', admin: ['manage_events', 'manage_announcements', 'manage_polls', 'manage_quizzes'] },
+        moderator: { pages: 'all', admin: ['moderate_content', 'view_analytics'] },
+        restricted: { pages: ['page_menu', 'page_announcements', 'page_attendance', 'page_maintenance', 'page_laundry'], admin: [] },
+        full: { pages: 'all', admin: ['full_admin'] }
+    };
+    var current = null, draft = null, dirty = false;
+
+    function find(key) { for (var i = 0; i < roles.length; i++) if (roles[i].key === key) return roles[i]; return null; }
+    function permOn(perms, key) {
+        if (perms.full_admin) return true;
+        if (PAGE_KEYS.indexOf(key) > -1) return perms[key] !== false;
+        return !!perms[key];
+    }
+    function summary(r) {
+        if (r.permissions.full_admin) return 'Tam yönetici';
+        var a = ADMIN_KEYS.filter(function (k) { return r.permissions[k]; }).length;
+        var off = PAGE_KEYS.filter(function (k) { return r.permissions[k] === false; }).length;
+        return (a ? a + ' yönetim yetkisi' : 'Yönetim yetkisi yok') + (off ? ' · ' + off + ' sayfa kapalı' : '');
+    }
+    function membersOf(key) { return USERS.filter(function (u) { return u.role === key; }); }
+
+    function renderList() {
+        var q = ($('rpSearch').value || '').toLocaleLowerCase('tr-TR'), box = $('rpItems');
+        box.innerHTML = '';
+        roles.forEach(function (r) {
+            if (q && (r.title + ' ' + r.badge).toLocaleLowerCase('tr-TR').indexOf(q) < 0) return;
+            var el = document.createElement('div');
+            el.className = 'rp-item' + (current === r.key ? ' is-active' : '');
+            el.dataset.key = r.key; el.tabIndex = 0; el.setAttribute('role', 'option');
+            el.draggable = r.key !== 'ogrenci';
+            el.style.setProperty('--rc', r.color);
+            el.innerHTML = '<span class="rp-dot"><i class="bi ' + esc(r.icon) + '"></i></span>' +
+                '<div class="min-w-0"><div class="rp-item-title">' + esc(r.title) + (r.locked ? ' <i class="bi bi-lock-fill" style="font-size:.65rem; color:var(--text-faint);"></i>' : '') + '</div>' +
+                '<div class="rp-item-meta">' + esc(summary(r)) + '</div></div>' +
+                '<span class="count" title="Kullanıcı sayısı">' + membersOf(r.key).length + '</span>';
+            box.appendChild(el);
+        });
+    }
+    function setDirty(v) { dirty = v; $('rpDirty').hidden = !v; }
+    function confirmLeave() { return !dirty || confirm('Kaydedilmemiş değişiklikler var. Vazgeçilsin mi?'); }
+
+    function selectRole(key, force) {
+        if (!force && current !== key && !confirmLeave()) return;
+        var r = find(key); if (!r) return;
+        current = key;
+        draft = JSON.parse(JSON.stringify(r));
+        setDirty(false);
+        renderList(); renderEditor();
+    }
+    function newRole(from) {
+        if (!confirmLeave()) return;
+        current = null;
+        draft = from ? JSON.parse(JSON.stringify(from)) : { title: '', badge: '', desc: '', icon: 'bi-star', color: '#6366f1', permissions: {} };
+        draft.key = ''; draft.locked = false; draft.is_system = 0; draft.user_count = 0;
+        if (from) { draft.title = from.title + ' (kopya)'; draft.badge = from.badge; if (!IS_FULL) { delete draft.permissions.full_admin; delete draft.permissions.manage_roles; } }
+        setDirty(true);
+        renderList(); renderEditor();
+        $('rpTitle').focus(); $('rpTitle').select();
+    }
+
+    function permCard(p, on, disabled, extraCls) {
+        return '<div class="rp-perm' + (on ? ' is-on' : '') + (disabled ? ' is-disabled' : '') + (extraCls || '') + '" data-perm="' + p.key + '" role="switch" tabindex="' + (disabled ? -1 : 0) + '" aria-checked="' + on + '" aria-disabled="' + !!disabled + '">' +
+            '<span class="rp-perm-ico"><i class="bi ' + esc(p.icon) + '"></i></span>' +
+            '<span class="rp-perm-txt"><b>' + esc(p.label) + '</b><span>' + esc(p.desc) + '</span></span><span class="rp-switch" aria-hidden="true"></span></div>';
+    }
+    function renderPerms() {
+        var perms = draft.permissions, full = !!perms.full_admin, lockedFull = draft.key === 'yurt_muduru';
+        $('rpPages').innerHTML = CAT.pages.map(function (p) { return permCard(p, permOn(perms, p.key), full || lockedFull); }).join('');
+        $('rpAdmin').innerHTML = CAT.admin.map(function (p) {
+            var restricted = !IS_FULL && (p.key === 'full_admin' || p.key === 'manage_roles');
+            var dis = lockedFull || restricted || (full && p.key !== 'full_admin');
+            return permCard(p, permOn(perms, p.key), dis, p.key === 'full_admin' ? ' is-full' : '');
+        }).join('');
+        document.querySelectorAll('[data-bulk]').forEach(function (b) { b.disabled = full || lockedFull; });
+    }
+    function renderPreview() {
+        var ed = $('rpEditor');
+        ed.style.setProperty('--rc', draft.color);
+        $('rpAvatar').innerHTML = '<i class="bi ' + esc(draft.icon) + '"></i>';
+        $('rpHeadTitle').textContent = draft.title || 'Yeni rol';
+        var b = $('rpPreviewBadge');
+        b.style.setProperty('--rc', draft.color);
+        b.className = 'role-badge role-badge-r-preview';
+        b.innerHTML = '<i class="bi ' + esc(draft.icon) + ' me-1"></i><span>' + esc(draft.badge || draft.title || 'Rozet') + '</span>';
+        document.querySelectorAll('#rpColors .rp-swatch[data-color]').forEach(function (s) { s.classList.toggle('is-on', s.dataset.color.toLowerCase() === (draft.color || '').toLowerCase()); });
+        $('rpColorCustom').value = draft.color || '#6b7280';
+        document.querySelectorAll('#rpIcons .rp-icon').forEach(function (s) { s.classList.toggle('is-on', s.dataset.icon === draft.icon); });
+    }
+    function renderMembers() {
+        var m = draft.key ? membersOf(draft.key) : [];
+        $('rpMembersCount').textContent = m.length;
+        $('rpMembers').innerHTML = m.length ? m.slice(0, 40).map(function (u) {
+            return '<a class="rp-member" href="/profile/' + encodeURIComponent(u.username) + '"><span class="av">' + esc((u.name || '?')[0].toLocaleUpperCase('tr-TR')) + '</span>' + esc(u.name) + '</a>';
+        }).join('') + (m.length > 40 ? '<span class="rp-member">+' + (m.length - 40) + ' kişi</span>' : '') :
+            '<span class="text-muted small">' + (draft.key ? 'Bu role henüz kimse atanmadı.' : 'Rolü kaydettikten sonra kullanıcılara atayabilirsin.') + '</span>';
+    }
+    function renderEditor() {
+        $('rpTitle').value = draft.title || '';
+        $('rpBadge').value = draft.badge || '';
+        $('rpDesc').value = draft.desc || '';
+        var isNew = !draft.key, lockedFull = draft.key === 'yurt_muduru', blocked = !IS_FULL && draft.permissions.full_admin && !isNew;
+        $('rpHeadMeta').textContent = isNew ? 'Yeni rol — kaydedince listeye eklenir' : (summary(draft) + ' · ' + membersOf(draft.key).length + ' kullanıcı' + (draft.is_system ? ' · Hazır rol' : ' · Özel rol'));
+        var note = $('rpLockNote');
+        note.hidden = !(lockedFull || blocked || draft.key === 'ogrenci');
+        note.querySelector('span').textContent = lockedFull ? 'Yurt Müdürü kurucu roldür: her zaman tam yetkilidir ve silinemez. Ad, rozet ve rengini değiştirebilirsin.' :
+            blocked ? 'Bu rol tam yetkili; yalnızca Tam Yönetici düzenleyebilir.' :
+            'Öğrenci varsayılan roldür: silinen rollerdeki kullanıcılar bu role taşınır. Sayfa erişimlerini dilediğin gibi ayarlayabilirsin.';
+        $('rpDelBtn').hidden = isNew || draft.locked;
+        $('rpDupBtn').hidden = isNew;
+        $('rpSaveBtn').disabled = blocked;
+        $('rpSaveBtn').innerHTML = isNew ? '<i class="bi bi-plus-lg me-1"></i> Rolü oluştur' : '<i class="bi bi-check2 me-1"></i> Kaydet';
+        renderPreview(); renderPerms(); renderMembers();
+    }
+
+    // Olaylar
+    $('rpItems').addEventListener('click', function (e) { var it = e.target.closest('.rp-item'); if (it) selectRole(it.dataset.key); });
+    $('rpItems').addEventListener('keydown', function (e) {
+        var it = e.target.closest('.rp-item'); if (!it) return;
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectRole(it.dataset.key); }
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); var sib = e.key === 'ArrowDown' ? it.nextElementSibling : it.previousElementSibling; if (sib) sib.focus(); }
+    });
+    $('rpSearch').addEventListener('input', renderList);
+    $('rpNewBtn').addEventListener('click', function () { newRole(null); });
+    $('rpDupBtn').addEventListener('click', function () { newRole(find(current)); });
+    ['rpTitle', 'rpBadge', 'rpDesc'].forEach(function (id) {
+        $(id).addEventListener('input', function () {
+            var k = { rpTitle: 'title', rpBadge: 'badge', rpDesc: 'desc' }[id];
+            draft[k] = this.value; setDirty(true); renderPreview();
+        });
+    });
+    $('rpColors').addEventListener('click', function (e) { var s = e.target.closest('[data-color]'); if (!s) return; draft.color = s.dataset.color; setDirty(true); renderPreview(); renderPerms(); });
+    $('rpColorCustom').addEventListener('input', function () { draft.color = this.value; setDirty(true); renderPreview(); renderPerms(); });
+    $('rpIcons').addEventListener('click', function (e) { var s = e.target.closest('[data-icon]'); if (!s) return; draft.icon = s.dataset.icon; setDirty(true); renderPreview(); });
+    function togglePerm(card) {
+        if (!card || card.classList.contains('is-disabled')) return;
+        var k = card.dataset.perm, perms = draft.permissions, on = permOn(perms, k);
+        if (PAGE_KEYS.indexOf(k) > -1) { if (on) perms[k] = false; else delete perms[k]; }
+        else if (k === 'full_admin') {
+            if (on) delete perms.full_admin;
+            else if (confirm('Tam Yönetici tüm yetkileri verir. Bu role sahip herkes her şeyi yönetebilir. Emin misin?')) { draft.permissions = { full_admin: true }; }
+        } else { if (on) delete perms[k]; else perms[k] = true; }
+        setDirty(true); renderPerms();
+    }
+    ['rpPages', 'rpAdmin'].forEach(function (id) {
+        $(id).addEventListener('click', function (e) { togglePerm(e.target.closest('.rp-perm')); });
+        $(id).addEventListener('keydown', function (e) { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); togglePerm(e.target.closest('.rp-perm')); } });
+    });
+    document.querySelectorAll('[data-bulk]').forEach(function (b) {
+        b.addEventListener('click', function () {
+            PAGE_KEYS.forEach(function (k) { if (b.dataset.bulk === 'pages-on') delete draft.permissions[k]; else draft.permissions[k] = false; });
+            setDirty(true); renderPerms();
+        });
+    });
+    document.querySelectorAll('[data-preset]').forEach(function (b) {
+        b.addEventListener('click', function () {
+            if (draft.key === 'yurt_muduru') return;
+            var p = PRESETS[b.dataset.preset], perms = {};
+            if (p.pages !== 'all') PAGE_KEYS.forEach(function (k) { if (p.pages.indexOf(k) < 0) perms[k] = false; });
+            p.admin.forEach(function (k) { perms[k] = true; });
+            draft.permissions = perms; setDirty(true); renderPerms();
+            toast('"' + b.textContent + '" şablonu uygulandı — kaydetmeyi unutma');
+        });
+    });
+    $('rpGoUsers').addEventListener('click', function () {
+        var t = document.querySelector('#adminTabs [data-bs-target="#tab-users"]');
+        if (t) { bootstrap.Tab.getOrCreateInstance(t).show(); if (draft.key && uFilter) { uFilter.value = draft.key; filterUsers(); } window.scrollTo({ top: 0, behavior: 'smooth' }); }
+    });
+
+    $('rpSaveBtn').addEventListener('click', function () {
+        if (!(draft.title || '').trim()) { toast('Rol adı boş olamaz.', true); $('rpTitle').focus(); return; }
+        var btn = this; btn.disabled = true;
+        post('/admin/roles/save', { key: draft.key || '', title: draft.title, badge: draft.badge, icon: draft.icon, color: draft.color, desc: draft.desc, permissions: draft.permissions })
+            .then(function (j) {
+                var i = roles.findIndex(function (r) { return r.key === j.role.key; });
+                if (i > -1) roles[i] = j.role; else { var oi = roles.findIndex(function (r) { return r.key === 'ogrenci'; }); roles.splice(oi > -1 ? oi : roles.length, 0, j.role); }
+                injectBadgeCss(j.role);
+                syncRoleOptions();
+                setDirty(false); selectRole(j.role.key, true); toast(j.message);
+            }).catch(function (e) { toast(e.message, true); })
+            .finally(function () { btn.disabled = false; });
+    });
+    $('rpDelBtn').addEventListener('click', function () {
+        var r = find(current); if (!r) return;
+        var n = membersOf(r.key).length;
+        if (!confirm('"' + r.title + '" rolü silinsin mi?' + (n ? '\n' + n + ' kullanıcı "Öğrenci" rolüne taşınacak.' : ''))) return;
+        post('/admin/roles/' + encodeURIComponent(r.key) + '/delete').then(function (j) {
+            roles = roles.filter(function (x) { return x.key !== r.key; });
+            USERS.forEach(function (u) { if (u.role === r.key) u.role = 'ogrenci'; });
+            syncRoleOptions();
+            setDirty(false); selectRole('ogrenci', true); toast(j.message);
+        }).catch(function (e) { toast(e.message, true); });
+    });
+
+    // Sürükle-bırak sıralama
+    var dragKey = null;
+    $('rpItems').addEventListener('dragstart', function (e) { var it = e.target.closest('.rp-item'); if (!it) return; dragKey = it.dataset.key; it.classList.add('is-dragging'); e.dataTransfer.effectAllowed = 'move'; try { e.dataTransfer.setData('text/plain', dragKey); } catch (x) {} });
+    $('rpItems').addEventListener('dragend', function () { dragKey = null; document.querySelectorAll('.rp-item').forEach(function (x) { x.classList.remove('is-dragging', 'drop-before', 'drop-after'); }); });
+    $('rpItems').addEventListener('dragover', function (e) {
+        var it = e.target.closest('.rp-item'); if (!it || !dragKey || it.dataset.key === 'ogrenci') return;
+        e.preventDefault();
+        document.querySelectorAll('.rp-item').forEach(function (x) { x.classList.remove('drop-before', 'drop-after'); });
+        var rc = it.getBoundingClientRect(); it.classList.add(e.clientY < rc.top + rc.height / 2 ? 'drop-before' : 'drop-after');
+    });
+    $('rpItems').addEventListener('drop', function (e) {
+        var it = e.target.closest('.rp-item'); if (!it || !dragKey || it.dataset.key === dragKey || it.dataset.key === 'ogrenci') return;
+        e.preventDefault();
+        var rc = it.getBoundingClientRect(), after = e.clientY >= rc.top + rc.height / 2;
+        var moving = roles.splice(roles.findIndex(function (r) { return r.key === dragKey; }), 1)[0];
+        var ti = roles.findIndex(function (r) { return r.key === it.dataset.key; }) + (after ? 1 : 0);
+        roles.splice(ti, 0, moving);
+        renderList();
+        post('/admin/roles/reorder', { order: roles.map(function (r) { return r.key; }) }).then(function () { syncRoleOptions(); toast('Rol sırası güncellendi'); })
+            .catch(function (err) { toast(err.message, true); });
+    });
+
+    // Kullanıcı sekmesindeki seçenekleri ve rozet renklerini güncel tut
+    function injectBadgeCss(r) {
+        var st = document.getElementById('role-badge-colors');
+        if (st) st.appendChild(document.createTextNode('.role-badge-r-' + r.key + '{--rc:' + r.color + ';}'));
+    }
+    function syncRoleOptions() {
+        document.querySelectorAll('.role-select').forEach(function (sel) {
+            var val = sel.value;
+            sel.innerHTML = roles.map(function (r) {
+                var restricted = (r.permissions.full_admin || r.permissions.manage_roles) && !IS_FULL;
+                return '<option value="' + esc(r.key) + '"' + (r.key === val ? ' selected' : '') + (restricted && r.key !== val ? ' disabled' : '') + '>' + esc(r.title) + (restricted ? ' 🔒' : '') + '</option>';
+            }).join('');
+            if (!find(val)) { sel.value = 'ogrenci'; }
+        });
+        if (uFilter) {
+            var fv = uFilter.value;
+            uFilter.innerHTML = '<option value="">Tüm roller</option>' + roles.map(function (r) { return '<option value="' + esc(r.key) + '">' + esc(r.title) + ' (' + membersOf(r.key).length + ')</option>'; }).join('');
+            uFilter.value = find(fv) ? fv : '';
+        }
+    }
+
+    // Yetki matrisi
+    $('rpMatrixBtn').addEventListener('click', function () {
+        var head = '<thead><tr><th>Yetki</th>' + roles.map(function (r) { return '<th><span class="role-badge role-badge-r-m" style="--rc:' + esc(r.color) + '; font-size:.66rem;"><i class="bi ' + esc(r.icon) + ' me-1"></i>' + esc(r.badge) + '</span></th>'; }).join('') + '</tr></thead>';
+        var row = function (p) {
+            return '<tr><td><i class="bi ' + esc(p.icon) + ' me-1 text-muted"></i>' + esc(p.label) + '</td>' + roles.map(function (r) {
+                return permOn(r.permissions, p.key) ? '<td class="yes">✓</td>' : '<td class="no">—</td>';
+            }).join('') + '</tr>';
+        };
+        var sec = function (t) { return '<tr><td colspan="' + (roles.length + 1) + '" class="fw-bold small text-uppercase text-muted" style="background:var(--hover); letter-spacing:.05em;">' + t + '</td></tr>'; };
+        $('rpMatrix').innerHTML = head + '<tbody>' + sec('Sayfa erişimi') + CAT.pages.map(row).join('') + sec('Yönetim yetkileri') + CAT.admin.map(row).join('') + '</tbody>';
+        bootstrap.Modal.getOrCreateInstance($('rpMatrixModal')).show();
+    });
+
+    window.RP = {
+        memberMoved: function (uid, from, to) {
+            USERS.forEach(function (u) { if (u.id === uid) u.role = to; });
+            roles.forEach(function (r) { r.user_count = membersOf(r.key).length; });
+            renderList(); if (draft) renderMembers();
+        }
+    };
+    window.addEventListener('beforeunload', function (e) { if (dirty) { e.preventDefault(); e.returnValue = ''; } });
+
+    selectRole(roles.length ? roles[0].key : null, true);
+})();
 </script>
 {% endblock %}

@@ -45,7 +45,7 @@
             <h4 class="fw-bold mt-2 mb-0">Bugün Yemekhanede Ne Var?</h4>
         </div>
         <div class="d-flex align-items-center gap-2">
-            {% if session.get('is_admin') %}
+            {% if can('manage_menu') %}
             <button type="button" class="btn btn-outline-secondary btn-sm" onclick="openAdminMenuEdit('{{ today_menu.menu_date }}')">
                 <i class="bi bi-pencil-square me-1"></i> Menüyü Düzenle
             </button>
@@ -176,7 +176,7 @@
     </div>
     <h5 class="fw-bold mb-1">Bugün İçin Menü Girilmedi</h5>
     <p class="small text-muted mb-3">Yönetim tarafından Excel menüsü yüklendiğinde günün menüsü burada listelenecektir.</p>
-    {% if session.get('is_admin') %}
+    {% if can('manage_menu') %}
     <button type="button" class="btn btn-primary btn-sm mx-auto" onclick="openAdminMenuEdit('{{ today }}')">
         <i class="bi bi-plus-circle me-1"></i> Bugünün Menüsünü Manuel Ekle
     </button>
@@ -192,7 +192,7 @@
         <h4 class="fw-bold mb-0">Tüm Menü Takvimi</h4>
     </div>
     <div class="d-flex align-items-center gap-2">
-        {% if session.get('is_admin') %}
+        {% if can('manage_menu') %}
         <button type="button" class="btn btn-outline-primary btn-sm" onclick="openAdminMenuEdit('')">
             <i class="bi bi-plus-lg me-1"></i> Günlük Menü Ekle
         </button>
@@ -250,7 +250,7 @@
                     <h6 class="fw-bold mt-1 mb-0">{{ m.menu_date|format_date_tr }}</h6>
                 </div>
                 <div class="d-flex align-items-center gap-2">
-                    {% if session.get('is_admin') %}
+                    {% if can('manage_menu') %}
                     <button type="button" class="btn btn-sm btn-icon-subtle text-muted" onclick="openAdminMenuEdit('{{ m.menu_date }}')" title="Menüyü Düzenle">
                         <i class="bi bi-pencil"></i>
                     </button>
@@ -320,7 +320,7 @@
                     <th>Kahvaltı</th>
                     <th>Akşam Yemeği</th>
                     <th style="min-width: 90px;">Puan</th>
-                    {% if session.get('is_admin') %}
+                    {% if can('manage_menu') %}
                     <th style="min-width: 70px;">İşlem</th>
                     {% endif %}
                 </tr>
@@ -354,7 +354,7 @@
                         <span class="text-faint">—</span>
                         {% endif %}
                     </td>
-                    {% if session.get('is_admin') %}
+                    {% if can('manage_menu') %}
                     <td>
                         <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2" onclick="openAdminMenuEdit('{{ m.menu_date }}')">Düzenle</button>
                     </td>
@@ -367,7 +367,7 @@
 </div>
 
 <!-- ===================== ADMİN MENÜ DÜZENLEME MODALI ===================== -->
-{% if session.get('is_admin') %}
+{% if can('manage_menu') %}
 <div class="modal fade" id="adminMenuEditModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content" style="background: var(--surface); border: 1px solid var(--border);">

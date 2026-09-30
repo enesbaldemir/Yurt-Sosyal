@@ -1,263 +1,356 @@
 {% extends "base.html" %}
-{% block title %}{{ quiz.title }} — Host Ekranı{% endblock %}
+{% block title %}{{ quiz.title }} — Canlı Yarışma{% endblock %}
 {% block shell_class %}full-width{% endblock %}
+{% block body_class %}kq-immersive{% endblock %}
 {% block context_panel %}{% endblock %}
 {% block extra_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/quiz-arcade.css') }}">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/quiz-pro.css', v='2026093001') }}">
 {% endblock %}
 {% block content %}
-<div class="qa-scope">
+<div class="kh-stage" id="kh">
+    <div class="kq-floaters" aria-hidden="true"><span>▲</span><span>◆</span><span>●</span><span>■</span></div>
 
-    <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
-        <div class="d-flex align-items-center gap-2">
-            <a href="{{ url_for('quiz_list') }}" class="icon-btn" title="Yarışmalara Dön">
-                <i class="bi bi-arrow-left"></i>
-            </a>
-            <div>
-                <span class="qa-kicker"><i class="bi bi-easel"></i> Canlı Oturum Yönetimi</span>
-                <h5 class="fw-bold mb-0">{{ quiz.title }}</h5>
+    <div class="kh-bar">
+        <a href="{{ url_for('quiz_list') }}" class="kh-tbtn" title="Yarışmalardan çık" aria-label="Çık"><i class="bi bi-x-lg"></i></a>
+        <span class="title">{{ quiz.title }}</span>
+        <span class="kh-chip" id="khProgress" hidden></span>
+        <div class="spacer"></div>
+        <span class="kh-chip pin" title="Katılım PIN'i">PIN {{ quiz_session.code[:3] }} {{ quiz_session.code[3:] }}</span>
+        <span class="kh-chip" title="Oyuncu sayısı"><i class="bi bi-person-fill"></i> <span id="khPlayers">0</span></span>
+        <button type="button" class="kh-tbtn" id="khAuto" title="Otomatik ilerle (sıralamadan sonra)" aria-pressed="false"><i class="bi bi-fast-forward-fill"></i></button>
+        <button type="button" class="kh-tbtn" id="khMute" title="Sesi aç/kapat"><i class="bi bi-volume-up-fill"></i></button>
+        <button type="button" class="kh-tbtn" id="khFull" title="Tam ekran"><i class="bi bi-arrows-fullscreen"></i></button>
+    </div>
+
+    <!-- LOBİ -->
+    <section class="kh-screen kh-lobby {{ 'is-active' if quiz_session.status == 'waiting' }}" data-screen="lobby">
+        <div class="kh-join-card">
+            <div class="kh-join-main">
+                <span class="lbl">Katılmak için telefonundan gir:</span>
+                <span class="url">{{ join_host }}/quiz/join</span>
+                <span class="lbl mt-2">ya da uygulamada <b>Yarışmalar → PIN ile katıl</b></span>
+            </div>
+            <div class="kh-pin-wrap">
+                <span class="lbl">Oyun PIN'i:</span>
+                <span class="kh-pin">{{ quiz_session.code[:3] }} {{ quiz_session.code[3:] }}</span>
+            </div>
+            <div class="kh-qr" id="khQr" title="Kameranla okut, direkt katıl"></div>
+        </div>
+        <div class="kh-lobby-row">
+            <span class="kh-count"><i class="bi bi-person-fill"></i> <span id="khLobbyCount">0</span></span>
+            <span class="kh-waiting-note" id="khLobbyNote">Oyuncular bekleniyor…</span>
+            <button type="button" class="kq-btn kq-btn-white kq-btn-lg" id="khStart" disabled><i class="bi bi-play-fill"></i> Başlat</button>
+        </div>
+        <div class="kh-players" id="khPlayersBox">
+            <div class="kh-empty-players" id="khEmpty">
+                <div class="dots mb-2"><span></span><span></span><span></span></div>
+                Katılan oyuncular burada belirecek
             </div>
         </div>
-        <span class="qa-pill qa-pill-live"><span class="qa-dot"></span> Host Ekranı</span>
-    </div>
+    </section>
 
-    <!-- BEKLEME EKRANI -->
-    <div id="waiting-screen" class="qa-bg text-center mb-3" style="{{ 'display:none;' if quiz_session.status != 'waiting' }} padding: 40px 24px;">
-        <div class="qa-blob" style="width:180px;height:180px;background:var(--qa-purple);top:-50px;left:-40px;"></div>
-        <div class="qa-blob" style="width:130px;height:130px;background:var(--qa-orange);bottom:-40px;right:-20px;animation-delay:1s;"></div>
-        <span class="qa-kicker justify-content-center"><i class="bi bi-phone"></i> Öğrenci Katılım Kodu</span>
-        <div class="qa-host-code mb-2">{{ quiz_session.code }}</div>
-        <p class="small mb-4" style="color: var(--qa-ink-muted);">Öğrenciler "Koda Katıl" ekranından bu PIN'i girerek katılabilir.</p>
+    <!-- HAZIRLAN -->
+    <section class="kh-screen kh-intro" data-screen="intro">
+        <span class="qnum" id="khIntroNum">Soru 1</span>
+        <div class="qtext" id="khIntroText"></div>
+        <div class="kq-progress" id="khIntroBar"><i></i></div>
+    </section>
 
-        <button type="button" id="start-quiz-btn" class="qa-btn qa-btn-lg qa-btn-block mb-2" style="max-width:420px; margin-inline:auto;" disabled>
-            <i class="bi bi-play-circle"></i> Yarışmayı Başlat
-        </button>
-        <p class="small mb-0" id="participant-hint" style="color: var(--qa-ink-muted);">Katılımcı bekleniyor...</p>
-    </div>
-
-    <!-- KATILIMCI LİSTESİ -->
-    <div id="waiting-participants" class="mb-3" style="{{ 'display:none;' if quiz_session.status != 'waiting' }}">
-        <h6 class="fw-bold mb-2"><i class="bi bi-people me-1"></i> Katılan Öğrenciler</h6>
-        <div id="waiting-participant-list" class="d-flex flex-wrap gap-2"></div>
-    </div>
-
-    <!-- CANLI SORU EKRANI -->
-    <div id="question-screen" style="display:none;">
-        <div class="qa-top-bar">
-            <span class="qa-pill qa-pill-soft qa-progress-label" id="question-index-label"></span>
-            <span class="qa-pill qa-pill-live" id="answer-count-label" style="background: var(--qa-blue);"><i class="bi bi-reply-fill"></i> 0 yanıt</span>
-        </div>
-
-        <div class="qa-question-card qa-q-enter" id="host-question-card">
-            <div class="qa-question-text" id="host-question-text"></div>
-            <img id="host-question-image" class="qa-question-media" style="display:none;" alt="">
-
-            <div id="host-question-audio" class="qa-audio-player" style="display:none;">
-                <button type="button" class="qa-audio-play-btn" id="host-audio-toggle"><i class="bi bi-play-fill"></i></button>
-                <div class="qa-audio-wave" id="host-audio-wave"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
-                <audio id="host-audio-el" preload="none"></audio>
+    <!-- SORU / SONUÇ -->
+    <section class="kh-screen kh-question" data-screen="question">
+        <div class="kh-qbox" id="khQText"></div>
+        <div class="kh-mid">
+            <div class="kh-timer" id="khTimer">
+                <svg viewBox="0 0 116 116" aria-hidden="true"><circle cx="58" cy="58" r="55"></circle></svg>
+                <span class="num">20</span>
             </div>
-
-            <div class="qa-answer-grid" id="host-options"></div>
-
-            <div class="mt-4" id="host-distribution"></div>
-
-            <button type="button" id="show-leaderboard-btn" class="qa-btn qa-btn-block mt-4">
-                <i class="bi bi-bar-chart"></i> Skor Tablosunu Göster
-            </button>
+            <div class="kh-media" id="khMedia"></div>
+            <div class="kh-answers-count" id="khAnsCount"><span class="num">0</span><span class="lbl">Cevap</span></div>
         </div>
-    </div>
-
-    <!-- LİDERLİK TABLOSU -->
-    <div id="leaderboard-screen" class="qa-question-card" style="display:none;">
-        <div class="d-flex align-items-center gap-2 mb-3">
-            <i class="bi bi-trophy-fill" style="color: var(--qa-yellow);"></i>
-            <h5 class="fw-bold mb-0">Canlı Skor Tablosu</h5>
+        <div class="kh-reveal-note" id="khRevealNote" hidden></div>
+        <div class="kq-tiles" id="khTiles"></div>
+        <div class="d-flex justify-content-end gap-2">
+            <button type="button" class="kq-btn kq-btn-white kq-btn-sm" id="khSkip"><i class="bi bi-skip-forward-fill"></i> Süreyi bitir</button>
+            <button type="button" class="kq-btn kq-btn-white kq-btn-sm" id="khToBoard" hidden><i class="bi bi-bar-chart-fill"></i> Sıralamaya geç</button>
         </div>
-        <div id="leaderboard-list" class="mb-4"></div>
-        <button type="button" id="next-question-btn" class="qa-btn qa-btn-lg qa-btn-block">
-            Sonraki Soruya Geç <i class="bi bi-arrow-right"></i>
-        </button>
-    </div>
+    </section>
 
-    <!-- BİTİŞ EKRANI -->
-    <div id="finished-screen" class="qa-bg text-center" style="display:none; padding: 40px 24px;">
-        <div class="qa-blob" style="width:170px;height:170px;background:var(--qa-purple);top:-40px;right:-30px;"></div>
-        <i class="bi bi-trophy-fill" style="font-size: 2.8rem; color: var(--qa-yellow);"></i>
-        <h3 class="fw-bold mt-3 mb-2">Yarışma Tamamlandı!</h3>
-        <p class="small mb-4" style="color: var(--qa-ink-muted);">Final dereceleri ve kazanılan puanlar kaydedildi.</p>
-        <div id="final-leaderboard" class="text-start mb-4" style="max-width:460px; margin-inline:auto;"></div>
-        <a href="{{ url_for('quiz_list') }}" class="qa-btn qa-btn-lg">Yarışmalara Dön</a>
-    </div>
+    <!-- SKOR TABLOSU -->
+    <section class="kh-screen kh-board" data-screen="board">
+        <div class="kh-board-title" id="khBoardTitle">Skor Tablosu</div>
+        <div class="kq-lb" id="khBoard"></div>
+        <div class="kh-next">
+            <div class="kh-auto-bar" id="khAutoBar" hidden><i></i></div>
+            <button type="button" class="kq-btn kq-btn-white kq-btn-lg" id="khNext">Sonraki <i class="bi bi-arrow-right"></i></button>
+        </div>
+    </section>
 
+    <!-- DURAKLATILDI (sunucu yeniden başladıysa) -->
+    <section class="kh-screen kp-center" data-screen="paused">
+        <div class="kp-big">Oyun duraklatıldı</div>
+        <div class="kp-sub">Bağlantı yenilendi. Kaldığın yerden devam etmek için ilerle.</div>
+        <button type="button" class="kq-btn kq-btn-white kq-btn-lg" id="khResume">Devam et <i class="bi bi-arrow-right"></i></button>
+    </section>
+
+    <!-- PODYUM -->
+    <section class="kh-screen kh-podium-wrap" data-screen="podium">
+        <div class="kh-podium-title" id="khPodiumTitle">🏆 Kazananlar</div>
+        <div class="kh-podium">
+            <div class="kh-pod p2" id="khPod2"><div class="who"><span class="medal">🥈</span><span class="name"></span><div class="pts"></div></div><div class="block">2</div></div>
+            <div class="kh-pod p1" id="khPod1"><div class="who"><span class="medal">🥇</span><span class="name"></span><div class="pts"></div></div><div class="block">1</div></div>
+            <div class="kh-pod p3" id="khPod3"><div class="who"><span class="medal">🥉</span><span class="name"></span><div class="pts"></div></div><div class="block">3</div></div>
+        </div>
+        <div class="kh-final-rest" id="khRest"></div>
+        <div class="kh-final-actions">
+            <form method="POST" action="{{ url_for('quiz_host_start', quiz_id=quiz.id) }}" class="m-0">
+                <button type="submit" class="kq-btn kq-btn-white"><i class="bi bi-arrow-repeat"></i> Tekrar oynat</button>
+            </form>
+            <a href="{{ url_for('quiz_detail', quiz_id=quiz.id) }}" class="kq-btn kq-btn-white"><i class="bi bi-pencil"></i> Düzenle</a>
+            <a href="{{ url_for('quiz_list') }}" class="kq-btn kq-btn-white"><i class="bi bi-grid"></i> Yarışmalar</a>
+        </div>
+    </section>
+
+    <div class="d-flex justify-content-end px-3 pb-2" style="position:relative; z-index:3;">
+        <button type="button" class="btn btn-link btn-sm text-white-50 text-decoration-none" id="khEnd"><i class="bi bi-stop-circle"></i> Yarışmayı bitir</button>
+    </div>
 </div>
 {% endblock %}
 
 {% block extra_js %}
-<script src="{{ url_for('static', filename='js/quiz-arcade.js') }}"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+<script src="{{ url_for('static', filename='js/quiz-pro.js', v='2026093001') }}"></script>
 <script>
 (function () {
-    var SESSION_ID = {{ quiz_session.id }};
-    var currentQuestionId = null;
-    var QA = window.QuizArcade || {};
-    if (typeof socket !== 'undefined') QA.attachConnectionBanner(socket);
+    'use strict';
+    var SID = {{ quiz_session.id }};
+    var JOIN_URL = {{ join_url|tojson }};
+    var KQ = window.KQ, root = document.getElementById('kh');
+    var $ = function (id) { return document.getElementById(id); };
+    var LETTERS = ['a', 'b', 'c', 'd'];
+    var timer = null, introTimer = null, boardTimer = null, autoAnim = null, phase = 'lobby', lastQuestion = null, lastBoard = null;
+    var playerCount = 0;
 
-    socket.emit('quiz_join_room', { session_id: SESSION_ID });
+    if (typeof socket === 'undefined') { KQ.toast('Canlı bağlantı kurulamadı. Sayfayı yenile.', true); return; }
+    KQ.connectionBadge(socket);
+    function join() { socket.emit('quiz_join_room', { session_id: SID }); }
+    join();
+    socket.on('connect', join);
 
-    function showScreen(id) {
-        ['waiting-screen', 'waiting-participants', 'question-screen', 'leaderboard-screen', 'finished-screen'].forEach(function (s) {
-            var el = document.getElementById(s);
-            if (el) el.style.display = (s === id) ? '' : 'none';
-        });
-    }
+    // QR kod
+    try {
+        var qr = qrcode(0, 'M'); qr.addData(JOIN_URL); qr.make();
+        $('khQr').innerHTML = qr.createSvgTag({ cellSize: 4, margin: 0, scalable: true });
+    } catch (e) { $('khQr').hidden = true; }
 
-    var optKeys = ['option_a', 'option_b', 'option_c', 'option_d'];
-    var optLetters = { option_a: 'A', option_b: 'B', option_c: 'C', option_d: 'D' };
-    var optColors = { option_a: 'qa-opt-A', option_b: 'qa-opt-B', option_c: 'qa-opt-C', option_d: 'qa-opt-D' };
-    var distColors = { a: '#EF4444', b: '#2563EB', c: '#FACC15', d: '#22C55E' };
+    function show(id) { phase = id; KQ.showScreen(root, id); $('khEnd').parentNode.hidden = (id === 'podium'); }
+    function stopTimers() { if (timer) timer.stop(); clearTimeout(introTimer); clearTimeout(boardTimer); if (autoAnim) autoAnim.cancel && autoAnim.cancel(); }
 
-    var partColors = ['var(--qa-purple)', 'var(--qa-blue)', 'var(--qa-pink)', 'var(--qa-orange)', 'var(--qa-green)'];
-
-    socket.on('quiz_participants_update', function (data) {
-        var hint = document.getElementById('participant-hint');
-        var listBox = document.getElementById('waiting-participant-list');
-        var startBtn = document.getElementById('start-quiz-btn');
-        if (!hint) return;
-        hint.textContent = data.participants.length + ' öğrenci katıldı.';
-        startBtn.disabled = data.participants.length === 0;
-        listBox.innerHTML = '';
-        data.participants.forEach(function (p, i) {
-            var chip = document.createElement('div');
-            chip.className = 'qa-participant-chip';
-            chip.style.animationDelay = (i * 40) + 'ms';
-            chip.innerHTML =
-                '<span class="qa-lb-avatar" style="background:' + partColors[i % partColors.length] + ';">' + p.nickname[0].toUpperCase() + '</span>' +
-                '<span></span>';
-            chip.querySelector('span:last-child').textContent = p.nickname;
-            listBox.appendChild(chip);
-        });
+    // Üst bar düğmeleri
+    function syncMute() { $('khMute').innerHTML = KQ.isMuted() ? '<i class="bi bi-volume-mute-fill"></i>' : '<i class="bi bi-volume-up-fill"></i>'; }
+    syncMute();
+    $('khMute').addEventListener('click', function () { KQ.setMuted(!KQ.isMuted()); syncMute(); });
+    $('khFull').addEventListener('click', function () {
+        if (document.fullscreenElement) document.exitFullscreen(); else if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(function () {});
     });
-
-    document.getElementById('start-quiz-btn').addEventListener('click', function () {
-        socket.emit('quiz_start', { session_id: SESSION_ID });
+    var autoOn = false;
+    function syncAuto() { $('khAuto').classList.toggle('is-on', autoOn); $('khAuto').setAttribute('aria-pressed', autoOn); }
+    $('khAuto').addEventListener('click', function () {
+        autoOn = !autoOn; syncAuto();
+        socket.emit('quiz_set_auto', { session_id: SID, value: autoOn });
+        KQ.toast(autoOn ? 'Otomatik ilerleme açık: sıralamadan 8 sn sonra sonraki soru gelir' : 'Otomatik ilerleme kapalı');
     });
-    document.getElementById('show-leaderboard-btn').addEventListener('click', function () {
-        socket.emit('quiz_show_leaderboard', { session_id: SESSION_ID });
-    });
-    document.getElementById('next-question-btn').addEventListener('click', function () {
-        socket.emit('quiz_next', { session_id: SESSION_ID });
-    });
+    socket.on('quiz_host_settings', function (d) { autoOn = !!d.auto_advance; syncAuto(); });
 
-    // ---------- Host ses oynatıcı (projeksiyonda soruyu duyurmak için) ----------
-    var audioEl = document.getElementById('host-audio-el');
-    var audioToggle = document.getElementById('host-audio-toggle');
-    var audioWave = document.getElementById('host-audio-wave');
-    audioToggle.addEventListener('click', function () {
-        if (audioEl.paused) { audioEl.play().catch(function () {}); } else { audioEl.pause(); }
-    });
-    audioEl.addEventListener('play', function () { audioToggle.innerHTML = '<i class="bi bi-pause-fill"></i>'; audioWave.classList.add('playing'); });
-    ['pause', 'ended'].forEach(function (ev) {
-        audioEl.addEventListener(ev, function () { audioToggle.innerHTML = '<i class="bi bi-play-fill"></i>'; audioWave.classList.remove('playing'); });
-    });
-
-    function renderDistribution(dist, total) {
-        var box = document.getElementById('host-distribution');
-        box.innerHTML = '';
-        ['a', 'b', 'c', 'd'].forEach(function (letter) {
-            var input = document.getElementById('host-options').querySelector('[data-opt="' + letter + '"]');
-            if (!input) return;
-            var count = (dist && dist[letter]) || 0;
-            var pct = total > 0 ? Math.round((count / total) * 100) : 0;
-            var row = document.createElement('div');
-            row.className = 'qa-dist-row';
-            row.innerHTML =
-                '<span class="qa-dist-label" style="background:' + distColors[letter] + ';">' + letter.toUpperCase() + '</span>' +
-                '<span class="qa-dist-track"><span class="qa-dist-fill" style="width:0%; background:' + distColors[letter] + ';"></span></span>' +
-                '<span class="qa-dist-count">' + count + '</span>';
-            box.appendChild(row);
-            requestAnimationFrame(function () { row.querySelector('.qa-dist-fill').style.width = pct + '%'; });
-        });
-    }
-
-    socket.on('quiz_question', function (data) {
-        currentQuestionId = data.question.id;
-        document.getElementById('question-index-label').textContent = 'Soru ' + (data.index + 1) + ' / ' + data.total;
-        document.getElementById('answer-count-label').innerHTML = '<i class="bi bi-reply-fill"></i> 0 yanıt';
-        document.getElementById('host-question-text').textContent = data.question.question_text;
-        document.getElementById('host-distribution').innerHTML = '';
-
-        var imgEl = document.getElementById('host-question-image');
-        if (data.question.image_path) { imgEl.src = '/static/uploads/quiz/' + data.question.image_path; imgEl.style.display = 'block'; }
-        else { imgEl.style.display = 'none'; }
-
-        var audioBox = document.getElementById('host-question-audio');
-        audioEl.pause();
-        if (data.question.audio_path) { audioEl.src = '/static/uploads/quiz/' + data.question.audio_path; audioBox.style.display = 'flex'; }
-        else { audioBox.style.display = 'none'; }
-
-        var optsBox = document.getElementById('host-options');
-        optsBox.innerHTML = '';
-        optKeys.forEach(function (key) {
-            var val = data.question[key];
-            if (!val) return;
-            var img = data.question[key + '_image'];
-            var letter = key.replace('option_', '');
+    // ---------- Lobi ----------
+    var known = {};
+    socket.on('quiz_participants_update', function (d) {
+        var list = d.participants || [];
+        playerCount = list.length;
+        $('khPlayers').textContent = playerCount;
+        $('khLobbyCount').textContent = playerCount;
+        $('khStart').disabled = playerCount === 0;
+        $('khLobbyNote').textContent = playerCount ? (playerCount + ' oyuncu hazır — başlatmaya hazırsın!') : 'Oyuncular bekleniyor…';
+        var box = $('khPlayersBox');
+        $('khEmpty').hidden = playerCount > 0;
+        var seen = {};
+        list.forEach(function (p) {
+            seen[p.id] = true;
+            if (known[p.id]) return;
             var el = document.createElement('div');
-            el.className = 'qa-answer-btn ' + optColors[key];
-            el.dataset.opt = letter;
-            el.style.cursor = 'default';
-            el.innerHTML =
-                '<span class="qa-answer-letter">' + optLetters[key] + '</span>' +
-                (img ? '<img class="qa-answer-img" src="/static/uploads/quiz/' + img + '">' : '') +
-                '<span class="qa-answer-text"></span>';
-            el.querySelector('.qa-answer-text').textContent = val;
-            optsBox.appendChild(el);
+            el.className = 'kh-player'; el.dataset.id = p.id;
+            el.innerHTML = KQ.esc(p.nickname) + '<button type="button" class="kick" title="Oyundan çıkar" aria-label="Oyundan çıkar">✕</button>';
+            box.appendChild(el); known[p.id] = el;
+            if (phase === 'lobby') KQ.sfx.pop();
         });
-
-        var card = document.getElementById('host-question-card');
-        card.classList.remove('qa-q-enter'); void card.offsetWidth; card.classList.add('qa-q-enter');
-        showScreen('question-screen');
+        Object.keys(known).forEach(function (id) { if (!seen[id]) { known[id].remove(); delete known[id]; } });
+    });
+    $('khPlayersBox').addEventListener('click', function (e) {
+        var k = e.target.closest('.kick'); if (!k) return;
+        var id = k.parentNode.dataset.id;
+        if (confirm('Bu oyuncu oyundan çıkarılsın mı?')) socket.emit('quiz_kick', { session_id: SID, participant_id: Number(id) });
+    });
+    $('khStart').addEventListener('click', function () {
+        this.disabled = true;
+        socket.emit('quiz_start', { session_id: SID });
     });
 
-    socket.on('quiz_answer_count', function (data) {
-        document.getElementById('answer-count-label').innerHTML = '<i class="bi bi-reply-fill"></i> ' + data.answer_count + ' yanıt';
-        if (data.distribution) renderDistribution(data.distribution, data.answer_count);
-    });
-
-    function medalFor(i) { return i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : null; }
-
-    function renderLeaderboard(containerId, leaderboard) {
-        var box = document.getElementById(containerId);
-        if (!box) return;
+    // ---------- Soru ----------
+    function renderTiles(q, revealedCorrect) {
+        var box = $('khTiles'), letters = KQ.filledLetters(q);
+        box.className = 'kq-tiles is-entering' + (revealedCorrect ? ' is-revealed' : '');
         box.innerHTML = '';
-        if (!leaderboard.length) {
-            box.innerHTML = '<p class="small text-center mb-0" style="color: var(--qa-ink-muted);">Henüz puan kaydedilmedi.</p>';
-            return;
-        }
-        leaderboard.forEach(function (p, i) {
-            var medal = medalFor(i);
-            var row = document.createElement('div');
-            row.className = 'qa-lb-row';
-            row.style.animationDelay = (i * 50) + 'ms';
-            row.innerHTML =
-                '<span class="qa-lb-rank">' + (medal ? '<span class="qa-lb-medal">' + medal + '</span>' : ('#' + (i + 1))) + '</span>' +
-                '<span class="qa-lb-avatar"></span><span class="qa-lb-name"></span><span class="qa-lb-score"></span>';
-            row.querySelector('.qa-lb-avatar').textContent = (p.nickname[0] || '?').toUpperCase();
-            row.querySelector('.qa-lb-name').textContent = p.nickname;
-            row.querySelector('.qa-lb-score').textContent = p.score + ' Puan';
-            box.appendChild(row);
+        letters.forEach(function (l) {
+            var el = document.createElement('div');
+            el.className = 'kq-tile kq-c-' + l + (revealedCorrect === l ? ' is-correct' : '');
+            el.dataset.l = l;
+            el.innerHTML = KQ.tileHtml(l, q['option_' + l], q['option_' + l + '_image']);
+            box.appendChild(el);
         });
     }
+    function renderMedia(q) {
+        var m = $('khMedia');
+        if (q.image_path) {
+            m.innerHTML = '<img src="/static/uploads/quiz/' + encodeURIComponent(q.image_path) + '" alt="">';
+        } else if (q.audio_path) {
+            m.innerHTML = '<button type="button" class="kh-audio" id="khAudioBtn"><span class="p"><i class="bi bi-play-fill"></i></span> Soruyu dinlet<audio id="khAudioEl" src="/static/uploads/quiz/' + encodeURIComponent(q.audio_path) + '" preload="auto"></audio></button>';
+            var a = $('khAudioEl'), b = $('khAudioBtn');
+            b.addEventListener('click', function () { if (a.paused) a.play().catch(function () {}); else a.pause(); });
+            a.addEventListener('play', function () { b.querySelector('.p').innerHTML = '<i class="bi bi-pause-fill"></i>'; });
+            a.addEventListener('pause', function () { b.querySelector('.p').innerHTML = '<i class="bi bi-play-fill"></i>'; });
+        } else {
+            m.innerHTML = '<div class="kh-logo-shapes" aria-hidden="true">' + LETTERS.map(function (l) {
+                return '<span class="kq-c-' + l + '" style="background:var(--opt)">' + KQ.shape(l) + '</span>';
+            }).join('') + '</div>';
+        }
+    }
+    socket.on('quiz_question', function (d) {
+        stopTimers();
+        lastQuestion = d;
+        var q = d.question;
+        $('khProgress').hidden = false;
+        $('khProgress').textContent = (d.index + 1) + ' / ' + d.total;
+        $('khQText').textContent = q.question_text;
+        $('khAnsCount').querySelector('.num').textContent = '0';
+        $('khRevealNote').hidden = true;
+        $('khSkip').hidden = false; $('khToBoard').hidden = true;
+        $('khAnsCount').style.visibility = '';
+        var timerEl = $('khTimer'); timerEl.style.visibility = ''; timerEl.querySelector('.num').textContent = d.time_limit;
+        var circle = timerEl.querySelector('circle'); circle.style.strokeDashoffset = 0;
 
-    socket.on('quiz_leaderboard', function (data) {
-        renderLeaderboard('leaderboard-list', data.leaderboard);
-        showScreen('leaderboard-screen');
+        var startQuestion = function () {
+            show('question');
+            renderMedia(q); renderTiles(q, null);
+            var remaining = d.remaining_ms != null ? d.remaining_ms : d.time_limit * 1000;
+            timer = KQ.ringTimer(timerEl, d.time_limit * 1000, remaining, function (sec) { if (sec <= 5 && sec > 0) KQ.sfx.tick(); });
+            var au = document.getElementById('khAudioEl'); if (au) au.play().catch(function () {});
+        };
+        if (d.intro_ms > 300) {
+            $('khIntroNum').textContent = 'Soru ' + (d.index + 1) + ' / ' + d.total;
+            $('khIntroText').textContent = q.question_text;
+            show('intro');
+            KQ.progressBar($('khIntroBar'), d.intro_ms);
+            KQ.sfx.drum();
+            introTimer = setTimeout(startQuestion, d.intro_ms);
+        } else { startQuestion(); }
+    });
+    socket.on('quiz_answer_count', function (d) {
+        var n = $('khAnsCount').querySelector('.num');
+        n.textContent = d.answer_count;
+        n.animate && n.animate([{ transform: 'scale(1.35)' }, { transform: 'scale(1)' }], { duration: 300 });
+    });
+    $('khSkip').addEventListener('click', function () { socket.emit('quiz_skip', { session_id: SID }); });
+    $('khToBoard').addEventListener('click', function () { socket.emit('quiz_show_leaderboard', { session_id: SID }); });
+
+    // ---------- Sonuç (doğru cevap + dağılım) ----------
+    socket.on('quiz_reveal', function (d) {
+        stopTimers();
+        var q = d.question;
+        if (phase !== 'question') { $('khQText').textContent = q.question_text; show('question'); }
+        renderTiles(q, d.correct_option);
+        $('khTiles').classList.remove('is-entering');
+        $('khTimer').style.visibility = 'hidden'; $('khAnsCount').style.visibility = 'hidden';
+        $('khSkip').hidden = true; $('khToBoard').hidden = false;
+        var letters = KQ.filledLetters(q), max = Math.max(1, Math.max.apply(null, letters.map(function (l) { return d.distribution[l] || 0; })));
+        $('khMedia').innerHTML = '<div class="kh-chart">' + letters.map(function (l) {
+            var ok = l === d.correct_option;
+            return '<div class="kh-bar-col kq-c-' + l + (ok ? '' : ' dim') + '"><span class="cnt">' + (ok ? '<span class="ok"><i class="bi bi-check-lg"></i></span>' : '') +
+                (d.distribution[l] || 0) + '</span><div class="bar" data-h="' + Math.round(((d.distribution[l] || 0) / max) * 100) + '"></div><div class="foot">' + KQ.shape(l) + '</div></div>';
+        }).join('') + '</div>';
+        requestAnimationFrame(function () { requestAnimationFrame(function () {
+            $('khMedia').querySelectorAll('.bar').forEach(function (b) { b.style.height = 'calc(' + b.dataset.h + '% - 70px)'; });
+        }); });
+        var note = $('khRevealNote'); note.hidden = false;
+        note.innerHTML = '<b>' + d.correct_count + '</b> / ' + d.player_count + ' oyuncu doğru bildi' +
+            (d.fastest_ms != null ? ' · en hızlı ' + (d.fastest_ms / 1000).toFixed(1) + ' sn' : '');
+        KQ.sfx.reveal();
     });
 
-    socket.on('quiz_finished', function (data) {
-        renderLeaderboard('final-leaderboard', data.leaderboard);
-        showScreen('finished-screen');
-        QA.confetti({ count: 120 });
+    // ---------- Skor tablosu (animasyonlu) ----------
+    socket.on('quiz_leaderboard', function (d) {
+        stopTimers();
+        lastBoard = d;
+        $('khBoardTitle').textContent = d.is_last ? 'Final Sıralaması' : 'Skor Tablosu';
+        $('khNext').innerHTML = d.is_last ? '<i class="bi bi-trophy-fill"></i> Podyumu göster' : 'Sonraki soru <i class="bi bi-arrow-right"></i>';
+        show('board');
+        setTimeout(function () { KQ.renderBoard($('khBoard'), d.leaderboard, { limit: 5 }); }, 250);
+        var bar = $('khAutoBar');
+        bar.hidden = !d.auto_next_ms;
+        if (d.auto_next_ms) {
+            var i = bar.querySelector('i');
+            i.style.transition = 'none'; i.style.width = '0'; void i.offsetWidth;
+            i.style.transition = 'width ' + (d.auto_next_ms / 1000) + 's linear'; i.style.width = '100%';
+        }
+    });
+    $('khNext').addEventListener('click', function () {
+        if (lastBoard && lastBoard.is_last) socket.emit('quiz_end', { session_id: SID });
+        else socket.emit('quiz_next', { session_id: SID });
+    });
+    $('khResume').addEventListener('click', function () { socket.emit('quiz_next', { session_id: SID }); });
+    socket.on('quiz_state', function (d) { if (d.phase === 'paused') show('paused'); });
+
+    // ---------- Podyum ----------
+    socket.on('quiz_finished', function (d) {
+        stopTimers();
+        $('khProgress').hidden = true;
+        show('podium');
+        var s = d.standings || [];
+        [1, 2, 3].forEach(function (r) {
+            var pod = $('khPod' + r), p = s[r - 1];
+            pod.classList.remove('show');
+            pod.querySelector('.block').style.height = '0';
+            pod.style.visibility = p ? '' : 'hidden';
+            if (p) {
+                pod.querySelector('.name').textContent = p.nickname;
+                pod.querySelector('.pts').textContent = p.score.toLocaleString('tr-TR') + ' puan · ' + p.correct + '/' + d.total_questions + ' doğru';
+            }
+        });
+        var heights = { 1: '62%', 2: '46%', 3: '34%' }, order = [3, 2, 1], delay = d.resync ? 0 : 900;
+        order.forEach(function (r, i) {
+            setTimeout(function () {
+                var pod = $('khPod' + r);
+                pod.querySelector('.block').style.height = heights[r];
+                setTimeout(function () { pod.classList.add('show'); if (r === 1) { KQ.confetti(220); KQ.sfx.fanfare(); } else KQ.sfx.pop(); }, 700);
+            }, d.resync ? 0 : delay + i * 1500);
+        });
+        $('khRest').innerHTML = s.slice(3, 20).map(function (p) {
+            return '<div><span>' + p.rank + '. ' + KQ.esc(p.nickname) + '</span><span>' + p.score.toLocaleString('tr-TR') + '</span></div>';
+        }).join('');
+    });
+
+    $('khEnd').addEventListener('click', function () {
+        if (confirm('Yarışma şimdi bitirilsin mi? Mevcut puanlarla podyum gösterilecek.')) socket.emit('quiz_end', { session_id: SID });
+    });
+
+    // Klavye: Boşluk/Enter = ilerle
+    document.addEventListener('keydown', function (e) {
+        if (e.target.closest('input, textarea, button')) return;
+        if (e.key === ' ' || e.key === 'Enter') {
+            e.preventDefault();
+            if (phase === 'lobby' && !$('khStart').disabled) $('khStart').click();
+            else if (phase === 'board') $('khNext').click();
+            else if (phase === 'question' && !$('khToBoard').hidden) $('khToBoard').click();
+        }
     });
 })();
 </script>

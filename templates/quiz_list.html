@@ -1,116 +1,104 @@
 {% extends "base.html" %}
 {% block title %}Yarışmalar — Yurt Sosyal{% endblock %}
 {% block extra_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/quiz-arcade.css') }}">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/quiz-pro.css', v='2026093001') }}">
 {% endblock %}
-{% block content %}
-<div class="qa-scope">
 
-    <div class="qa-bg mb-4" style="padding: 22px 22px;">
-        <div class="qa-blob" style="width:140px;height:140px;background:var(--qa-purple);top:-40px;right:10%;"></div>
-        <div class="qa-blob" style="width:100px;height:100px;background:var(--qa-orange);bottom:-30px;left:5%;animation-delay:1.2s;"></div>
-        <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
-            <div>
-                <span class="qa-kicker"><i class="bi bi-stars"></i> Akademik &amp; Eğlence</span>
-                <h4 class="fw-bold mb-0">Yarışmalar</h4>
-                <p class="small mb-0 mt-1" style="color: var(--qa-ink-muted);">Yurt arkadaşlarınla canlı quiz düzenle, kodla katıl, puan topla.</p>
-            </div>
-            <div class="d-flex gap-2 flex-wrap">
-                <a href="{{ url_for('quiz_join') }}" class="qa-btn qa-btn-outline">
-                    <i class="bi bi-key"></i> Koda Katıl
-                </a>
-                <a href="{{ url_for('quiz_create') }}" class="qa-btn">
-                    <i class="bi bi-plus-lg"></i> Yeni Yarışma
-                </a>
-            </div>
+{% macro quiz_card(q, live_id=None, show_owner=False) %}
+{% set covers = ['linear-gradient(135deg,#6C2BD9,#46178F)', 'linear-gradient(135deg,#1368CE,#46178F)', 'linear-gradient(135deg,#E21B3C,#6C2BD9)', 'linear-gradient(135deg,#26890C,#1368CE)', 'linear-gradient(135deg,#D89E00,#E21B3C)'] %}
+{% set cover = ("url('" ~ url_for('static', filename='uploads/quiz/' ~ q.cover_image) ~ "')") if q.cover_image else covers[q.id % covers|length] %}
+<a href="{{ url_for('quiz_host_screen', session_id=live_id) if live_id else url_for('quiz_detail', quiz_id=q.id) }}" class="kq-card">
+    <div class="kq-card-cover" style="--cover: {{ cover }};">
+        <span class="status">
+            {% if live_id %}<span class="kq-pill kq-pill-live"><span class="dot"></span> Canlı</span>
+            {% elif q.question_count == 0 %}<span class="kq-pill" style="background:#fff;">Taslak</span>
+            {% elif q.finished_count %}<span class="kq-pill" style="background:#fff; color:#26890C;"><i class="bi bi-check2-circle"></i> {{ q.finished_count }} kez oynandı</span>
+            {% else %}<span class="kq-pill" style="background:#fff;"><i class="bi bi-lightning-charge-fill"></i> Hazır</span>{% endif %}
+        </span>
+        {% if not q.cover_image %}
+        <span class="mini-shapes" aria-hidden="true">
+            {% for l in ['a','b','c','d'] %}<span class="kq-c-{{ l }}"></span>{% endfor %}
+        </span>
+        {% endif %}
+        <span class="badge-q">{{ q.question_count }} soru</span>
+    </div>
+    <div class="kq-card-body">
+        <div class="kq-card-title">{{ q.title }}</div>
+        {% if q.description %}<div class="kq-card-desc">{{ q.description|truncate(80) }}</div>{% endif %}
+        <div class="kq-card-meta">
+            {% if q.total_seconds %}<span><i class="bi bi-clock"></i> ~{{ (q.total_seconds / 60)|round(0, 'ceil')|int }} dk</span>{% endif %}
+            <span><i class="bi bi-people"></i> {{ q.total_participants }} oyuncu</span>
+            {% if show_owner %}<span><i class="bi bi-person"></i> {{ q.owner_name }}</span>{% endif %}
+        </div>
+    </div>
+</a>
+{% endmacro %}
+
+{% block content %}
+<div class="kq">
+    <div class="kq-hero">
+        <span class="kq-pill" style="background:rgba(255,255,255,.18); color:#fff;"><i class="bi bi-stars"></i> Canlı Bilgi Yarışması</span>
+        <h1>Yarışmalar</h1>
+        <p>Soruları hazırla, PIN'i paylaş, yurtça canlı yarış. Hızlı cevap = daha çok puan!</p>
+        <div class="kq-hero-actions">
+            <form method="POST" action="{{ url_for('quiz_join') }}" class="kq-pin-quick" autocomplete="off">
+                <label for="kqQuickPin" class="kq-sr">Oyun PIN'i</label>
+                <input id="kqQuickPin" name="code" inputmode="numeric" maxlength="7" placeholder="Oyun PIN'i" required>
+                <button type="submit" class="kq-btn kq-btn-white kq-btn-sm">Katıl</button>
+            </form>
+            <a href="{{ url_for('quiz_create') }}" class="kq-btn kq-btn-green"><i class="bi bi-plus-lg"></i> Yeni yarışma</a>
+        </div>
+        <div class="shapes" aria-hidden="true">
+            {% for l in ['a','b','c','d'] %}<span class="kq-c-{{ l }}">{{ ['▲','◆','●','■'][loop.index0] }}</span>{% endfor %}
         </div>
     </div>
 
-    {% if active_sessions %}
-    <div class="mb-2 d-flex align-items-center gap-2">
-        <span class="qa-pill qa-pill-live"><span class="qa-dot"></span> CANLI</span>
-        <h6 class="fw-bold mb-0">Devam Eden Oturumların</h6>
-    </div>
-    <div class="qa-grid mb-4">
+    {% if active_sessions or joined_sessions %}
+    <div class="kq-section-title"><span class="kq-pill kq-pill-live"><span class="dot"></span> CANLI</span> Devam eden oyunlar</div>
+    <div class="d-grid gap-2">
         {% for s in active_sessions %}
-        <a href="{{ url_for('quiz_host_screen', session_id=s.id) }}" class="qa-card qa-fade-up"
-           style="--qa-card-accent: linear-gradient(135deg, var(--qa-red), var(--qa-orange)); animation-delay: {{ loop.index0 * 60 }}ms;">
-            <div class="qa-card-top">
-                <div class="qa-card-icon" style="background: linear-gradient(135deg, var(--qa-red), var(--qa-orange));">
-                    <i class="bi bi-broadcast"></i>
-                </div>
-                <span class="qa-pill qa-pill-live"><span class="qa-dot"></span> Canlı</span>
+        <a href="{{ url_for('quiz_host_screen', session_id=s.id) }}" class="kq-live-row">
+            <span class="kq-pill" style="background: var(--kq-purple); color:#fff;"><i class="bi bi-easel2"></i> Sunucusun</span>
+            <div class="flex-fill min-w-0">
+                <div class="fw-bold text-truncate">{{ s.quiz_title }}</div>
+                <div class="small" style="color: var(--kq-ink-soft); font-weight:600;">PIN <span class="pin">{{ s.code }}</span> · {{ s.participant_count }} oyuncu · {{ {'waiting':'Lobide','question':'Soru ekranında','reveal':'Sonuç ekranında','leaderboard':'Sıralamada'}.get(s.status, s.status) }}</div>
             </div>
-            <div>
-                <div class="qa-card-title">{{ s.quiz_title }}</div>
-                <div class="qa-card-desc">Katılım Kodu: <strong style="letter-spacing:2px;">{{ s.code }}</strong></div>
+            <i class="bi bi-chevron-right"></i>
+        </a>
+        {% endfor %}
+        {% for s in joined_sessions %}
+        <a href="{{ url_for('quiz_play', session_id=s.id) }}" class="kq-live-row">
+            <span class="kq-pill" style="background: var(--kq-blue); color:#fff;"><i class="bi bi-controller"></i> Oyuncusun</span>
+            <div class="flex-fill min-w-0">
+                <div class="fw-bold text-truncate">{{ s.quiz_title }}</div>
+                <div class="small" style="color: var(--kq-ink-soft); font-weight:600;">PIN <span class="pin">{{ s.code }}</span> · {{ s.score }} puan</div>
             </div>
-            <div class="qa-card-meta">
-                <span><i class="bi bi-people"></i> {{ s.participant_count }} katılımcı</span>
-                <span><i class="bi bi-arrow-repeat"></i> {{ 'Bekliyor' if s.status == 'waiting' else ('Skor Tablosu' if s.status == 'leaderboard' else 'Soru Ekranı') }}</span>
-            </div>
+            <i class="bi bi-chevron-right"></i>
         </a>
         {% endfor %}
     </div>
     {% endif %}
 
-    <h6 class="fw-bold mb-3">Oluşturduğun Yarışmalar</h6>
-
-    {% if my_quizzes %}
-    <div class="qa-grid">
+    <div class="kq-section-title"><i class="bi bi-collection-play"></i> Yarışmalarım</div>
+    <div class="kq-grid">
+        <a href="{{ url_for('quiz_create') }}" class="kq-card kq-card-new">
+            <span class="plus"><i class="bi bi-plus-lg"></i></span>
+            Yeni yarışma oluştur
+            <span class="small" style="font-weight:600;">Tek tıkla editörü aç</span>
+        </a>
         {% for q in my_quizzes %}
-        {% set accents = [
-            ['var(--qa-purple)', 'var(--qa-pink)'],
-            ['var(--qa-blue)', 'var(--qa-purple)'],
-            ['var(--qa-orange)', 'var(--qa-pink)'],
-            ['var(--qa-green)', 'var(--qa-blue)']
-        ] %}
-        {% set accent = accents[loop.index0 % accents|length] %}
-        {% set is_live = q.id in live_session_by_quiz %}
-        <a href="{{ url_for('quiz_host_screen', session_id=live_session_by_quiz[q.id]) if is_live else url_for('quiz_detail', quiz_id=q.id) }}"
-           class="qa-card qa-fade-up" style="--qa-card-accent: linear-gradient(135deg, {{ accent[0] }}, {{ accent[1] }}); animation-delay: {{ loop.index0 * 60 }}ms;">
-            <div class="qa-card-top">
-                <div class="qa-card-icon" style="background: linear-gradient(135deg, {{ accent[0] }}, {{ accent[1] }});">
-                    <i class="bi bi-patch-question-fill"></i>
-                </div>
-                {% if is_live %}
-                    <span class="qa-pill qa-pill-live"><span class="qa-dot"></span> Canlı</span>
-                {% elif q.finished_count > 0 %}
-                    <span class="qa-pill qa-pill-done"><i class="bi bi-check2-circle"></i> Tamamlandı</span>
-                {% elif q.question_count == 0 %}
-                    <span class="qa-pill qa-pill-draft"><i class="bi bi-pencil"></i> Taslak</span>
-                {% else %}
-                    <span class="qa-pill qa-pill-waiting"><i class="bi bi-hourglass-split"></i> Hazır</span>
-                {% endif %}
-            </div>
-            <div>
-                <div class="qa-card-title">{{ q.title }}</div>
-                {% if q.description %}<div class="qa-card-desc">{{ q.description|truncate(70) }}</div>{% endif %}
-            </div>
-            <div class="qa-card-meta">
-                <span><i class="bi bi-list-ol"></i> {{ q.question_count }} soru</span>
-                {% if q.total_seconds %}<span><i class="bi bi-clock"></i> ~{{ (q.total_seconds / 60)|round(0, 'ceil')|int }} dk</span>{% endif %}
-                <span><i class="bi bi-people"></i> {{ q.total_participants }} katılımcı</span>
-            </div>
-            <div class="qa-card-footer">
-                <span class="qa-pill qa-pill-soft"><i class="bi bi-person"></i> Sen</span>
-                <span class="qa-btn qa-btn-ghost" style="padding:7px 14px; font-size:0.78rem; min-height:auto;">
-                    {% if is_live %}Canlı Yayına Git{% else %}İncele{% endif %} <i class="bi bi-arrow-right ms-1"></i>
-                </span>
-            </div>
-        </a>
+            {{ quiz_card(q, live_session_by_quiz.get(q.id)) }}
         {% endfor %}
     </div>
-    {% else %}
-    <div class="qa-empty qa-fade-up">
-        <div class="qa-empty-emoji">🎯</div>
-        <h6 class="fw-bold mt-2 mb-1">Henüz Bir Yarışma Oluşturmadın</h6>
-        <p class="small mb-3" style="color: var(--qa-ink-muted); max-width:360px; margin-inline:auto;">
-            Yurt arkadaşlarınla eğlenceli bir bilgi yarışması yap. Sorularını hazırla, kodu paylaş, canlı yarış!
-        </p>
-        <a href="{{ url_for('quiz_create') }}" class="qa-btn qa-btn-lg"><i class="bi bi-rocket-takeoff"></i> İlk Yarışmayı Oluştur</a>
+
+    {% if other_quizzes %}
+    <div class="kq-section-title"><i class="bi bi-shield-check"></i> Diğer kullanıcıların yarışmaları <span class="kq-pill">Yarışma yönetimi yetkisi</span></div>
+    <div class="kq-grid">
+        {% for q in other_quizzes %}
+            {{ quiz_card(q, None, True) }}
+        {% endfor %}
     </div>
     {% endif %}
-
 </div>
 {% endblock %}

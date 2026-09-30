@@ -48,7 +48,7 @@
         </a>
         {% endif %}
 
-        {% if session.get('is_admin') %}
+        {% if can('manage_events') %}
         <a href="{{ url_for('delete_event', event_id=event.id) }}" class="btn btn-soft-danger" onclick="return confirm('Etkinliği kalıcı olarak silmek istediğinizden emin misiniz?')" title="Sil">
             <i class="bi bi-trash3"></i>
         </a>

@@ -113,7 +113,7 @@
                 </div>
                 <span class="meta">@{{ p.username }} · {{ p.created_at|datetime_tr }}</span>
             </div>
-            {% if p.user_id == session.user_id or session.get('is_admin') %}
+            {% if p.user_id == session.user_id or can('moderate_content') %}
             <a href="{{ url_for('delete_post', post_id=p.id) }}" class="icon-btn border-0 text-muted" style="font-size:0.9rem;" onclick="return confirm('Bu gönderiyi silmek istediğinizden emin misiniz?')" title="Sil">
                 <i class="bi bi-trash3"></i>
             </a>
