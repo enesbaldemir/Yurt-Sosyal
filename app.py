@@ -5991,4 +5991,4 @@ if __name__ == '__main__':
     # Werkzeug'un otomatik yeniden başlatma özelliği yüzünden iki kez başlamasını
     # engeller. Kod değişikliklerinde sunucuyu elle yeniden başlatın.
     socketio.run(app, host='0.0.0.0', port=int(os.environ.get('PORT', 5000)),
-                 debug=debug_mode, use_reloader=False)
+             debug=debug_mode, use_reloader=False, allow_unsafe_werkzeug=True)
