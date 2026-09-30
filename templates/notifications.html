@@ -1,46 +1,99 @@
 {% extends "base.html" %}
 {% block title %}Bildirimler — Yurt Sosyal{% endblock %}
 {% block content %}
+<style>
+    .nc-item { position: relative; display: flex; gap: .8rem; align-items: flex-start; padding: .85rem 1rem; border-bottom: 1px solid var(--border); text-decoration: none; color: var(--text); transition: background .15s, opacity .25s, transform .25s; }
+    .nc-item:hover { background: var(--hover); color: var(--text); }
+    .nc-item.unread { background: var(--gold-subtle); }
+    .nc-icon { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: var(--surface-2); color: var(--text-muted); flex: 0 0 auto; }
+    .nc-item.unread .nc-icon { background: var(--gold); color: #fff; }
+    .nc-new { font-size: .62rem; font-weight: 800; color: var(--gold); text-transform: uppercase; letter-spacing: .05em; margin-left: .4rem; }
+    .nc-item:not(.unread) .nc-new { display: none; }
+    .nc-del { border: 0; background: transparent; color: var(--text-faint); width: 30px; height: 30px; border-radius: 8px; flex: 0 0 auto; }
+    .nc-del:hover { background: var(--danger-bg); color: var(--danger); }
+    .nc-item.is-removing { opacity: 0; transform: translateX(30px); }
+    .nc-filter .btn.active { background: var(--text); color: var(--bg); border-color: var(--text); }
+</style>
 
-<div class="d-flex align-items-center justify-content-between mb-4">
+<div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
     <div>
         <span class="kicker">Etkileşim</span>
         <h4 class="fw-bold mb-0">Bildirim Merkezi</h4>
     </div>
-    <a href="{{ url_for('mark_all_read') }}" class="btn btn-secondary btn-sm">
-        <i class="bi bi-check2-all me-1"></i> Tümünü Okundu İşaretle
-    </a>
+    <button type="button" class="btn btn-secondary btn-sm" id="ncReadAll">
+        <i class="bi bi-check2-all me-1"></i> Tümünü okundu işaretle
+    </button>
 </div>
 
-<div class="card">
-    {% if notifications %}
-        <div class="d-flex flex-column">
-            {% for n in notifications %}
-            <a href="{{ url_for('mark_notification_read', notif_id=n.id) }}" class="conversation-item {{ 'unread' if not n.is_read }}">
-                <div class="avatar-ring">
-                    <div class="avatar" style="width:40px;height:40px;">
-                        <i class="bi {{ 'bi-bell-fill' if not n.is_read else 'bi-bell' }}" style="{{ 'color:var(--gold);' if not n.is_read else '' }}"></i>
-                    </div>
+<div class="d-flex gap-2 mb-3 nc-filter">
+    <button type="button" class="btn btn-secondary btn-sm active" data-filter="all">Tümü</button>
+    <button type="button" class="btn btn-secondary btn-sm" data-filter="unread">Okunmamış <span id="ncUnreadCount">{{ notifications|selectattr('is_read', 'equalto', 0)|list|length }}</span></button>
+</div>
+
+<div class="card overflow-hidden">
+    <div id="ncList">
+    {% for n in notifications %}
+        <a href="{{ url_for('mark_notification_read', notif_id=n.id) }}" class="nc-item {{ 'unread' if not n.is_read }}" data-notif-id="{{ n.id }}" data-notif-link="{{ n.link or '' }}">
+            <span class="nc-icon"><i class="bi {{ 'bi-bell-fill' if not n.is_read else 'bi-bell' }}"></i></span>
+            <div class="flex-fill min-w-0">
+                <div class="d-flex justify-content-between align-items-baseline gap-2 mb-1">
+                    <strong class="small text-truncate">{{ n.title }}<span class="nc-new">Yeni</span></strong>
+                    <small class="text-muted text-nowrap" style="font-size:0.7rem;">{{ n.created_at|datetime_tr }}</small>
                 </div>
-                <div class="flex-fill min-w-0">
-                    <div class="d-flex justify-content-between align-items-baseline mb-1">
-                        <strong class="small text-truncate">{{ n.title }}</strong>
-                        <small class="text-muted" style="font-size:0.7rem;">{{ n.created_at|datetime_tr }}</small>
-                    </div>
-                    <p class="small text-muted mb-0" style="line-height: 1.4;">{{ n.message }}</p>
-                </div>
-            </a>
-            {% endfor %}
-        </div>
-    {% else %}
-        <div class="card-pad text-center py-5">
-            <div class="empty-state">
-                <i class="bi bi-bell-slash"></i>
-                <h6 class="fw-bold mt-2">Bildirim Bulunmuyor</h6>
-                <p class="small text-muted mb-0">Yeni etkinlikler, duyurular veya mesajlar olduğunda burada görünecektir.</p>
+                <p class="small text-muted mb-0" style="line-height: 1.4;">{{ n.message }}</p>
             </div>
+            <button type="button" class="nc-del" data-notif-delete title="Bildirimi sil" aria-label="Bildirimi sil"><i class="bi bi-x-lg"></i></button>
+        </a>
+    {% endfor %}
+    </div>
+    <div class="card-pad text-center py-5" id="ncEmpty" {{ 'hidden' if notifications }}>
+        <div class="empty-state">
+            <i class="bi bi-bell-slash"></i>
+            <h6 class="fw-bold mt-2">Bildirim yok</h6>
+            <p class="small text-muted mb-0">Yeni etkinlikler, duyurular veya mesajlar olduğunda burada görünecek.</p>
         </div>
-    {% endif %}
+    </div>
 </div>
+{% endblock %}
 
+{% block extra_js %}
+<script>
+(function () {
+    var list = document.getElementById('ncList'), filter = 'all';
+    function refresh() {
+        var items = list.querySelectorAll('.nc-item'), unread = 0, visible = 0;
+        items.forEach(function (it) {
+            var u = it.classList.contains('unread'); if (u) unread++;
+            it.hidden = filter === 'unread' && !u; if (!it.hidden) visible++;
+            it.querySelector('.nc-icon i').className = 'bi ' + (u ? 'bi-bell-fill' : 'bi-bell');
+        });
+        document.getElementById('ncUnreadCount').textContent = unread;
+        document.getElementById('ncEmpty').hidden = visible > 0;
+    }
+    list.addEventListener('click', function () { setTimeout(refresh, 50); });
+    list.addEventListener('click', async function (e) {
+        var del = e.target.closest('[data-notif-delete]'); if (!del) return;
+        e.preventDefault(); e.stopPropagation();
+        var item = del.closest('.nc-item');
+        item.classList.add('is-removing');
+        var r = await fetch('/api/notifications/' + item.dataset.notifId + '/delete', { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+        var j = await r.json();
+        window.setNotifBadge && window.setNotifBadge(j.unread_count);
+        setTimeout(function () { item.remove(); refresh(); }, 250);
+    });
+    document.getElementById('ncReadAll').addEventListener('click', async function () {
+        await fetch('/api/notifications/read-all', { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+        list.querySelectorAll('.nc-item.unread').forEach(function (x) { x.classList.remove('unread'); });
+        window.setNotifBadge && window.setNotifBadge(0);
+        refresh();
+    });
+    document.querySelectorAll('[data-filter]').forEach(function (b) {
+        b.addEventListener('click', function () {
+            filter = b.dataset.filter;
+            document.querySelectorAll('[data-filter]').forEach(function (x) { x.classList.toggle('active', x === b); });
+            refresh();
+        });
+    });
+})();
+</script>
 {% endblock %}

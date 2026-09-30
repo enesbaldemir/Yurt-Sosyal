@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}Renk Tuzağı — Oyunlar{% endblock %}
+{% block content %}
+{% include 'partials/_arcade_game_style.html' %}
+<div class="ag-wrap">
+    <div class="d-flex align-items-center gap-2 mb-3">
+        <a href="{{ url_for('games_hub') }}" class="icon-btn" title="Oyunlara dön"><i class="bi bi-arrow-left"></i></a>
+        <div><span class="kicker">Beyin · 30 saniye</span><h4 class="fw-bold mb-0">Renk Tuzağı</h4></div>
+    </div>
+    <div class="ag-stage" id="ag" style="--g1: {{ game_theme[0] }}; --g2: {{ game_theme[1] }};">
+        <div class="ag-hud">
+            <span class="ag-pill"><i class="bi bi-star-fill"></i> <span id="sc">0</span></span>
+            <span class="ag-combo" id="combo" hidden></span>
+            <span class="ag-pill"><i class="bi bi-stopwatch"></i> <span id="tm">30</span> sn</span>
+        </div>
+        <div class="ag-bar"><i id="bar"></i></div>
+        <div class="ag-center" id="intro">
+            <div style="font-size:3rem;">🎨</div>
+            <div class="ag-title">Kelimeyi değil, RENGİ seç!</div>
+            <div class="ag-sub">Ekranda <b style="color:#fde047;">MAVİ</b> yazısı sarı renkte yazıyorsa doğru cevap <b>Sarı</b>'dır. Üst üste doğrular puanını katlar, yanlışlar seriyi bozar.</div>
+            <button type="button" class="ag-start" id="start"><i class="bi bi-play-fill"></i> Başla</button>
+        </div>
+        <div class="ag-center" id="play" hidden>
+            <div id="word" style="font-size: clamp(2.6rem, 11vw, 4.2rem); font-weight: 900; letter-spacing: .02em; background:#fff; border-radius:18px; padding:.3rem 1.4rem; box-shadow: 0 6px 0 rgba(0,0,0,.15);">RENK</div>
+            <div class="ag-sub" style="font-size:.85rem;">Yazının rengi hangisi?</div>
+        </div>
+        <div class="ag-opts" id="opts" hidden></div>
+        <div class="ag-center" id="over" hidden>
+            <div style="font-size:3rem;">🏁</div>
+            <div class="ag-title">Süre doldu!</div>
+            <div style="font-size:3rem; font-weight:900;" id="final">0</div>
+            <div class="ag-sub" id="finalSub"></div>
+            <button type="button" class="ag-start" id="again"><i class="bi bi-arrow-repeat"></i> Tekrar oyna</button>
+        </div>
+    </div>
+    {% include 'partials/_game_leaderboard.html' %}
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+(function () {
+    var COLORS = [
+        { n: 'KIRMIZI', l: 'Kırmızı', c: '#ef4444' }, { n: 'MAVİ', l: 'Mavi', c: '#2563eb' },
+        { n: 'YEŞİL', l: 'Yeşil', c: '#16a34a' }, { n: 'SARI', l: 'Sarı', c: '#eab308' },
+        { n: 'MOR', l: 'Mor', c: '#9333ea' }, { n: 'TURUNCU', l: 'Turuncu', c: '#f97316' }
+    ];
+    var $ = function (id) { return document.getElementById(id); };
+    var score = 0, streak = 0, correct = 0, wrong = 0, left = 30, timer = null, answer = null, running = false;
+    function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+    function shuffle(a) { for (var i = a.length - 1; i > 0; i--) { var j = Math.floor(Math.random() * (i + 1)); var t = a[i]; a[i] = a[j]; a[j] = t; } return a; }
+    function round() {
+        var word = pick(COLORS), ink = Math.random() < .75 ? pick(COLORS.filter(function (x) { return x !== word; })) : word;
+        answer = ink;
+        $('word').textContent = word.n; $('word').style.color = ink.c;
+        var opts = shuffle([ink].concat(shuffle(COLORS.filter(function (x) { return x !== ink; })).slice(0, 3)));
+        $('opts').innerHTML = opts.map(function (o) {
+            return '<button type="button" class="ag-opt" data-c="' + o.c + '"><span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:' + o.c + ';margin-right:.45rem;vertical-align:-1px;"></span>' + o.l + '</button>';
+        }).join('');
+    }
+    function floatText(txt, color, x, y) {
+        var f = document.createElement('div'); f.className = 'ag-float'; f.textContent = txt; f.style.color = color;
+        f.style.left = x + 'px'; f.style.top = y + 'px'; $('ag').appendChild(f); setTimeout(function () { f.remove(); }, 800);
+    }
+    $('opts').addEventListener('click', function (e) {
+        var b = e.target.closest('.ag-opt'); if (!b || !running) return;
+        var r = b.getBoundingClientRect(), s = $('ag').getBoundingClientRect();
+        if (b.dataset.c === answer.c) {
+            streak++; correct++;
+            var mult = 1 + Math.floor(streak / 4), pts = 10 * mult;
+            score += pts; b.classList.add('ok');
+            floatText('+' + pts, '#fff', r.left - s.left + r.width / 2 - 20, r.top - s.top);
+        } else {
+            streak = 0; wrong++; score = Math.max(0, score - 5); b.classList.add('bad');
+            floatText('-5', '#fecaca', r.left - s.left + r.width / 2 - 14, r.top - s.top);
+            if (navigator.vibrate) navigator.vibrate(80);
+        }
+        $('sc').textContent = score;
+        $('combo').hidden = streak < 4; $('combo').textContent = '🔥 x' + (1 + Math.floor(streak / 4));
+        setTimeout(round, 130);
+    });
+    function start() {
+        score = 0; streak = 0; correct = 0; wrong = 0; left = 30; running = true;
+        $('sc').textContent = 0; $('combo').hidden = true;
+        $('intro').hidden = true; $('over').hidden = true; $('play').hidden = false; $('opts').hidden = false;
+        round();
+        var t0 = Date.now();
+        clearInterval(timer);
+        timer = setInterval(function () {
+            var el = 30 - (Date.now() - t0) / 1000; left = Math.max(0, el);
+            $('tm').textContent = Math.ceil(left); $('bar').style.width = (left / 30 * 100) + '%';
+            if (left <= 0) end();
+        }, 100);
+    }
+    function end() {
+        clearInterval(timer); running = false;
+        $('play').hidden = true; $('opts').hidden = true; $('over').hidden = false;
+        $('final').textContent = score;
+        var acc = correct + wrong ? Math.round(correct * 100 / (correct + wrong)) : 0;
+        $('finalSub').textContent = correct + ' doğru · ' + wrong + ' yanlış · %' + acc + ' isabet';
+        fetch('{{ url_for("submit_game_score", game_key="stroop") }}', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ score: score }) });
+    }
+    $('start').addEventListener('click', start);
+    $('again').addEventListener('click', start);
+})();
+</script>
+{% endblock %}

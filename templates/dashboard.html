@@ -301,7 +301,7 @@
             q.textContent = 'Şu an açık anket yok';
             sub.textContent = '';
             if (IS_ADMIN) {
-                var a = document.createElement('a'); a.href = URLS.admin; a.className = 'fw-semibold';
+                var a = document.createElement('a'); a.href = URLS.admin + '?focus=poll#tab-announce'; a.className = 'fw-semibold';
                 a.textContent = 'Yönetim panelinden anket aç'; sub.appendChild(a);
             }
             return;

@@ -1,6 +1,18 @@
 {% extends "base.html" %}
 {% block title %}Sosyal Akış — Yurt Sosyal{% endblock %}
 {% block content %}
+<style>
+.likes-open-btn { border: 0; background: transparent; padding: 0; font: inherit; font-weight: 700; color: inherit; cursor: pointer; }
+.likes-open-btn:hover { text-decoration: underline; }
+.liker-row { display: flex; align-items: center; gap: .7rem; padding: .5rem .6rem; border-radius: 10px; text-decoration: none; color: var(--text); }
+.liker-row:hover { background: var(--hover); color: var(--text); }
+.cm-edit-form { display: flex; gap: .35rem; margin: .25rem 0; }
+.cm-edit-form input { flex: 1; min-width: 0; border: 1px solid var(--border-strong); border-radius: 8px; padding: .3rem .55rem; font-size: .85rem; background: var(--surface); color: var(--text); }
+.cm-edit-form button { border: 0; border-radius: 8px; padding: .3rem .65rem; font-size: .76rem; font-weight: 700; background: var(--text); color: var(--bg); }
+.cm-edit-form button.cancel { background: var(--hover); color: var(--text); }
+.comment-time .cm-del { color: var(--danger) !important; }
+</style>
+
 
 <div class="d-flex align-items-center justify-content-between mb-4">
     <div>
@@ -147,7 +159,7 @@
         </div>
 
         <div class="post-likes">
-            <span id="like-count-{{ p.id }}">{{ p.like_count }}</span> beğeni
+            <button type="button" class="likes-open-btn" data-post-id="{{ p.id }}" title="Beğenenleri gör"><span id="like-count-{{ p.id }}">{{ p.like_count }}</span> beğeni</button>
         </div>
 
         {% if p.caption and p.media_type != 'text' %}
@@ -164,22 +176,26 @@
 
         <div class="post-comments-list" id="comments-{{ p.id }}" style="display:none;">
             {% for c in p.comments %}
-            <div class="comment">
+            <div class="comment" data-comment-id="{{ c.id }}">
                 <a href="{{ url_for('profile', username=c.username) }}" class="name">{{ c.full_name }}</a>
-                <span>{{ c.comment }}</span>
+                <span class="comment-text">{{ c.comment }}</span>
                 <div class="comment-time">
-                    {{ c.created_at|time_tr }}
+                    {{ c.created_at|time_tr }}{% if c.edited_at %} · <em>düzenlendi</em>{% endif %}
                     <button type="button" class="reply-btn" data-post-id="{{ p.id }}" data-comment-id="{{ c.id }}" data-name="{{ c.full_name }}">Yanıtla</button>
+                    {% if c.user_id == session.user_id %}<button type="button" class="reply-btn cm-edit">Düzenle</button>{% endif %}
+                    {% if c.user_id == session.user_id or p.user_id == session.user_id or can('moderate_content') %}<button type="button" class="reply-btn cm-del">Sil</button>{% endif %}
                 </div>
                 {% if c.replies %}
                 <div class="comment-replies">
                     {% for r in c.replies %}
-                    <div class="comment reply">
+                    <div class="comment reply" data-comment-id="{{ r.id }}">
                         <a href="{{ url_for('profile', username=r.username) }}" class="name">{{ r.full_name }}</a>
-                        <span>{{ r.comment }}</span>
+                        <span class="comment-text">{{ r.comment }}</span>
                         <div class="comment-time">
-                            {{ r.created_at|time_tr }}
+                            {{ r.created_at|time_tr }}{% if r.edited_at %} · <em>düzenlendi</em>{% endif %}
                             <button type="button" class="reply-btn" data-post-id="{{ p.id }}" data-comment-id="{{ c.id }}" data-name="{{ r.full_name }}">Yanıtla</button>
+                            {% if r.user_id == session.user_id %}<button type="button" class="reply-btn cm-edit">Düzenle</button>{% endif %}
+                            {% if r.user_id == session.user_id or p.user_id == session.user_id or can('moderate_content') %}<button type="button" class="reply-btn cm-del">Sil</button>{% endif %}
                         </div>
                     </div>
                     {% endfor %}
@@ -324,6 +340,83 @@ document.querySelectorAll('.reply-btn').forEach(btn => {
         }
     });
 });
+
+
+// ===================== BEĞENENLER & YORUM DÜZENLE/SİL =====================
+(function () {
+    const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    let modalEl = document.getElementById('likersModal');
+    if (!modalEl) {
+        modalEl = document.createElement('div');
+        modalEl.className = 'modal fade'; modalEl.id = 'likersModal'; modalEl.tabIndex = -1;
+        modalEl.innerHTML = `<div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-sm"><div class="modal-content" style="background:var(--surface);color:var(--text);border-radius:16px;">
+            <div class="modal-header py-2" style="border-color:var(--border);"><h6 class="modal-title fw-bold"><i class="bi bi-heart-fill me-1" style="color:#e11d48;"></i> Beğenenler</h6><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Kapat"></button></div>
+            <div class="modal-body p-2" id="likersBody"></div></div></div>`;
+        document.body.appendChild(modalEl);
+    }
+    document.addEventListener('click', async (e) => {
+        const btn = e.target.closest('.likes-open-btn'); if (!btn) return;
+        const body = document.getElementById('likersBody');
+        body.innerHTML = '<div class="text-center text-muted small py-4">Yükleniyor…</div>';
+        bootstrap.Modal.getOrCreateInstance(modalEl).show();
+        try {
+            const r = await fetch(`/api/post/${btn.dataset.postId}/likes`);
+            const j = await r.json();
+            body.innerHTML = j.users.length ? j.users.map(u => `
+                <a href="/profile/${encodeURIComponent(u.username)}" class="liker-row">
+                    <span class="avatar" style="width:38px;height:38px;font-size:.8rem;">${u.photo ? `<img src="/static/uploads/profiles/${encodeURIComponent(u.photo)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">` : esc((u.name || '?')[0].toLocaleUpperCase('tr-TR'))}</span>
+                    <span class="min-w-0 flex-fill"><strong class="d-block small text-truncate">${esc(u.name)}</strong><span class="text-muted" style="font-size:.72rem;">@${esc(u.username)}${u.room ? ' · Oda ' + esc(u.room) : ''}</span></span>
+                    ${u.is_me ? '<span class="badge-tag">Sen</span>' : ''}
+                </a>`).join('') : '<div class="text-center text-muted small py-4">Henüz kimse beğenmedi. İlk beğenen sen ol! ❤️</div>';
+        } catch (err) { body.innerHTML = '<div class="text-center text-danger small py-4">Liste yüklenemedi.</div>'; }
+    });
+
+    async function post(url, data) {
+        const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }, body: JSON.stringify(data || {}) });
+        const j = await r.json().catch(() => ({ ok: false, error: 'Sunucu hatası' }));
+        if (!r.ok || !j.ok) throw new Error(j.error || 'İşlem başarısız');
+        return j;
+    }
+    document.addEventListener('click', async (e) => {
+        const del = e.target.closest('.cm-del');
+        const edit = e.target.closest('.cm-edit');
+        if (!del && !edit) return;
+        const box = e.target.closest('[data-comment-id]');
+        const id = box.dataset.commentId;
+        if (del) {
+            const hasReplies = box.querySelector('.comment-replies .comment');
+            if (!confirm(hasReplies ? 'Yorum ve altındaki yanıtlar silinsin mi?' : 'Yorum silinsin mi?')) return;
+            try {
+                await post(`/api/comment/${id}/delete`);
+                box.style.transition = 'opacity .25s'; box.style.opacity = '0';
+                setTimeout(() => box.remove(), 250);
+            } catch (err) { alert(err.message); }
+            return;
+        }
+        if (box.querySelector('.cm-edit-form')) return;
+        const textEl = box.querySelector(':scope > .comment-text');
+        const old = textEl.textContent;
+        const form = document.createElement('form');
+        form.className = 'cm-edit-form';
+        form.innerHTML = `<input type="text" maxlength="500" required><button type="submit">Kaydet</button><button type="button" class="cancel">Vazgeç</button>`;
+        form.querySelector('input').value = old;
+        textEl.hidden = true; textEl.after(form);
+        const input = form.querySelector('input'); input.focus(); input.setSelectionRange(old.length, old.length);
+        const close = () => { form.remove(); textEl.hidden = false; };
+        form.querySelector('.cancel').onclick = close;
+        input.addEventListener('keydown', ev => { if (ev.key === 'Escape') close(); });
+        form.addEventListener('submit', async (ev) => {
+            ev.preventDefault();
+            const val = input.value.trim(); if (!val) return;
+            try {
+                const j = await post(`/api/comment/${id}/edit`, { comment: val });
+                textEl.textContent = j.comment; close();
+                const t = box.querySelector(':scope > .comment-time');
+                if (t && !t.querySelector('em')) t.firstChild.after(Object.assign(document.createElement('span'), { innerHTML: ' · <em>düzenlendi</em>' }));
+            } catch (err) { alert(err.message); }
+        });
+    });
+})();
 
 // ===================== HİKAYE GÖRÜNTÜLEYİCİ & EDİTÖRÜ =====================
 const storyFileInput = document.getElementById('story-file-input');

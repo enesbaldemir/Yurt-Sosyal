@@ -1,11 +1,67 @@
+<style>
+    .glb-tabs { display: inline-flex; background: var(--surface-2); border-radius: 999px; padding: 3px; gap: 2px; }
+    .glb-tabs button { border: 0; background: transparent; border-radius: 999px; padding: .25rem .8rem; font-size: .76rem; font-weight: 700; color: var(--text-muted); }
+    .glb-tabs button.active { background: var(--surface); color: var(--text); box-shadow: var(--shadow-sm); }
+    .game-result-pop { position: fixed; left: 50%; top: 84px; transform: translate(-50%, -30px) scale(.9); opacity: 0; z-index: 3000; pointer-events: none;
+        min-width: 260px; max-width: calc(100vw - 32px); border-radius: 18px; padding: 1rem 1.3rem; color: #fff; text-align: center;
+        background: linear-gradient(135deg, var(--g1, #6366f1), var(--g2, #4338ca)); box-shadow: 0 20px 40px -12px rgba(0,0,0,.45);
+        transition: all .45s cubic-bezier(.2,.9,.25,1.2); }
+    .game-result-pop.show { opacity: 1; transform: translate(-50%, 0) scale(1); }
+    .game-result-pop .big { font-size: 1.35rem; font-weight: 900; letter-spacing: -.01em; }
+    .game-result-pop .row2 { display: flex; justify-content: center; gap: .5rem; margin-top: .5rem; flex-wrap: wrap; }
+    .game-result-pop .chip { background: rgba(255,255,255,.2); border-radius: 999px; padding: .2rem .65rem; font-size: .78rem; font-weight: 700; }
+</style>
 <div class="card card-pad mt-4">
-    <div class="section-title mb-3">
+    <div class="section-title mb-3 flex-wrap gap-2">
         <span><i class="bi bi-trophy me-1" style="color: var(--gold);"></i> Lider Tablosu</span>
-        {% if my_best is not none %}
-        <span class="badge-tag badge-gold">En İyi Skorun: {{ my_best }} {{ meta.unit if meta else '' }}</span>
-        {% endif %}
+        <div class="d-flex align-items-center gap-2">
+            {% if my_best is not none %}
+            <span class="badge-tag badge-gold" id="glbMyBest">En iyin: {{ my_best }} {{ meta.unit if meta else '' }}</span>
+            {% endif %}
+            <div class="glb-tabs" role="tablist">
+                <button type="button" class="active" data-glb="all">Tüm zamanlar</button>
+                <button type="button" data-glb="week">Bu hafta</button>
+            </div>
+        </div>
     </div>
-    <div id="game-leaderboard-list">
+    <div id="game-leaderboard-list" data-glb-pane="all">
         {% include 'partials/_leaderboard_rows.html' %}
     </div>
+    <div data-glb-pane="week" hidden>
+        {% with leaderboard = week_leaderboard %}{% include 'partials/_leaderboard_rows.html' %}{% endwith %}
+    </div>
 </div>
+<div class="game-result-pop" id="gameResultPop" role="status" aria-live="polite"
+     style="--g1: {{ game_theme[0] if game_theme else '#6366f1' }}; --g2: {{ game_theme[1] if game_theme else '#4338ca' }};"></div>
+<script>
+(function () {
+    document.querySelectorAll('[data-glb]').forEach(function (b) {
+        b.addEventListener('click', function () {
+            document.querySelectorAll('[data-glb]').forEach(function (x) { x.classList.toggle('active', x === b); });
+            document.querySelectorAll('[data-glb-pane]').forEach(function (p) { p.hidden = p.dataset.glbPane !== b.dataset.glb; });
+        });
+    });
+    // Skor gönderildiğinde (her oyunda ortak) kutlama kartı göster: rekor, sıralama, XP
+    var UNIT = {{ (meta.unit if meta else '')|tojson }};
+    var origFetch = window.fetch, pop = document.getElementById('gameResultPop'), t = null;
+    window.fetch = function (url, opts) {
+        var p = origFetch.apply(this, arguments);
+        if (typeof url === 'string' && /\/games\/[^/]+\/score$/.test(url)) {
+            var sent = null;
+            try { sent = JSON.parse(opts && opts.body).score; } catch (e) {}
+            p.then(function (r) { return r.clone().json(); }).then(function (d) {
+                if (!d || !d.ok) return;
+                pop.innerHTML = '<div class="big">' + (d.is_record ? '🏆 Yeni rekor!' : '👏 Skor kaydedildi') + '</div>' +
+                    (sent != null ? '<div style="font-size:1.8rem;font-weight:900;line-height:1.1;margin-top:.2rem;">' + sent + ' <small style="font-size:.9rem;opacity:.85;">' + UNIT + '</small></div>' : '') +
+                    '<div class="row2">' + (d.rank ? '<span class="chip">🏅 ' + d.rank + '. / ' + d.player_count + ' oyuncu</span>' : '') +
+                    (d.xp_gained ? '<span class="chip">+' + d.xp_gained + ' XP</span>' : '<span class="chip">Bugünlük XP limiti doldu</span>') + '</div>';
+                pop.classList.add('show');
+                clearTimeout(t); t = setTimeout(function () { pop.classList.remove('show'); }, 3200);
+                var mb = document.getElementById('glbMyBest');
+                if (mb && d.my_best != null) mb.textContent = 'En iyin: ' + d.my_best + ' ' + UNIT;
+            }).catch(function () {});
+        }
+        return p;
+    };
+})();
+</script>

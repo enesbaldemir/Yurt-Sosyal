@@ -724,7 +724,7 @@
         {% endif %}
         {% if can('manage_polls') %}
         <!-- ANA SAYFA ANKETİ -->
-        <div class="card card-pad mt-4">
+        <div class="card card-pad mt-4" id="adminPollCard">
             <div class="section-title mb-3">
                 <span><i class="bi bi-bar-chart-steps me-1"></i> Ana Sayfa Anketi ("Bugün Yurtta")</span>
             </div>
@@ -804,9 +804,13 @@
                                         <option value="pending" {{ 'selected' if r.status=='pending' }}>Bekliyor</option>
                                         <option value="in_progress" {{ 'selected' if r.status=='in_progress' }}>İnceleniyor</option>
                                         <option value="resolved" {{ 'selected' if r.status=='resolved' }}>Çözüldü</option>
+                                        <option value="cancelled" {{ 'selected' if r.status=='cancelled' }}>İptal</option>
                                     </select>
                                     <input name="admin_note" class="form-control form-control-sm" placeholder="Not..." value="{{ r.admin_note or '' }}" style="font-size:0.75rem; width:120px;">
                                     <button type="submit" class="btn btn-secondary btn-sm py-1 px-2" title="Kaydet">✓</button>
+                                </form>
+                                <form method="post" action="{{ url_for('delete_maintenance', req_id=r.id) }}" class="d-inline" onsubmit="return confirm('Talep silinsin mi?')">
+                                    <button type="submit" class="btn btn-soft-danger btn-sm py-1 px-2 mt-1" title="Talebi sil"><i class="bi bi-trash3"></i></button>
                                 </form>
                             </td>
                             <td class="text-muted small">{{ r.created_at|datetime_tr }}</td>
@@ -1026,6 +1030,12 @@ function loadMenuToAdminForm(date, b, d, s) {
         var want = location.hash && document.querySelector('#adminTabs [data-bs-target="' + location.hash + '"]') ? location.hash : sessionStorage.getItem('admin-tab');
         var btn = want && document.querySelector('#adminTabs [data-bs-target="' + want + '"]');
         if (btn && window.bootstrap) bootstrap.Tab.getOrCreateInstance(btn).show();
+        if (/[?&]focus=poll/.test(location.search)) {
+            setTimeout(function () {
+                var pc = document.getElementById('adminPollCard');
+                if (pc) { pc.scrollIntoView({ behavior: 'smooth', block: 'start' }); pc.style.transition = 'box-shadow .4s'; pc.style.boxShadow = '0 0 0 3px var(--gold)'; var qi = pc.querySelector('input[name=question]'); if (qi) setTimeout(function () { qi.focus({ preventScroll: true }); }, 500); setTimeout(function () { pc.style.boxShadow = ''; }, 2200); }
+            }, 250);
+        }
     } catch (e) {}
 
     // ---------- Kullanıcılar: arama, filtre, anında rol atama ----------

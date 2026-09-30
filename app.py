@@ -663,7 +663,21 @@ GAMES = {
     'penalty': {'name':'Penaltı Shootout','icon':'bi-dribbble','desc':'10 penaltıda kaleciyi geç ve yurttaki en yüksek skoru yap!','sort':'desc','unit':'gol'},
     'memory': {'name':'Hafıza Kartları','icon':'bi-grid-3x3-gap','desc':'Kartları eşleştir, süreye karşı hafızanı test et!','sort':'asc','unit':'sn'},
     '2048': {'name':'2048','icon':'bi-grid-3x3','desc':'Sayıları birleştir, 2048 hedefine ulaş!','sort':'desc','unit':'puan'},
+    'stroop': {'name': 'Renk Tuzağı', 'icon': 'bi-palette-fill', 'desc': 'Kelimeyi değil RENGİ seç! 30 saniyede beynini kandıran renklerle yarış.', 'sort': 'desc', 'unit': 'puan'},
+    'math': {'name': 'Hızlı Matematik', 'icon': 'bi-calculator-fill', 'desc': '45 saniyede kaç işlemi doğru çözebilirsin? Seri yaptıkça puan katlanır.', 'sort': 'desc', 'unit': 'puan'},
 }
+# Oyun kartları için görsel tema: (renk 1, renk 2, kategori, süre)
+GAME_THEMES = {
+    'snake': ('#22c55e', '#15803d', 'Arcade', '2-5 dk'),
+    'reflex': ('#f59e0b', '#ea580c', 'Refleks', '30 sn'),
+    'whackamole': ('#b45309', '#78350f', 'Refleks', '30 sn'),
+    'penalty': ('#0ea5e9', '#1d4ed8', 'Spor', '1 dk'),
+    'memory': ('#8b5cf6', '#6d28d9', 'Hafıza', '1-2 dk'),
+    '2048': ('#f97316', '#c2410c', 'Bulmaca', '5+ dk'),
+    'stroop': ('#ec4899', '#9333ea', 'Beyin', '30 sn'),
+    'math': ('#06b6d4', '#0e7490', 'Beyin', '45 sn'),
+}
+GAME_DAILY_XP_PLAYS = 5  # Oyun başına günde en fazla bu kadar oynayış XP kazandırır
 
 
 
@@ -1326,6 +1340,7 @@ def init_db():
     _repair_misclassified_menus(conn)
     _init_roles_table(conn)
     _init_quiz_extras(conn)
+    _init_extras(conn)
 
     conn.commit()
     conn.close()
@@ -1614,22 +1629,47 @@ def conv_message_to_dict(conn, msg, viewer_id, users_cache=None):
     }
 
 
+ATTENDANCE_MANDATORY_WINDOW_HOURS = 12  # Zorunlu yoklama bu kadar saat sonra otomatik kapanır
+
+
 def get_pending_mandatory_attendance(user_id, in_dorm):
-    """Kullanıcının doldurmadığı, aktif ve zorunlu bir yoklama var mı?"""
+    """Kullanıcının doldurması gereken zorunlu yoklama var mı?
+
+    ESKİ HATA: Kapanmayan tüm eski zorunlu yoklamalar sırayla soruluyordu; yeni
+    kayıt olan biri (ya da birkaç gün girmeyen biri) günlerce birikmiş yoklamayı
+    tek tek doldurmak zorunda kalıyordu. Artık yalnızca EN SON açılan ve hâlâ
+    süresi içinde olan zorunlu yoklama sorulur; kullanıcı yoklama açıldıktan
+    sonra kayıt olduysa hiç sorulmaz."""
     if not in_dorm:
         return None
+    since = (datetime.utcnow() - timedelta(hours=ATTENDANCE_MANDATORY_WINDOW_HOURS)).strftime('%Y-%m-%d %H:%M:%S')
     conn = get_db()
-    pending = conn.execute('''
-        SELECT a.* FROM attendances a
-        WHERE a.is_active = 1 AND a.is_mandatory = 1
-          AND NOT EXISTS (
-              SELECT 1 FROM attendance_records ar
-              WHERE ar.attendance_id = a.id AND ar.user_id = ?
-          )
-        ORDER BY a.created_at DESC LIMIT 1
-    ''', (user_id,)).fetchone()
+    latest = conn.execute(
+        'SELECT a.* FROM attendances a WHERE a.is_active = 1 AND a.is_mandatory = 1 AND a.created_at >= ? '
+        'ORDER BY a.created_at DESC, a.id DESC LIMIT 1', (since,)).fetchone()
+    if not latest:
+        conn.close()
+        return None
+    user = conn.execute('SELECT created_at FROM users WHERE id = ?', (user_id,)).fetchone()
+    answered = conn.execute('SELECT 1 FROM attendance_records WHERE attendance_id = ? AND user_id = ?',
+                            (latest['id'], user_id)).fetchone()
     conn.close()
-    return pending
+    if answered:
+        return None
+    if user and user['created_at'] and str(user['created_at']) > str(latest['created_at']):
+        return None
+    return latest
+
+
+def close_stale_attendances(keep_id=None):
+    """Süresi geçen zorunlu yoklamaları kapatır; yeni biri açılınca eskileri de kapatır."""
+    since = (datetime.utcnow() - timedelta(hours=ATTENDANCE_MANDATORY_WINDOW_HOURS)).strftime('%Y-%m-%d %H:%M:%S')
+    conn = get_db()
+    conn.execute('UPDATE attendances SET is_active = 0 WHERE is_active = 1 AND is_mandatory = 1 AND created_at < ?', (since,))
+    if keep_id:
+        conn.execute('UPDATE attendances SET is_active = 0 WHERE is_active = 1 AND is_mandatory = 1 AND id != ?', (keep_id,))
+    conn.commit()
+    conn.close()
 
 
 def nest_comments(comments):
@@ -1828,6 +1868,14 @@ def _repair_misclassified_menus(conn):
         return 0
 
 
+def _nl2br(value):
+    """Metni güvenle kaçışlar ve satır sonlarını <br> yapar (mesaj balonları için)."""
+    from markupsafe import Markup, escape
+    text = re.sub(r'\n{3,}', '\n\n', str(value or ''))
+    return Markup('<br>').join(escape(line) for line in text.split('\n'))
+
+
+app.jinja_env.filters['nl2br'] = _nl2br
 app.jinja_env.filters['format_date_tr'] = format_date_tr
 app.jinja_env.filters['day_name_tr'] = day_name_tr
 app.jinja_env.filters['split_courses'] = split_menu_courses
@@ -2540,6 +2588,38 @@ def mark_notification_read(notif_id):
     if notif and notif['link']:
         return redirect(notif['link'])
     return redirect(url_for('notifications'))
+
+
+@app.route('/api/notifications/<int:notif_id>/read', methods=['POST'])
+@login_required
+def api_notification_read(notif_id):
+    """Bildirime tıklanınca sayfa yenilenmeden okundu işaretler."""
+    conn = get_db()
+    conn.execute('UPDATE notifications SET is_read = 1 WHERE id = ? AND user_id = ?', (notif_id, session['user_id']))
+    conn.commit()
+    row = conn.execute('SELECT link FROM notifications WHERE id = ? AND user_id = ?', (notif_id, session['user_id'])).fetchone()
+    conn.close()
+    return jsonify({'ok': True, 'link': row['link'] if row else None, 'unread_count': get_unread_count(session['user_id'])})
+
+
+@app.route('/api/notifications/<int:notif_id>/delete', methods=['POST'])
+@login_required
+def api_notification_delete(notif_id):
+    conn = get_db()
+    conn.execute('DELETE FROM notifications WHERE id = ? AND user_id = ?', (notif_id, session['user_id']))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True, 'unread_count': get_unread_count(session['user_id'])})
+
+
+@app.route('/api/notifications/read-all', methods=['POST'])
+@login_required
+def api_notifications_read_all():
+    conn = get_db()
+    conn.execute('UPDATE notifications SET is_read = 1 WHERE user_id = ?', (session['user_id'],))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True, 'unread_count': 0})
 
 
 @app.route('/notifications/read-all')
@@ -3674,6 +3754,7 @@ QUIZ_INTRO_SECONDS = 4        # Soru metni önce tek başına gösterilir ("Haz�
 QUIZ_REVEAL_SECONDS = 5       # Doğru cevap + dağılım ekranı, ardından otomatik sıralama
 QUIZ_AUTO_NEXT_SECONDS = 8    # "Otomatik ilerle" açıksa sıralamadan sonra bekleme
 QUIZ_OPTION_KEYS = ('a', 'b', 'c', 'd')
+QUIZ_VIDEO_MAX_BYTES = 55 * 1024 * 1024  # 55 MB (istek sınırı 60 MB)
 
 QUIZ_LIVE = {}                # session_id -> canlı durum (bellekte)
 QUIZ_LIVE_LOCK = threading.Lock()
@@ -3682,6 +3763,7 @@ QUIZ_LIVE_LOCK = threading.Lock()
 def _init_quiz_extras(conn):
     _ensure_column(conn, 'quiz_questions', 'qtype', "TEXT DEFAULT 'quiz'")
     _ensure_column(conn, 'quiz_questions', 'points_mode', "TEXT DEFAULT 'standard'")
+    _ensure_column(conn, 'quiz_questions', 'video_path', 'TEXT')
     _ensure_column(conn, 'quizzes', 'updated_at', 'TIMESTAMP')
     _ensure_column(conn, 'quizzes', 'cover_theme', "TEXT DEFAULT 'purple'")
     _ensure_column(conn, 'quiz_participants', 'streak', 'INTEGER DEFAULT 0')
@@ -3724,6 +3806,7 @@ def _quiz_q_dict(q, with_answer=True):
         'points_mode': (q['points_mode'] if 'points_mode' in keys else None) or 'standard',
         'image_path': q['image_path'] if 'image_path' in keys else None,
         'audio_path': q['audio_path'] if 'audio_path' in keys else None,
+        'video_path': q['video_path'] if 'video_path' in keys else None,
         'order_index': q['order_index'],
     }
     for k in QUIZ_OPTION_KEYS:
@@ -3836,6 +3919,7 @@ def quiz_detail(quiz_id):
     return render_template('quiz_detail.html', quiz=quiz, questions=questions, live_session=live_session,
                            session_count=stats['sessions'], total_participants=stats['players'],
                            time_choices=QUIZ_TIME_CHOICES,
+                           quiz_video_max_mb=QUIZ_VIDEO_MAX_BYTES // (1024 * 1024),
                            points_modes=[(k, v[0]) for k, v in QUIZ_POINTS_MODES.items()],
                            quiz_types=list(QUIZ_TYPES.items()),
                            focus_question=request.args.get('q', type=int))
@@ -3961,6 +4045,9 @@ def api_quiz_update_question(question_id):
     if truthy(data.get('remove_audio')):
         _remove_quiz_file(q['audio_path'])
         updates['audio_path'] = None
+    if truthy(data.get('remove_video')):
+        _remove_quiz_file(q['video_path'])
+        updates['video_path'] = None
     for k in QUIZ_OPTION_KEYS:
         if truthy(data.get(f'remove_option_{k}_image')):
             _remove_quiz_file(q[f'option_{k}_image'])
@@ -3981,6 +4068,19 @@ def api_quiz_update_question(question_id):
             return jsonify({'ok': False, 'error': 'Ses için mp3, wav, ogg, m4a veya aac yükleyin.'}), 400
         _remove_quiz_file(q['audio_path'])
         updates['audio_path'] = save_media(f, UPLOAD_QUIZ, AUDIO_EXT)
+    f = request.files.get('question_video')
+    if f and f.filename:
+        if not allowed_file(f.filename, VIDEO_EXT):
+            conn.close()
+            return jsonify({'ok': False, 'error': 'Video için mp4, mov, webm veya m4v yükleyin.'}), 400
+        f.stream.seek(0, os.SEEK_END)
+        vsize = f.stream.tell()
+        f.stream.seek(0)
+        if vsize > QUIZ_VIDEO_MAX_BYTES:
+            conn.close()
+            return jsonify({'ok': False, 'error': f'Video en fazla {QUIZ_VIDEO_MAX_BYTES // (1024 * 1024)} MB olabilir.'}), 400
+        _remove_quiz_file(q['video_path'])
+        updates['video_path'] = save_media(f, UPLOAD_QUIZ, VIDEO_EXT)
     for k in QUIZ_OPTION_KEYS:
         f = request.files.get(f'option_{k}_image')
         if f and f.filename:
@@ -4027,12 +4127,13 @@ def api_quiz_duplicate_question(question_id):
     cur = conn.cursor()
     cur.execute('''INSERT INTO quiz_questions (quiz_id, question_text, option_a, option_b, option_c, option_d, correct_option,
                         time_limit, order_index, image_path, audio_path, option_a_image, option_b_image, option_c_image,
-                        option_d_image, qtype, points_mode)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                        option_d_image, qtype, points_mode, video_path)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
                 (q['quiz_id'], q['question_text'], q['option_a'], q['option_b'], q['option_c'], q['option_d'],
                  q['correct_option'], q['time_limit'], copy_file(q['image_path']), copy_file(q['audio_path']),
                  copy_file(q['option_a_image']), copy_file(q['option_b_image']), copy_file(q['option_c_image']),
-                 copy_file(q['option_d_image']), q['qtype'] or 'quiz', q['points_mode'] or 'standard'))
+                 copy_file(q['option_d_image']), q['qtype'] or 'quiz', q['points_mode'] or 'standard',
+                 copy_file(q['video_path'])))
     new_id = cur.lastrowid
     ids.insert(ids.index(question_id) + 1, new_id)
     for i, qid in enumerate(ids):
@@ -4055,7 +4156,7 @@ def api_quiz_delete_question(question_id):
     used = conn.execute('SELECT COUNT(*) c FROM quiz_answers WHERE question_id = ?', (question_id,)).fetchone()['c']
     if used:
         conn.execute('DELETE FROM quiz_answers WHERE question_id = ?', (question_id,))
-    for col in ('image_path', 'audio_path', 'option_a_image', 'option_b_image', 'option_c_image', 'option_d_image'):
+    for col in ('image_path', 'audio_path', 'video_path', 'option_a_image', 'option_b_image', 'option_c_image', 'option_d_image'):
         _remove_quiz_file(q[col])
     conn.execute('DELETE FROM quiz_questions WHERE id = ?', (question_id,))
     ids = [r['id'] for r in _quiz_questions(conn, q['quiz_id'])]
@@ -4094,7 +4195,7 @@ def quiz_delete(quiz_id):
     quiz = conn.execute('SELECT * FROM quizzes WHERE id = ?', (quiz_id,)).fetchone()
     if quiz and _can_edit_quiz(quiz):
         for row in _quiz_questions(conn, quiz_id):
-            for col in ('image_path', 'audio_path', 'option_a_image', 'option_b_image', 'option_c_image', 'option_d_image'):
+            for col in ('image_path', 'audio_path', 'video_path', 'option_a_image', 'option_b_image', 'option_c_image', 'option_d_image'):
                 _remove_quiz_file(row[col])
         session_ids = [r['id'] for r in conn.execute('SELECT id FROM quiz_sessions WHERE quiz_id = ?', (quiz_id,)).fetchall()]
         for sid in session_ids:
@@ -4646,20 +4747,25 @@ def handle_quiz_answer(data):
 
 # ==================== OYUNLAR (Mini oyunlar) ====================
 
-def get_game_leaderboard(game_key, limit=10):
+def _week_start_utc():
+    now = now_tr()
+    start = (now - timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
+    return start.astimezone(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
+
+
+def get_game_leaderboard(game_key, limit=10, period='all'):
     meta = GAMES[game_key]
     agg = 'MIN' if meta['sort'] == 'asc' else 'MAX'
     order = 'ASC' if meta['sort'] == 'asc' else 'DESC'
+    where, params = 'gs.game_key = ?', [game_key]
+    if period == 'week':
+        where += ' AND gs.created_at >= ?'
+        params.append(_week_start_utc())
     conn = get_db()
-    rows = conn.execute(f'''
-        SELECT u.id as user_id, u.username, u.full_name, u.profile_photo,
-               {agg}(gs.score) as best_score
-        FROM game_scores gs JOIN users u ON gs.user_id = u.id
-        WHERE gs.game_key = ?
-        GROUP BY gs.user_id
-        ORDER BY best_score {order}
-        LIMIT ?
-    ''', (game_key, limit)).fetchall()
+    rows = conn.execute(
+        f'SELECT u.id as user_id, u.username, u.full_name, u.profile_photo, {agg}(gs.score) as best_score, '
+        f'COUNT(gs.id) as plays FROM game_scores gs JOIN users u ON gs.user_id = u.id WHERE {where} '
+        f'GROUP BY gs.user_id ORDER BY best_score {order} LIMIT ?', params + [limit]).fetchall()
     conn.close()
     return [dict(r) for r in rows]
 
@@ -4669,23 +4775,48 @@ def get_user_best_score(game_key, user_id):
     agg = 'MIN' if meta['sort'] == 'asc' else 'MAX'
     conn = get_db()
     row = conn.execute(f'SELECT {agg}(score) as best FROM game_scores WHERE game_key = ? AND user_id = ?',
-                        (game_key, user_id)).fetchone()
+                       (game_key, user_id)).fetchone()
     conn.close()
     return row['best'] if row and row['best'] is not None else None
+
+
+def get_user_game_rank(game_key, user_id):
+    board = get_game_leaderboard(game_key, limit=1000)
+    for i, r in enumerate(board):
+        if r['user_id'] == user_id:
+            return i + 1, len(board)
+    return None, len(board)
 
 
 @app.route('/games')
 @login_required
 def games_hub():
+    uid = session['user_id']
     games_data = []
     for key, meta in GAMES.items():
-        top = get_game_leaderboard(key, limit=1)
+        top = get_game_leaderboard(key, limit=3)
+        week = get_game_leaderboard(key, limit=5, period='week')
+        rank, total = get_user_game_rank(key, uid)
+        theme = GAME_THEMES.get(key, ('#6366f1', '#4338ca', 'Oyun', ''))
         games_data.append({
-            'key': key, **meta,
+            'key': key, **meta, 'top': top, 'week': week,
             'top_player': top[0] if top else None,
-            'my_best': get_user_best_score(key, session['user_id']),
+            'my_best': get_user_best_score(key, uid), 'my_rank': rank, 'player_count': total,
+            'c1': theme[0], 'c2': theme[1], 'tag': theme[2], 'duration': theme[3],
         })
-    return render_template('games_hub.html', games=games_data)
+    conn = get_db()
+    stats = conn.execute(
+        'SELECT COUNT(*) plays, COUNT(DISTINCT game_key) games, '
+        'COALESCE(SUM(CASE WHEN created_at >= ? THEN 1 ELSE 0 END), 0) week_plays '
+        'FROM game_scores WHERE user_id = ?', (_week_start_utc(), uid)).fetchone()
+    game_xp = conn.execute("SELECT COALESCE(SUM(amount),0) xp FROM xp_transactions WHERE user_id = ? AND reason LIKE '%oynandı%'",
+                           (uid,)).fetchone()['xp']
+    recent = conn.execute('SELECT gs.game_key, gs.score, gs.created_at, u.full_name, u.username '
+                          'FROM game_scores gs JOIN users u ON u.id = gs.user_id ORDER BY gs.created_at DESC LIMIT 8').fetchall()
+    conn.close()
+    champions = [g for g in games_data if g['week']]
+    return render_template('games_hub.html', games=games_data, stats=stats, game_xp=game_xp,
+                           recent=recent, champions=champions)
 
 
 @app.route('/games/<game_key>')
@@ -4704,9 +4835,13 @@ def game_play(game_key):
         'penalty': 'game_penalty.html',
         'memory': 'game_memory.html',
         '2048': 'game_2048.html',
+        'stroop': 'game_stroop.html',
+        'math': 'game_math.html',
     }
     return render_template(template_map[game_key], game_key=game_key, meta=meta,
-                            leaderboard=leaderboard, my_best=my_best)
+                            leaderboard=leaderboard, my_best=my_best,
+                            week_leaderboard=get_game_leaderboard(game_key, limit=10, period='week'),
+                            game_theme=GAME_THEMES.get(game_key, ('#6366f1', '#4338ca', 'Oyun', '')))
 
 
 @app.route('/games/<game_key>/score', methods=['POST'])
@@ -4725,16 +4860,26 @@ def submit_game_score(game_key):
     if score < 0 or score > 1_000_000:
         return jsonify({'error': 'invalid_score'}), 400
 
+    prev_best = get_user_best_score(game_key, session['user_id'])
+    today_start = now_tr().replace(hour=0, minute=0, second=0, microsecond=0).astimezone(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
     conn = get_db()
+    plays_today = conn.execute('SELECT COUNT(*) c FROM game_scores WHERE game_key = ? AND user_id = ? AND created_at >= ?',
+                               (game_key, session['user_id'], today_start)).fetchone()['c']
     conn.execute('INSERT INTO game_scores (game_key, user_id, score) VALUES (?, ?, ?)',
                  (game_key, session['user_id'], score))
     conn.commit()
     conn.close()
-    award_xp(session['user_id'], 10, f'{GAMES[game_key]["name"]} oynandı')
+    xp_gained = 0
+    if plays_today < GAME_DAILY_XP_PLAYS:
+        xp_gained = 10
+        award_xp(session['user_id'], xp_gained, f'{GAMES[game_key]["name"]} oynandı')
+    is_record = prev_best is None or (score < prev_best if GAMES[game_key]['sort'] == 'asc' else score > prev_best)
+    rank, total = get_user_game_rank(game_key, session['user_id'])
 
     leaderboard = get_game_leaderboard(game_key, limit=10)
     my_best = get_user_best_score(game_key, session['user_id'])
-    return jsonify({'ok': True, 'leaderboard': leaderboard, 'my_best': my_best})
+    return jsonify({'ok': True, 'leaderboard': leaderboard, 'my_best': my_best, 'is_record': is_record,
+                    'rank': rank, 'player_count': total, 'xp_gained': xp_gained})
 
 
 
@@ -5672,6 +5817,8 @@ def create_attendance():
     attendance_id = cur.lastrowid
     conn.commit()
     conn.close()
+    if is_mandatory:
+        close_stale_attendances(keep_id=attendance_id)
 
     create_notification_for_all(
         title="Yeni Yoklama!",
@@ -5828,6 +5975,7 @@ def send_nightly_attendance():
         attendance_id = cur.lastrowid
         conn.commit()
         conn.close()
+        close_stale_attendances(keep_id=attendance_id)
 
         try:
             create_notification_for_all(
@@ -5845,6 +5993,10 @@ def send_nightly_attendance():
 def check_scheduled_attendance():
     # Her dakika tetiklenir; Europe/Istanbul saatine göre ayarı kontrol eder.
     send_nightly_attendance()
+    try:
+        close_stale_attendances()
+    except Exception as exc:
+        print(f'[ATTENDANCE CLEANUP] {exc}')
 
 def cleanup_expired_stories():
     """Süresi dolan (24 saatten eski) hikayeleri ve dosyalarını temizler."""
@@ -6278,23 +6430,7 @@ def update_maintenance(req_id):
     flash(msg, 'success')
     return redirect(request.referrer or url_for('maintenance_page'))
 
-# ==================== İLANLAR ====================
-@app.route('/market')
-@login_required
-def market_page():
-    conn=get_db(); items=conn.execute('SELECT m.*,u.full_name,u.username FROM marketplace_items m JOIN users u ON u.id=m.user_id WHERE m.status="active" ORDER BY m.created_at DESC').fetchall(); conn.close(); return render_template('market.html',items=items)
-@app.route('/market/create',methods=['POST'])
-@login_required
-def market_create():
-    title=request.form.get('title','').strip()
-    if not title: flash('İlan başlığı gerekli.','danger'); return redirect(url_for('market_page'))
-    conn=get_db(); conn.execute('INSERT INTO marketplace_items(user_id,title,description,price,category) VALUES (?,?,?,?,?)',(session['user_id'],title,request.form.get('description','').strip(),request.form.get('price') or None,request.form.get('category','Diğer'))); conn.commit(); conn.close(); award_xp(session['user_id'],5,'İlan yayınlandı'); flash('İlan yayınlandı.','success'); return redirect(url_for('market_page'))
-@app.route('/market/<int:item_id>/delete',methods=['POST'])
-@login_required
-def market_delete(item_id):
-    conn=get_db(); conn.execute('UPDATE marketplace_items SET status="sold" WHERE id=? AND (user_id=? OR ?=1)',(item_id,session['user_id'],int(has_perm('moderate_content')))); conn.commit(); conn.close(); return redirect(url_for('market_page'))
-
-# ==================== XP / SIRALAMA ====================
+# ==================== İLANLAR (bkz. EK ÖZELLİKLER) ====================
 @app.route('/leaderboard')
 @login_required
 def leaderboard_page():
@@ -6511,6 +6647,412 @@ def process_laundry_notifications():
     conn.commit(); conn.close()
     for user_id, machine_name in notifications:
         create_notification(user_id,'Makine boşaldı 🧺',f'{machine_name} artık boş. Hemen rezerve edebilirsin.',url_for('laundry_page'))
+
+
+# ==================== EK ÖZELLİKLER (akış, pazar, arıza) ====================
+
+UPLOAD_MARKET = os.path.join(BASE_DIR, 'static', 'uploads', 'market')
+os.makedirs(UPLOAD_MARKET, exist_ok=True)
+MARKET_CATEGORIES = [('Kitap', 'Kitap & Kırtasiye', 'bi-book'), ('Elektronik', 'Elektronik', 'bi-laptop'),
+                     ('Kıyafet', 'Giyim & Aksesuar', 'bi-bag-heart'), ('Aksesuar', 'Oda & Yaşam', 'bi-lamp'),
+                     ('Mutfak', 'Mutfak', 'bi-cup-straw'), ('Spor', 'Spor & Hobi', 'bi-bicycle'),
+                     ('Diğer', 'Diğer', 'bi-three-dots')]
+MARKET_CONDITIONS = {'new': 'Sıfır', 'like_new': 'Az kullanılmış', 'used': 'Kullanılmış'}
+
+
+def _init_extras(conn):
+    _ensure_column(conn, 'post_comments', 'edited_at', 'TIMESTAMP')
+    _ensure_column(conn, 'marketplace_items', 'photo_path', 'TEXT')
+    _ensure_column(conn, 'marketplace_items', 'condition', "TEXT DEFAULT 'used'")
+    _ensure_column(conn, 'marketplace_items', 'updated_at', 'TIMESTAMP')
+    _ensure_column(conn, 'maintenance_requests', 'resolved_at', 'TIMESTAMP')
+    conn.execute('''CREATE TABLE IF NOT EXISTS market_comments (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, item_id INTEGER NOT NULL, user_id INTEGER NOT NULL,
+        comment TEXT NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY(item_id) REFERENCES marketplace_items(id), FOREIGN KEY(user_id) REFERENCES users(id))''')
+    conn.execute('CREATE INDEX IF NOT EXISTS idx_market_comments_item ON market_comments(item_id)')
+    conn.execute('CREATE INDEX IF NOT EXISTS idx_game_scores_game ON game_scores(game_key, created_at)')
+
+
+# ---------- Sosyal akış: beğenenler, yorum düzenle/sil ----------
+
+@app.route('/api/post/<int:post_id>/likes')
+@login_required
+def api_post_likes(post_id):
+    conn = get_db()
+    rows = conn.execute('''SELECT u.id, u.full_name, u.username, u.profile_photo, u.room_number
+                           FROM post_likes l JOIN users u ON u.id = l.user_id
+                           WHERE l.post_id = ? ORDER BY l.created_at DESC LIMIT 300''', (post_id,)).fetchall()
+    conn.close()
+    return jsonify({'ok': True, 'users': [{'id': r['id'], 'name': r['full_name'] or r['username'], 'username': r['username'],
+                                           'photo': r['profile_photo'], 'room': r['room_number'],
+                                           'is_me': r['id'] == session['user_id']} for r in rows]})
+
+
+def _comment_with_post(conn, comment_id):
+    return conn.execute('''SELECT c.*, p.user_id AS post_owner FROM post_comments c
+                           JOIN posts p ON p.id = c.post_id WHERE c.id = ?''', (comment_id,)).fetchone()
+
+
+@app.route('/api/comment/<int:comment_id>/edit', methods=['POST'])
+@login_required
+def api_comment_edit(comment_id):
+    text = str((request.get_json(silent=True) or {}).get('comment', '')).strip()[:500]
+    if not text:
+        return jsonify({'ok': False, 'error': 'Yorum boş olamaz.'}), 400
+    conn = get_db()
+    c = _comment_with_post(conn, comment_id)
+    if not c or c['user_id'] != session['user_id']:
+        conn.close()
+        return jsonify({'ok': False, 'error': 'Yalnızca kendi yorumunu düzenleyebilirsin.'}), 403
+    conn.execute('UPDATE post_comments SET comment = ?, edited_at = CURRENT_TIMESTAMP WHERE id = ?', (text, comment_id))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True, 'comment': text})
+
+
+@app.route('/api/comment/<int:comment_id>/delete', methods=['POST'])
+@login_required
+def api_comment_delete(comment_id):
+    conn = get_db()
+    c = _comment_with_post(conn, comment_id)
+    uid = session['user_id']
+    if not c or not (c['user_id'] == uid or c['post_owner'] == uid or has_perm('moderate_content')):
+        conn.close()
+        return jsonify({'ok': False, 'error': 'Bu yorumu silme yetkin yok.'}), 403
+    conn.execute('DELETE FROM post_comments WHERE parent_id = ?', (comment_id,))
+    conn.execute('DELETE FROM post_comments WHERE id = ?', (comment_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
+
+# ---------- Yurt Pazarı ----------
+
+def _market_item(conn, item_id):
+    return conn.execute('''SELECT m.*, u.full_name, u.username, u.profile_photo, u.room_number AS seller_room
+                           FROM marketplace_items m JOIN users u ON u.id = m.user_id WHERE m.id = ?''', (item_id,)).fetchone()
+
+
+def _can_manage_item(item):
+    return bool(item) and (item['user_id'] == session.get('user_id') or has_perm('moderate_content'))
+
+
+def _save_market_photo(f):
+    if not f or not f.filename:
+        return None, None
+    if not allowed_file(f.filename, IMAGE_EXT):
+        return None, 'Fotoğraf için PNG, JPG, GIF veya WEBP yükleyin.'
+    f.stream.seek(0, os.SEEK_END)
+    size = f.stream.tell()
+    f.stream.seek(0)
+    if size > 8 * 1024 * 1024:
+        return None, 'Fotoğraf en fazla 8 MB olabilir.'
+    return save_media(f, UPLOAD_MARKET, IMAGE_EXT), None
+
+
+def _price_or_none(value):
+    try:
+        v = float(str(value).replace(',', '.'))
+        return round(v, 2) if v > 0 else None
+    except (TypeError, ValueError):
+        return None
+
+
+@app.route('/market')
+@login_required
+def market_page():
+    conn = get_db()
+    items = conn.execute('''
+        SELECT m.*, u.full_name, u.username, u.profile_photo,
+               (SELECT COUNT(*) FROM market_comments c WHERE c.item_id = m.id) AS comment_count
+        FROM marketplace_items m JOIN users u ON u.id = m.user_id
+        WHERE m.status = 'active' OR (m.user_id = ? AND m.status = 'sold')
+        ORDER BY CASE m.status WHEN 'active' THEN 0 ELSE 1 END, m.created_at DESC
+    ''', (session['user_id'],)).fetchall()
+    conn.close()
+    return render_template('market.html', items=items, categories=MARKET_CATEGORIES, conditions=MARKET_CONDITIONS)
+
+
+@app.route('/market/create', methods=['POST'])
+@login_required
+def market_create():
+    title = request.form.get('title', '').strip()[:100]
+    if not title:
+        flash('İlan başlığı gerekli.', 'danger')
+        return redirect(url_for('market_page'))
+    photo, err = _save_market_photo(request.files.get('photo'))
+    if err:
+        flash(err, 'danger')
+        return redirect(url_for('market_page'))
+    cond = request.form.get('condition', 'used')
+    cats = [c[0] for c in MARKET_CATEGORIES]
+    cat = request.form.get('category', 'Diğer')
+    conn = get_db()
+    cur = conn.execute('''INSERT INTO marketplace_items(user_id, title, description, price, category, photo_path, condition)
+                          VALUES (?, ?, ?, ?, ?, ?, ?)''',
+                       (session['user_id'], title, request.form.get('description', '').strip()[:1000],
+                        _price_or_none(request.form.get('price')), cat if cat in cats else 'Diğer', photo,
+                        cond if cond in MARKET_CONDITIONS else 'used'))
+    item_id = cur.lastrowid
+    conn.commit()
+    conn.close()
+    award_xp(session['user_id'], 5, 'İlan yayınlandı')
+    flash('İlanın yayında! 🛍️', 'success')
+    return redirect(url_for('market_detail', item_id=item_id))
+
+
+@app.route('/market/<int:item_id>')
+@login_required
+def market_detail(item_id):
+    conn = get_db()
+    item = _market_item(conn, item_id)
+    if not item or (item['status'] not in ('active', 'sold')):
+        conn.close()
+        flash('İlan bulunamadı ya da kaldırılmış.', 'warning')
+        return redirect(url_for('market_page'))
+    comments = conn.execute('''SELECT c.*, u.full_name, u.username, u.profile_photo FROM market_comments c
+                               JOIN users u ON u.id = c.user_id WHERE c.item_id = ? ORDER BY c.created_at ASC''',
+                            (item_id,)).fetchall()
+    more = conn.execute('''SELECT id, title, price, photo_path FROM marketplace_items
+                           WHERE user_id = ? AND id != ? AND status = 'active' ORDER BY created_at DESC LIMIT 4''',
+                        (item['user_id'], item_id)).fetchall()
+    conn.close()
+    return render_template('market_detail.html', item=item, comments=comments, more=more,
+                           can_manage=_can_manage_item(item), categories=MARKET_CATEGORIES, conditions=MARKET_CONDITIONS)
+
+
+@app.route('/market/<int:item_id>/edit', methods=['POST'])
+@login_required
+def market_edit(item_id):
+    conn = get_db()
+    item = _market_item(conn, item_id)
+    if not item or item['user_id'] != session['user_id']:
+        conn.close()
+        flash('Bu ilanı düzenleyemezsin.', 'danger')
+        return redirect(url_for('market_page'))
+    photo = item['photo_path']
+    new_photo, err = _save_market_photo(request.files.get('photo'))
+    if err:
+        conn.close()
+        flash(err, 'danger')
+        return redirect(url_for('market_detail', item_id=item_id))
+    if new_photo or request.form.get('remove_photo') == '1':
+        if photo:
+            try:
+                os.remove(os.path.join(UPLOAD_MARKET, photo))
+            except OSError:
+                pass
+        photo = new_photo
+    cats = [c[0] for c in MARKET_CATEGORIES]
+    cat = request.form.get('category', item['category'])
+    cond = request.form.get('condition', item['condition'] or 'used')
+    conn.execute('''UPDATE marketplace_items SET title=?, description=?, price=?, category=?, condition=?, photo_path=?,
+                    updated_at=CURRENT_TIMESTAMP WHERE id=?''',
+                 ((request.form.get('title') or item['title']).strip()[:100], request.form.get('description', '').strip()[:1000],
+                  _price_or_none(request.form.get('price')), cat if cat in cats else 'Diğer',
+                  cond if cond in MARKET_CONDITIONS else 'used', photo, item_id))
+    conn.commit()
+    conn.close()
+    flash('İlan güncellendi.', 'success')
+    return redirect(url_for('market_detail', item_id=item_id))
+
+
+@app.route('/market/<int:item_id>/status', methods=['POST'])
+@login_required
+def market_status(item_id):
+    status = request.form.get('status', 'sold')
+    conn = get_db()
+    item = _market_item(conn, item_id)
+    if not _can_manage_item(item) or status not in ('sold', 'active'):
+        conn.close()
+        flash('Yetkisiz işlem.', 'danger')
+        return redirect(url_for('market_page'))
+    conn.execute('UPDATE marketplace_items SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', (status, item_id))
+    conn.commit()
+    conn.close()
+    flash('İlan "satıldı" olarak işaretlendi. 🎉' if status == 'sold' else 'İlan yeniden yayında.', 'success')
+    return redirect(url_for('market_detail', item_id=item_id))
+
+
+@app.route('/market/<int:item_id>/delete', methods=['POST'])
+@login_required
+def market_delete(item_id):
+    conn = get_db()
+    item = _market_item(conn, item_id)
+    if not _can_manage_item(item):
+        conn.close()
+        flash('Yetkisiz işlem.', 'danger')
+        return redirect(url_for('market_page'))
+    conn.execute('DELETE FROM market_comments WHERE item_id = ?', (item_id,))
+    conn.execute("UPDATE marketplace_items SET status = 'deleted' WHERE id = ?", (item_id,))
+    conn.commit()
+    conn.close()
+    if item['photo_path']:
+        try:
+            os.remove(os.path.join(UPLOAD_MARKET, item['photo_path']))
+        except OSError:
+            pass
+    flash('İlan kaldırıldı.', 'success')
+    return redirect(url_for('market_page'))
+
+
+@app.route('/market/<int:item_id>/comment', methods=['POST'])
+@login_required
+def market_comment(item_id):
+    text = request.form.get('comment', '').strip()[:500]
+    conn = get_db()
+    item = _market_item(conn, item_id)
+    if not item or not text:
+        conn.close()
+        return redirect(url_for('market_detail', item_id=item_id) if item else url_for('market_page'))
+    conn.execute('INSERT INTO market_comments(item_id, user_id, comment) VALUES (?, ?, ?)', (item_id, session['user_id'], text))
+    conn.commit()
+    me = conn.execute('SELECT full_name FROM users WHERE id = ?', (session['user_id'],)).fetchone()
+    conn.close()
+    if item['user_id'] != session['user_id']:
+        create_notification(item['user_id'], 'İlanına yorum geldi 💬',
+                            f'{me["full_name"]}: "{text[:80]}" — {item["title"]}',
+                            url_for('market_detail', item_id=item_id) + '#yorumlar')
+    return redirect(url_for('market_detail', item_id=item_id) + '#yorumlar')
+
+
+@app.route('/market/comment/<int:comment_id>/delete', methods=['POST'])
+@login_required
+def market_comment_delete(comment_id):
+    conn = get_db()
+    c = conn.execute('''SELECT c.*, m.user_id AS seller_id FROM market_comments c
+                        JOIN marketplace_items m ON m.id = c.item_id WHERE c.id = ?''', (comment_id,)).fetchone()
+    if c and (c['user_id'] == session['user_id'] or c['seller_id'] == session['user_id'] or has_perm('moderate_content')):
+        conn.execute('DELETE FROM market_comments WHERE id = ?', (comment_id,))
+        conn.commit()
+    conn.close()
+    return redirect((url_for('market_detail', item_id=c['item_id']) + '#yorumlar') if c else url_for('market_page'))
+
+
+@app.route('/market/<int:item_id>/contact', methods=['POST'])
+@login_required
+def market_contact(item_id):
+    """"İletişime geç": ilanı (fotoğrafı + başlık + fiyat + bağlantı) satıcıya DM olarak gönderir."""
+    uid = session['user_id']
+    conn = get_db()
+    item = _market_item(conn, item_id)
+    if not item or item['status'] != 'active':
+        conn.close()
+        flash('Bu ilan artık aktif değil.', 'warning')
+        return redirect(url_for('market_page'))
+    if item['user_id'] == uid:
+        conn.close()
+        flash('Bu senin ilanın 🙂', 'info')
+        return redirect(url_for('market_detail', item_id=item_id))
+    if is_blocked_between(conn, uid, item['user_id']):
+        conn.close()
+        flash('Bu kullanıcıyla mesajlaşamazsın.', 'danger')
+        return redirect(url_for('market_detail', item_id=item_id))
+    conv_id = get_or_create_dm_conversation(conn, uid, item['user_id'])
+    price = (f"{item['price']:.2f}".rstrip('0').rstrip('.') + ' ₺') if item['price'] else 'Ücretsiz / Takas'
+    note = request.form.get('message', '').strip()[:500]
+    text = (f"🛍️ İlanın hakkında yazıyorum:\n{item['title']} — {price}\n"
+            f"{request.host_url.rstrip('/')}{url_for('market_detail', item_id=item_id)}"
+            + (f"\n\n{note}" if note else "\n\nMerhaba, bu ürün hâlâ satılık mı?"))
+    image_name = None
+    if item['photo_path']:
+        src = os.path.join(UPLOAD_MARKET, item['photo_path'])
+        if os.path.exists(src):
+            import shutil
+            image_name = f"{uuid.uuid4().hex}.{item['photo_path'].rsplit('.', 1)[-1]}"
+            try:
+                shutil.copyfile(src, os.path.join(UPLOAD_MESSAGES, image_name))
+            except OSError:
+                image_name = None
+    conv, err, _status = _validate_send_target(conn, uid, conv_id)
+    if err:
+        conn.close()
+        flash(err.get('error', 'Mesaj gönderilemedi.'), 'danger')
+        return redirect(url_for('market_detail', item_id=item_id))
+    cur = conn.execute('INSERT INTO conv_messages (conversation_id, sender_id, content, image) VALUES (?, ?, ?, ?)',
+                       (conv_id, uid, text, image_name))
+    _broadcast_new_message(conn, uid, conv_id, conv, cur.lastrowid)
+    conn.commit()
+    conn.close()
+    return redirect(url_for('messages_thread', other_id=item['user_id']))
+
+
+# ---------- Arıza & Talep: sil / düzenle / iptal ----------
+
+def _maint_row(conn, req_id):
+    return conn.execute('SELECT * FROM maintenance_requests WHERE id = ?', (req_id,)).fetchone()
+
+
+@app.route('/maintenance/<int:req_id>/delete', methods=['POST'])
+@login_required
+def delete_maintenance(req_id):
+    conn = get_db()
+    r = _maint_row(conn, req_id)
+    staff = has_perm('manage_maintenance')
+    if not r or not (staff or (r['user_id'] == session['user_id'] and r['status'] != 'in_progress')):
+        conn.close()
+        msg = 'İşlemdeki bir talebi silemezsin; önce iptal edebilirsin.' if r and r['user_id'] == session['user_id'] else 'Bu talebi silme yetkin yok.'
+        if _wants_json():
+            return jsonify({'ok': False, 'error': msg}), 403
+        flash(msg, 'danger')
+        return redirect(request.referrer or url_for('maintenance_page'))
+    conn.execute('DELETE FROM maintenance_requests WHERE id = ?', (req_id,))
+    conn.commit()
+    conn.close()
+    if r['photo_path']:
+        try:
+            os.remove(os.path.join(UPLOAD_POSTS, r['photo_path']))
+        except OSError:
+            pass
+    if staff and r['user_id'] != session['user_id']:
+        create_notification(r['user_id'], 'Arıza talebin kaldırıldı',
+                            f'"{r["description"][:60]}" talebin yönetim tarafından kaldırıldı.', url_for('maintenance_page'))
+    if _wants_json():
+        return jsonify({'ok': True})
+    flash('Talep silindi.', 'success')
+    return redirect(request.referrer or url_for('maintenance_page'))
+
+
+@app.route('/maintenance/<int:req_id>/edit', methods=['POST'])
+@login_required
+def edit_maintenance(req_id):
+    conn = get_db()
+    r = _maint_row(conn, req_id)
+    if not r or r['user_id'] != session['user_id'] or r['status'] != 'pending':
+        conn.close()
+        flash('Yalnızca beklemedeki kendi talebini düzenleyebilirsin.', 'danger')
+        return redirect(url_for('maintenance_page'))
+    desc = request.form.get('description', '').strip()
+    if not desc:
+        conn.close()
+        flash('Açıklama boş olamaz.', 'danger')
+        return redirect(url_for('maintenance_page'))
+    prio = request.form.get('priority', r['priority'])
+    conn.execute('''UPDATE maintenance_requests SET description=?, category=?, room_number=?, priority=?,
+                    updated_at=CURRENT_TIMESTAMP WHERE id=?''',
+                 (desc[:1000], request.form.get('category', r['category']), request.form.get('room_number', '').strip()[:40],
+                  prio if prio in ('normal', 'high', 'urgent') else 'normal', req_id))
+    conn.commit()
+    conn.close()
+    flash('Talebin güncellendi.', 'success')
+    return redirect(url_for('maintenance_page'))
+
+
+@app.route('/maintenance/<int:req_id>/cancel', methods=['POST'])
+@login_required
+def cancel_maintenance(req_id):
+    conn = get_db()
+    r = _maint_row(conn, req_id)
+    if not r or r['user_id'] != session['user_id'] or r['status'] in ('resolved', 'cancelled'):
+        conn.close()
+        flash('Bu talep iptal edilemez.', 'danger')
+        return redirect(url_for('maintenance_page'))
+    conn.execute("UPDATE maintenance_requests SET status='cancelled', admin_note=COALESCE(NULLIF(admin_note,''), 'Öğrenci tarafından iptal edildi'), updated_at=CURRENT_TIMESTAMP WHERE id=?", (req_id,))
+    conn.commit()
+    conn.close()
+    flash('Talebin iptal edildi.', 'success')
+    return redirect(url_for('maintenance_page'))
 
 
 # ==================== ADMIN PANELİ ====================
@@ -6938,6 +7480,7 @@ def delete_message(msg_id):
 
 init_db()
 normalize_existing_usernames()
+close_stale_attendances()
 start_scheduler()
 
 if __name__ == '__main__':

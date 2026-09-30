@@ -1,102 +1,110 @@
 {% extends 'base.html' %}
 {% block title %}Yurt Pazarı — İkinci El Topluluk Pazarı{% endblock %}
 {% block content %}
+{% include 'partials/_market_style.html' %}
 
-<div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+<div class="mk-hero mb-3">
     <div>
         <span class="kicker">Topluluk Pazarı</span>
-        <h4 class="fw-bold mb-0">Yurt İçi İlanlar</h4>
+        <h4 class="fw-bold mb-1">Yurt Pazarı</h4>
+        <p class="text-muted small mb-0">Ders kitabı, elektronik, oda eşyası… Yurt arkadaşlarınla al, sat, takasla.</p>
     </div>
-    <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#newItem">
-        <i class="bi bi-plus-lg me-1"></i> Yeni İlan Ver
-    </button>
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#newItem"><i class="bi bi-plus-lg me-1"></i> İlan ver</button>
 </div>
 
-<p class="text-muted small mb-4">Ders kitapları, elektronik eşyalar, oda gereçleri ve yurt içi ikinci el eşya alışverişi.</p>
+<div class="mk-toolbar mb-3">
+    <div class="position-relative flex-fill" style="min-width: 200px;">
+        <i class="bi bi-search position-absolute" style="left:12px; top:50%; transform:translateY(-50%); color:var(--text-faint);"></i>
+        <input type="search" id="mkSearch" class="form-control" placeholder="Ne arıyorsun? Örn: hesap makinesi" style="padding-left:36px;">
+    </div>
+    <select id="mkSort" class="form-select" style="max-width: 190px;">
+        <option value="new">En yeni</option>
+        <option value="cheap">Fiyat: düşükten yükseğe</option>
+        <option value="exp">Fiyat: yüksekten düşüğe</option>
+        <option value="free">Önce ücretsizler</option>
+    </select>
+</div>
+<div class="mk-chips mb-3" role="tablist">
+    <button type="button" class="active" data-cat="">Tümü</button>
+    {% for key, label, icon in categories %}<button type="button" data-cat="{{ key }}"><i class="bi {{ icon }}"></i> {{ label }}</button>{% endfor %}
+    <button type="button" data-cat="__mine"><i class="bi bi-person"></i> İlanlarım</button>
+</div>
 
-<div class="row g-3">
+<div class="mk-grid" id="mkGrid">
 {% for i in items %}
-    <div class="col-md-6 col-lg-4">
-        <div class="card card-pad h-100 d-flex flex-column">
-            <div class="d-flex justify-content-between align-items-baseline mb-2">
-                <span class="badge-tag">{{ i.category }}</span>
-                <span class="text-muted small">@{{ i.username }}</span>
-            </div>
-
-            <h6 class="fw-bold mb-2">{{ i.title }}</h6>
-            
-            {% if i.description %}
-            <p class="small text-muted flex-fill mb-3" style="line-height: 1.45;">{{ i.description }}</p>
+    <a href="{{ url_for('market_detail', item_id=i.id) }}" class="mk-card {{ 'is-sold' if i.status == 'sold' }}"
+       data-cat="{{ i.category }}" data-mine="{{ '1' if i.user_id == session.user_id else '0' }}" data-price="{{ i.price or 0 }}"
+       data-date="{{ i.created_at }}" data-search="{{ (i.title ~ ' ' ~ (i.description or '') ~ ' ' ~ i.full_name)|lower }}">
+        <div class="mk-photo">
+            {% if i.photo_path %}
+            <img src="{{ url_for('static', filename='uploads/market/' + i.photo_path) }}" alt="{{ i.title }}" loading="lazy">
             {% else %}
-            <div class="flex-fill"></div>
+            {% set cat_icon = (categories|selectattr(0, 'equalto', i.category)|map(attribute=2)|first) or 'bi-bag' %}
+            <div class="mk-noimg"><i class="bi {{ cat_icon }}"></i></div>
             {% endif %}
-
-            <div class="d-flex justify-content-between align-items-center pt-3 border-top" style="border-color: var(--border) !important;">
-                <strong class="fs-6" style="color: var(--gold);">
-                    {% if i.price %}{{ '%.2f'|format(i.price)|replace('.00','') }} ₺{% else %}Ücretsiz / Takas{% endif %}
-                </strong>
-                <a href="{{ url_for('profile', username=i.username) }}" class="btn btn-secondary btn-sm">
-                    İletişime Geç
-                </a>
+            {% if i.status == 'sold' %}<span class="mk-sold">SATILDI</span>{% endif %}
+            <span class="mk-price">{% if i.price %}{{ '%.2f'|format(i.price)|replace('.00','') }} ₺{% else %}Ücretsiz{% endif %}</span>
+        </div>
+        <div class="mk-body">
+            <div class="mk-title">{{ i.title }}</div>
+            <div class="mk-meta">
+                <span>{{ i.category }}</span>
+                {% if i.condition %}<span>· {{ conditions.get(i.condition, '') }}</span>{% endif %}
+            </div>
+            <div class="mk-foot">
+                <span class="d-flex align-items-center gap-1 min-w-0">
+                    <span class="avatar" style="width:22px;height:22px;font-size:.6rem;">{% if i.profile_photo %}<img src="{{ url_for('static', filename='uploads/profiles/' + i.profile_photo) }}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">{% else %}{{ i.full_name[0]|upper }}{% endif %}</span>
+                    <span class="text-truncate">{{ i.full_name.split(' ')[0] }}{% if i.user_id == session.user_id %} (sen){% endif %}</span>
+                </span>
+                <span class="text-nowrap"><i class="bi bi-chat"></i> {{ i.comment_count }} · {{ i.created_at|datetime_tr }}</span>
             </div>
         </div>
-    </div>
-{% else %}
-    <div class="col-12">
-        <div class="card card-pad text-center py-5">
-            <div class="empty-state">
-                <i class="bi bi-bag"></i>
-                <h6 class="fw-bold mt-2">Henüz İlan Verilmemiş</h6>
-                <p class="small text-muted mb-3">Kullanmadığın eşyaları veya kitaplarını yurt arkadaşlarına satmak için ilan ver.</p>
-                <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#newItem">
-                    İlk İlanı Yayınla
-                </button>
-            </div>
-        </div>
-    </div>
+    </a>
 {% endfor %}
 </div>
-
-<!-- Yeni İlan Verme Modalı -->
-<div class="modal fade" id="newItem" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Yeni İlan Yayınla</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Kapat"></button>
-            </div>
-            <form method="post" action="{{ url_for('market_create') }}">
-                <div class="modal-body">
-                    <div class="mb-3">
-                        <label class="form-label">Ürün Başlığı</label>
-                        <input name="title" class="form-control" placeholder="Örn: Algoritma Ders Kitabı" required autofocus>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Kategori</label>
-                        <select name="category" class="form-select" required>
-                            <option value="Kitap">Kitap & Kırtasiye</option>
-                            <option value="Elektronik">Elektronik & Bilgisayar</option>
-                            <option value="Kıyafet">Giyim & Aksesuar</option>
-                            <option value="Aksesuar">Oda & Yaşam Eşyası</option>
-                            <option value="Diğer">Diğer</option>
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Fiyat (TL) <span class="text-muted fw-normal">(Ücretsiz ise boş bırakın)</span></label>
-                        <input name="price" type="number" step="0.01" min="0" class="form-control" placeholder="Örn: 150">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Açıklama & İletişim Notu</label>
-                        <textarea name="description" class="form-control" rows="3" placeholder="Ürünün durumu, teslim edilebileceği oda/kat bilgisi..."></textarea>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Vazgeç</button>
-                    <button type="submit" class="btn btn-primary btn-sm">İlanı Yayınla</button>
-                </div>
-            </form>
-        </div>
+<div class="card card-pad text-center py-5" id="mkEmpty" {{ 'hidden' if items }}>
+    <div class="empty-state">
+        <i class="bi bi-bag"></i>
+        <h6 class="fw-bold mt-2">Burada ilan yok</h6>
+        <p class="small text-muted mb-3">Kullanmadığın eşyaları yurt arkadaşlarına satmak için ilk ilanı sen ver.</p>
+        <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#newItem">İlan ver</button>
     </div>
 </div>
 
+{% include 'partials/_market_form.html' %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    var grid = document.getElementById('mkGrid'), cat = '', q = '';
+    function apply() {
+        var n = 0;
+        grid.querySelectorAll('.mk-card').forEach(function (c) {
+            var ok = (!cat || (cat === '__mine' ? c.dataset.mine === '1' : c.dataset.cat === cat)) && (!q || c.dataset.search.indexOf(q) > -1);
+            c.hidden = !ok; if (ok) n++;
+        });
+        document.getElementById('mkEmpty').hidden = n > 0;
+    }
+    document.getElementById('mkSearch').addEventListener('input', function () { q = this.value.trim().toLocaleLowerCase('tr-TR'); apply(); });
+    document.querySelectorAll('.mk-chips button').forEach(function (b) {
+        b.addEventListener('click', function () {
+            cat = b.dataset.cat;
+            document.querySelectorAll('.mk-chips button').forEach(function (x) { x.classList.toggle('active', x === b); });
+            apply();
+        });
+    });
+    document.getElementById('mkSort').addEventListener('change', function () {
+        var v = this.value, cards = Array.prototype.slice.call(grid.children);
+        cards.sort(function (a, b) {
+            var pa = Number(a.dataset.price), pb = Number(b.dataset.price);
+            if (v === 'cheap') return pa - pb;
+            if (v === 'exp') return pb - pa;
+            if (v === 'free') return (pa > 0) - (pb > 0);
+            return a.dataset.date < b.dataset.date ? 1 : -1;
+        });
+        cards.forEach(function (c) { grid.appendChild(c); });
+    });
+})();
+</script>
 {% endblock %}

@@ -36,6 +36,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=Instrument+Serif:ital@0;1&family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='20260819-auto-attendance-ios-push-event-fix') }}">
+    <style>.notif-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--gold);margin-right:6px;vertical-align:middle;}</style>
     <style id="role-badge-colors">
         .role-badge[class*="role-badge-r-"] { background: color-mix(in srgb, var(--rc) 13%, transparent); color: var(--rc); border-color: color-mix(in srgb, var(--rc) 34%, transparent); }
         [data-bs-theme="dark"] .role-badge[class*="role-badge-r-"] { background: color-mix(in srgb, var(--rc) 20%, transparent); color: color-mix(in srgb, var(--rc) 70%, #fff); border-color: color-mix(in srgb, var(--rc) 45%, transparent); }
@@ -480,19 +481,55 @@
                     badge.textContent = data.unread_count > 99 ? '99+' : data.unread_count;
                 }
 
-                list.innerHTML = data.notifications.slice(0, 6).map(n => `
-                    <a href="/notification/${n.id}/read" class="notification-item ${n.is_read ? '' : 'unread'}">
-                        <div class="d-flex justify-content-between align-items-baseline">
-                            <strong class="small text-truncate" style="max-width:200px;">${n.title}</strong>
-                            <small class="text-muted" style="font-size:0.68rem;">${n.time || ''}</small>
+                const escN = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+                list.innerHTML = data.notifications.slice(0, 8).map(n => `
+                    <a href="/notification/${n.id}/read" data-notif-id="${n.id}" data-notif-link="${escN(n.link || '')}" class="notification-item ${n.is_read ? '' : 'unread'}">
+                        <div class="d-flex justify-content-between align-items-baseline gap-2">
+                            <strong class="small text-truncate" style="max-width:200px;">${n.is_read ? '' : '<span class="notif-dot"></span>'}${escN(n.title)}</strong>
+                            <small class="text-muted" style="font-size:0.68rem;">${escN(n.time || '')}</small>
                         </div>
-                        <p class="small text-muted mb-0 text-truncate" style="max-width:280px;">${n.message}</p>
+                        <p class="small text-muted mb-0 text-truncate" style="max-width:280px;">${escN(n.message)}</p>
                     </a>
                 `).join('');
             } catch (e) { console.error('Bildirim yüklenemedi:', e); }
         }
 
         loadNotifications();
+
+        // Bildirime tıklayınca anında okundu işaretle (sayfa yenilemeden), sonra varsa bağlantıya git
+        window.setNotifBadge = function (count) {
+            document.querySelectorAll('#notif-badge, [data-notif-badge]').forEach(function (b) {
+                b.style.display = count > 0 ? 'inline-flex' : 'none';
+                b.textContent = count > 99 ? '99+' : count;
+            });
+        };
+        window.markNotificationRead = async function (el) {
+            const id = el.dataset.notifId;
+            const wasUnread = el.classList.contains('unread');
+            el.classList.remove('unread');
+            const dot = el.querySelector('.notif-dot'); if (dot) dot.remove();
+            try {
+                const r = await fetch('/api/notifications/' + id + '/read', { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+                const j = await r.json();
+                window.setNotifBadge(j.unread_count);
+                return j.link;
+            } catch (e) { if (wasUnread) el.classList.add('unread'); return el.dataset.notifLink; }
+        };
+        document.addEventListener('click', async function (e) {
+            const el = e.target.closest('[data-notif-id]');
+            if (!el || e.target.closest('[data-notif-delete]')) return;
+            if (e.metaKey || e.ctrlKey) return;
+            e.preventDefault();
+            const link = await window.markNotificationRead(el);
+            if (link) window.location.href = link;
+        });
+        const readAllLink = document.querySelector('.notification-dropdown a[href="/notifications/read-all"]');
+        if (readAllLink) readAllLink.addEventListener('click', async function (e) {
+            e.preventDefault();
+            await fetch('/api/notifications/read-all', { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+            window.setNotifBadge(0);
+            document.querySelectorAll('[data-notif-id].unread').forEach(x => { x.classList.remove('unread'); const d = x.querySelector('.notif-dot'); if (d) d.remove(); });
+        });
 
         // ===================== TELEFON WEB PUSH =====================
         const enablePushBtn = document.getElementById('enable-push-btn');
