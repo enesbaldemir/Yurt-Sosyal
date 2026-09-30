@@ -1,182 +1,264 @@
 {% extends "base.html" %}
 {% block title %}{{ quiz.title }} — Host Ekranı{% endblock %}
+{% block shell_class %}full-width{% endblock %}
+{% block context_panel %}{% endblock %}
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/quiz-arcade.css') }}">
+{% endblock %}
 {% block content %}
+<div class="qa-scope">
 
-<div class="d-flex align-items-center justify-content-between mb-4">
-    <div class="d-flex align-items-center gap-2">
-        <a href="{{ url_for('quiz_list') }}" class="icon-btn" title="Yarışmalara Dön">
-            <i class="bi bi-arrow-left"></i>
-        </a>
-        <div>
-            <span class="kicker">Canlı Oturum Yönetimi</span>
-            <h4 class="fw-bold mb-0">{{ quiz.title }}</h4>
+    <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+        <div class="d-flex align-items-center gap-2">
+            <a href="{{ url_for('quiz_list') }}" class="icon-btn" title="Yarışmalara Dön">
+                <i class="bi bi-arrow-left"></i>
+            </a>
+            <div>
+                <span class="qa-kicker"><i class="bi bi-easel"></i> Canlı Oturum Yönetimi</span>
+                <h5 class="fw-bold mb-0">{{ quiz.title }}</h5>
+            </div>
+        </div>
+        <span class="qa-pill qa-pill-live"><span class="qa-dot"></span> Host Ekranı</span>
+    </div>
+
+    <!-- BEKLEME EKRANI -->
+    <div id="waiting-screen" class="qa-bg text-center mb-3" style="{{ 'display:none;' if quiz_session.status != 'waiting' }} padding: 40px 24px;">
+        <div class="qa-blob" style="width:180px;height:180px;background:var(--qa-purple);top:-50px;left:-40px;"></div>
+        <div class="qa-blob" style="width:130px;height:130px;background:var(--qa-orange);bottom:-40px;right:-20px;animation-delay:1s;"></div>
+        <span class="qa-kicker justify-content-center"><i class="bi bi-phone"></i> Öğrenci Katılım Kodu</span>
+        <div class="qa-host-code mb-2">{{ quiz_session.code }}</div>
+        <p class="small mb-4" style="color: var(--qa-ink-muted);">Öğrenciler "Koda Katıl" ekranından bu PIN'i girerek katılabilir.</p>
+
+        <button type="button" id="start-quiz-btn" class="qa-btn qa-btn-lg qa-btn-block mb-2" style="max-width:420px; margin-inline:auto;" disabled>
+            <i class="bi bi-play-circle"></i> Yarışmayı Başlat
+        </button>
+        <p class="small mb-0" id="participant-hint" style="color: var(--qa-ink-muted);">Katılımcı bekleniyor...</p>
+    </div>
+
+    <!-- KATILIMCI LİSTESİ -->
+    <div id="waiting-participants" class="mb-3" style="{{ 'display:none;' if quiz_session.status != 'waiting' }}">
+        <h6 class="fw-bold mb-2"><i class="bi bi-people me-1"></i> Katılan Öğrenciler</h6>
+        <div id="waiting-participant-list" class="d-flex flex-wrap gap-2"></div>
+    </div>
+
+    <!-- CANLI SORU EKRANI -->
+    <div id="question-screen" style="display:none;">
+        <div class="qa-top-bar">
+            <span class="qa-pill qa-pill-soft qa-progress-label" id="question-index-label"></span>
+            <span class="qa-pill qa-pill-live" id="answer-count-label" style="background: var(--qa-blue);"><i class="bi bi-reply-fill"></i> 0 yanıt</span>
+        </div>
+
+        <div class="qa-question-card qa-q-enter" id="host-question-card">
+            <div class="qa-question-text" id="host-question-text"></div>
+            <img id="host-question-image" class="qa-question-media" style="display:none;" alt="">
+
+            <div id="host-question-audio" class="qa-audio-player" style="display:none;">
+                <button type="button" class="qa-audio-play-btn" id="host-audio-toggle"><i class="bi bi-play-fill"></i></button>
+                <div class="qa-audio-wave" id="host-audio-wave"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+                <audio id="host-audio-el" preload="none"></audio>
+            </div>
+
+            <div class="qa-answer-grid" id="host-options"></div>
+
+            <div class="mt-4" id="host-distribution"></div>
+
+            <button type="button" id="show-leaderboard-btn" class="qa-btn qa-btn-block mt-4">
+                <i class="bi bi-bar-chart"></i> Skor Tablosunu Göster
+            </button>
         </div>
     </div>
-</div>
 
-<!-- BEKLEME EKRANI -->
-<div id="waiting-screen" class="card card-pad text-center mb-4" style="{{ 'display:none;' if quiz_session.status != 'waiting' }}">
-    <span class="kicker mb-2">Öğrenci Katılım Kodu</span>
-    <div class="quiz-code mb-2" style="font-size: 3rem; font-weight: 800; letter-spacing: 8px; font-family: var(--font-display); color: var(--gold);">
-        {{ quiz_session.code }}
-    </div>
-    <p class="small text-muted mb-4">Öğrenciler menüden "Koda Katıl" seçeneğine girerek bu PIN kodunu yazmalıdır.</p>
-    
-    <button type="button" id="start-quiz-btn" class="btn btn-primary btn-lg w-100 py-3 mb-2" disabled>
-        <i class="bi bi-play-circle me-1"></i> Yarışmayı Başlat
-    </button>
-    <p class="small text-muted mb-0" id="participant-hint">Katılımcı bekleniyor...</p>
-</div>
-
-<!-- KATILIMCI LİSTESİ -->
-<div id="waiting-participants" class="card card-pad mb-4" style="{{ 'display:none;' if quiz_session.status != 'waiting' }}">
-    <div class="section-title mb-3">
-        <span><i class="bi bi-people me-1"></i> Katılan Öğrenciler</span>
-    </div>
-    <div id="waiting-participant-list" class="d-flex flex-column gap-2"></div>
-</div>
-
-<!-- CANLI SORU EKRANI -->
-<div id="question-screen" class="card card-pad mb-4" style="display:none;">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <span class="badge-tag badge-gold" id="question-index-label"></span>
-        <span class="badge-tag" id="answer-count-label">0 yanıt</span>
+    <!-- LİDERLİK TABLOSU -->
+    <div id="leaderboard-screen" class="qa-question-card" style="display:none;">
+        <div class="d-flex align-items-center gap-2 mb-3">
+            <i class="bi bi-trophy-fill" style="color: var(--qa-yellow);"></i>
+            <h5 class="fw-bold mb-0">Canlı Skor Tablosu</h5>
+        </div>
+        <div id="leaderboard-list" class="mb-4"></div>
+        <button type="button" id="next-question-btn" class="qa-btn qa-btn-lg qa-btn-block">
+            Sonraki Soruya Geç <i class="bi bi-arrow-right"></i>
+        </button>
     </div>
 
-    <h4 class="fw-bold mb-3" id="host-question-text"></h4>
-    <img id="host-question-image" style="display:none; max-height: 260px; object-fit: cover; border-radius: var(--radius-sm);" class="w-100 mb-3" alt="">
-    
-    <div class="quiz-options row g-3 mt-2" id="host-options"></div>
-
-    <button type="button" id="show-leaderboard-btn" class="btn btn-secondary w-100 mt-4 py-2">
-        <i class="bi bi-bar-chart me-1"></i> Skor Tablosunu Göster
-    </button>
-</div>
-
-<!-- LİDERLİK TABLOSU -->
-<div id="leaderboard-screen" class="card card-pad mb-4" style="display:none;">
-    <div class="section-title mb-3">
-        <span><i class="bi bi-trophy me-1" style="color: var(--gold);"></i> Canlı Skor Tablosu</span>
+    <!-- BİTİŞ EKRANI -->
+    <div id="finished-screen" class="qa-bg text-center" style="display:none; padding: 40px 24px;">
+        <div class="qa-blob" style="width:170px;height:170px;background:var(--qa-purple);top:-40px;right:-30px;"></div>
+        <i class="bi bi-trophy-fill" style="font-size: 2.8rem; color: var(--qa-yellow);"></i>
+        <h3 class="fw-bold mt-3 mb-2">Yarışma Tamamlandı!</h3>
+        <p class="small mb-4" style="color: var(--qa-ink-muted);">Final dereceleri ve kazanılan puanlar kaydedildi.</p>
+        <div id="final-leaderboard" class="text-start mb-4" style="max-width:460px; margin-inline:auto;"></div>
+        <a href="{{ url_for('quiz_list') }}" class="qa-btn qa-btn-lg">Yarışmalara Dön</a>
     </div>
-    <div id="leaderboard-list" class="mb-4"></div>
-    <button type="button" id="next-question-btn" class="btn btn-primary w-100 py-2">
-        Sonraki Soruya Geç <i class="bi bi-arrow-right ms-1"></i>
-    </button>
-</div>
 
-<!-- BİTİŞ EKRANI -->
-<div id="finished-screen" class="card card-pad text-center py-5" style="display:none;">
-    <i class="bi bi-trophy" style="font-size: 3rem; color: var(--gold);"></i>
-    <h3 class="serif-heading mt-3 mb-2">Yarışma Tamamlandı!</h3>
-    <p class="text-muted small mb-4">Final dereceleri ve kazanılan puanlar kaydedildi.</p>
-    <div id="final-leaderboard" class="text-start mb-4"></div>
-    <a href="{{ url_for('quiz_list') }}" class="btn btn-primary">Yarışmalara Dön</a>
 </div>
-
 {% endblock %}
 
 {% block extra_js %}
+<script src="{{ url_for('static', filename='js/quiz-arcade.js') }}"></script>
 <script>
-const SESSION_ID = {{ quiz_session.id }};
-let currentQuestionId = null;
-let questionStartTime = null;
+(function () {
+    var SESSION_ID = {{ quiz_session.id }};
+    var currentQuestionId = null;
+    var QA = window.QuizArcade || {};
+    if (typeof socket !== 'undefined') QA.attachConnectionBanner(socket);
 
-socket.emit('quiz_join_room', { session_id: SESSION_ID });
+    socket.emit('quiz_join_room', { session_id: SESSION_ID });
 
-socket.on('quiz_participants_update', function (data) {
-    const hint = document.getElementById('participant-hint');
-    const listBox = document.getElementById('waiting-participant-list');
-    const startBtn = document.getElementById('start-quiz-btn');
-    if (!hint) return;
-    hint.textContent = data.participants.length + ' öğrenci katıldı.';
-    startBtn.disabled = data.participants.length === 0;
-    listBox.innerHTML = data.participants.map(p => `
-        <div class="p-2 px-3 rounded d-flex align-items-center gap-2" style="background-color: var(--surface-2); border: 1px solid var(--border);">
-            <div class="avatar" style="width:30px;height:30px;font-size:0.75rem;">${p.nickname[0].toUpperCase()}</div>
-            <div class="fw-semibold small">${p.nickname}</div>
-        </div>
-    `).join('');
-});
-
-document.getElementById('start-quiz-btn').addEventListener('click', () => {
-    socket.emit('quiz_start', { session_id: SESSION_ID });
-});
-
-document.getElementById('show-leaderboard-btn').addEventListener('click', () => {
-    socket.emit('quiz_show_leaderboard', { session_id: SESSION_ID });
-});
-
-document.getElementById('next-question-btn').addEventListener('click', () => {
-    socket.emit('quiz_next', { session_id: SESSION_ID });
-});
-
-function showScreen(id) {
-    ['waiting-screen', 'waiting-participants', 'question-screen', 'leaderboard-screen', 'finished-screen'].forEach(s => {
-        const el = document.getElementById(s);
-        if (el) el.style.display = (s === id) ? '' : 'none';
-    });
-}
-
-const optLabels = { option_a: 'A', option_b: 'B', option_c: 'C', option_d: 'D' };
-
-socket.on('quiz_question', function (data) {
-    currentQuestionId = data.question.id;
-    questionStartTime = Date.now();
-    document.getElementById('question-index-label').textContent = `Soru ${data.index + 1} / ${data.total}`;
-    document.getElementById('answer-count-label').textContent = '0 yanıt';
-    document.getElementById('host-question-text').textContent = data.question.question_text;
-
-    const imgEl = document.getElementById('host-question-image');
-    if (data.question.image_path) {
-        imgEl.src = `/static/uploads/quiz/${data.question.image_path}`;
-        imgEl.style.display = 'block';
-    } else {
-        imgEl.style.display = 'none';
+    function showScreen(id) {
+        ['waiting-screen', 'waiting-participants', 'question-screen', 'leaderboard-screen', 'finished-screen'].forEach(function (s) {
+            var el = document.getElementById(s);
+            if (el) el.style.display = (s === id) ? '' : 'none';
+        });
     }
 
-    const optsBox = document.getElementById('host-options');
-    optsBox.innerHTML = '';
-    ['option_a', 'option_b', 'option_c', 'option_d'].forEach(key => {
-        const val = data.question[key];
-        if (!val) return;
-        const col = document.createElement('div');
-        col.className = 'col-sm-6';
-        col.innerHTML = `
-            <div class="p-3 rounded" style="background-color: var(--surface-2); border: 1px solid var(--border);">
-                <strong class="me-2">${optLabels[key]}:</strong> ${val}
-            </div>
-        `;
-        optsBox.appendChild(col);
+    var optKeys = ['option_a', 'option_b', 'option_c', 'option_d'];
+    var optLetters = { option_a: 'A', option_b: 'B', option_c: 'C', option_d: 'D' };
+    var optColors = { option_a: 'qa-opt-A', option_b: 'qa-opt-B', option_c: 'qa-opt-C', option_d: 'qa-opt-D' };
+    var distColors = { a: '#EF4444', b: '#2563EB', c: '#FACC15', d: '#22C55E' };
+
+    var partColors = ['var(--qa-purple)', 'var(--qa-blue)', 'var(--qa-pink)', 'var(--qa-orange)', 'var(--qa-green)'];
+
+    socket.on('quiz_participants_update', function (data) {
+        var hint = document.getElementById('participant-hint');
+        var listBox = document.getElementById('waiting-participant-list');
+        var startBtn = document.getElementById('start-quiz-btn');
+        if (!hint) return;
+        hint.textContent = data.participants.length + ' öğrenci katıldı.';
+        startBtn.disabled = data.participants.length === 0;
+        listBox.innerHTML = '';
+        data.participants.forEach(function (p, i) {
+            var chip = document.createElement('div');
+            chip.className = 'qa-participant-chip';
+            chip.style.animationDelay = (i * 40) + 'ms';
+            chip.innerHTML =
+                '<span class="qa-lb-avatar" style="background:' + partColors[i % partColors.length] + ';">' + p.nickname[0].toUpperCase() + '</span>' +
+                '<span></span>';
+            chip.querySelector('span:last-child').textContent = p.nickname;
+            listBox.appendChild(chip);
+        });
     });
-    showScreen('question-screen');
-});
 
-socket.on('quiz_answer_count', function (data) {
-    document.getElementById('answer-count-label').textContent = data.answer_count + ' yanıt';
-});
+    document.getElementById('start-quiz-btn').addEventListener('click', function () {
+        socket.emit('quiz_start', { session_id: SESSION_ID });
+    });
+    document.getElementById('show-leaderboard-btn').addEventListener('click', function () {
+        socket.emit('quiz_show_leaderboard', { session_id: SESSION_ID });
+    });
+    document.getElementById('next-question-btn').addEventListener('click', function () {
+        socket.emit('quiz_next', { session_id: SESSION_ID });
+    });
 
-function renderLeaderboard(containerId, leaderboard) {
-    const box = document.getElementById(containerId);
-    if (!box) return;
-    box.innerHTML = leaderboard.map((p, i) => `
-        <div class="leaderboard-row">
-            <div class="d-flex align-items-center gap-2">
-                <span class="leaderboard-rank">#${i + 1}</span>
-                <span>${p.nickname}</span>
-            </div>
-            <strong>${p.score} Puan</strong>
-        </div>
-    `).join('') || '<p class="small text-muted mb-0">Henüz puan kaydedilmedi.</p>';
-}
+    // ---------- Host ses oynatıcı (projeksiyonda soruyu duyurmak için) ----------
+    var audioEl = document.getElementById('host-audio-el');
+    var audioToggle = document.getElementById('host-audio-toggle');
+    var audioWave = document.getElementById('host-audio-wave');
+    audioToggle.addEventListener('click', function () {
+        if (audioEl.paused) { audioEl.play().catch(function () {}); } else { audioEl.pause(); }
+    });
+    audioEl.addEventListener('play', function () { audioToggle.innerHTML = '<i class="bi bi-pause-fill"></i>'; audioWave.classList.add('playing'); });
+    ['pause', 'ended'].forEach(function (ev) {
+        audioEl.addEventListener(ev, function () { audioToggle.innerHTML = '<i class="bi bi-play-fill"></i>'; audioWave.classList.remove('playing'); });
+    });
 
-socket.on('quiz_leaderboard', function (data) {
-    renderLeaderboard('leaderboard-list', data.leaderboard);
-    showScreen('leaderboard-screen');
-});
+    function renderDistribution(dist, total) {
+        var box = document.getElementById('host-distribution');
+        box.innerHTML = '';
+        ['a', 'b', 'c', 'd'].forEach(function (letter) {
+            var input = document.getElementById('host-options').querySelector('[data-opt="' + letter + '"]');
+            if (!input) return;
+            var count = (dist && dist[letter]) || 0;
+            var pct = total > 0 ? Math.round((count / total) * 100) : 0;
+            var row = document.createElement('div');
+            row.className = 'qa-dist-row';
+            row.innerHTML =
+                '<span class="qa-dist-label" style="background:' + distColors[letter] + ';">' + letter.toUpperCase() + '</span>' +
+                '<span class="qa-dist-track"><span class="qa-dist-fill" style="width:0%; background:' + distColors[letter] + ';"></span></span>' +
+                '<span class="qa-dist-count">' + count + '</span>';
+            box.appendChild(row);
+            requestAnimationFrame(function () { row.querySelector('.qa-dist-fill').style.width = pct + '%'; });
+        });
+    }
 
-socket.on('quiz_finished', function (data) {
-    renderLeaderboard('final-leaderboard', data.leaderboard);
-    showScreen('finished-screen');
-});
+    socket.on('quiz_question', function (data) {
+        currentQuestionId = data.question.id;
+        document.getElementById('question-index-label').textContent = 'Soru ' + (data.index + 1) + ' / ' + data.total;
+        document.getElementById('answer-count-label').innerHTML = '<i class="bi bi-reply-fill"></i> 0 yanıt';
+        document.getElementById('host-question-text').textContent = data.question.question_text;
+        document.getElementById('host-distribution').innerHTML = '';
+
+        var imgEl = document.getElementById('host-question-image');
+        if (data.question.image_path) { imgEl.src = '/static/uploads/quiz/' + data.question.image_path; imgEl.style.display = 'block'; }
+        else { imgEl.style.display = 'none'; }
+
+        var audioBox = document.getElementById('host-question-audio');
+        audioEl.pause();
+        if (data.question.audio_path) { audioEl.src = '/static/uploads/quiz/' + data.question.audio_path; audioBox.style.display = 'flex'; }
+        else { audioBox.style.display = 'none'; }
+
+        var optsBox = document.getElementById('host-options');
+        optsBox.innerHTML = '';
+        optKeys.forEach(function (key) {
+            var val = data.question[key];
+            if (!val) return;
+            var img = data.question[key + '_image'];
+            var letter = key.replace('option_', '');
+            var el = document.createElement('div');
+            el.className = 'qa-answer-btn ' + optColors[key];
+            el.dataset.opt = letter;
+            el.style.cursor = 'default';
+            el.innerHTML =
+                '<span class="qa-answer-letter">' + optLetters[key] + '</span>' +
+                (img ? '<img class="qa-answer-img" src="/static/uploads/quiz/' + img + '">' : '') +
+                '<span class="qa-answer-text"></span>';
+            el.querySelector('.qa-answer-text').textContent = val;
+            optsBox.appendChild(el);
+        });
+
+        var card = document.getElementById('host-question-card');
+        card.classList.remove('qa-q-enter'); void card.offsetWidth; card.classList.add('qa-q-enter');
+        showScreen('question-screen');
+    });
+
+    socket.on('quiz_answer_count', function (data) {
+        document.getElementById('answer-count-label').innerHTML = '<i class="bi bi-reply-fill"></i> ' + data.answer_count + ' yanıt';
+        if (data.distribution) renderDistribution(data.distribution, data.answer_count);
+    });
+
+    function medalFor(i) { return i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : null; }
+
+    function renderLeaderboard(containerId, leaderboard) {
+        var box = document.getElementById(containerId);
+        if (!box) return;
+        box.innerHTML = '';
+        if (!leaderboard.length) {
+            box.innerHTML = '<p class="small text-center mb-0" style="color: var(--qa-ink-muted);">Henüz puan kaydedilmedi.</p>';
+            return;
+        }
+        leaderboard.forEach(function (p, i) {
+            var medal = medalFor(i);
+            var row = document.createElement('div');
+            row.className = 'qa-lb-row';
+            row.style.animationDelay = (i * 50) + 'ms';
+            row.innerHTML =
+                '<span class="qa-lb-rank">' + (medal ? '<span class="qa-lb-medal">' + medal + '</span>' : ('#' + (i + 1))) + '</span>' +
+                '<span class="qa-lb-avatar"></span><span class="qa-lb-name"></span><span class="qa-lb-score"></span>';
+            row.querySelector('.qa-lb-avatar').textContent = (p.nickname[0] || '?').toUpperCase();
+            row.querySelector('.qa-lb-name').textContent = p.nickname;
+            row.querySelector('.qa-lb-score').textContent = p.score + ' Puan';
+            box.appendChild(row);
+        });
+    }
+
+    socket.on('quiz_leaderboard', function (data) {
+        renderLeaderboard('leaderboard-list', data.leaderboard);
+        showScreen('leaderboard-screen');
+    });
+
+    socket.on('quiz_finished', function (data) {
+        renderLeaderboard('final-leaderboard', data.leaderboard);
+        showScreen('finished-screen');
+        QA.confetti({ count: 120 });
+    });
+})();
 </script>
 {% endblock %}

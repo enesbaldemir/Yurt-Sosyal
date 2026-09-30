@@ -1,33 +1,45 @@
 {% extends "base.html" %}
 {% block title %}Yeni Yarışma Oluştur — Yurt Sosyal{% endblock %}
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/quiz-arcade.css') }}">
+{% endblock %}
 {% block content %}
+<div class="qa-scope">
 
-<div class="d-flex align-items-center justify-content-between mb-4">
-    <div class="d-flex align-items-center gap-2">
+    <div class="d-flex align-items-center gap-2 mb-3">
         <a href="{{ url_for('quiz_list') }}" class="icon-btn" title="Yarışmalara Dön">
             <i class="bi bi-arrow-left"></i>
         </a>
         <div>
-            <span class="kicker">Quiz Editörü</span>
+            <span class="qa-kicker"><i class="bi bi-magic"></i> Quiz Editörü</span>
             <h4 class="fw-bold mb-0">Yeni Yarışma</h4>
         </div>
     </div>
-</div>
 
-<div class="card card-pad">
-    <form method="POST">
-        <div class="mb-3">
-            <label class="form-label">Yarışma Başlığı</label>
-            <input type="text" name="title" class="form-control" placeholder="Örn: Yurt Genel Kültür & Tarih Quiz" required autofocus>
-        </div>
-        <div class="mb-4">
-            <label class="form-label">Açıklama <span class="text-muted fw-normal">(İsteğe Bağlı)</span></label>
-            <textarea name="description" class="form-control" rows="3" placeholder="Yarışma içeriği hakkında kısa bilgi..."></textarea>
-        </div>
-        <button type="submit" class="btn btn-primary w-100 py-2">
-            <i class="bi bi-plus-lg me-1"></i> Yarışmayı Oluştur ve Soru Eklemeye Geç
-        </button>
-    </form>
-</div>
+    <div class="qa-steps">
+        <div class="qa-step active"><span class="qa-step-num">1</span> Bilgiler</div>
+        <div class="qa-step-connector"></div>
+        <div class="qa-step qa-pill-soft" style="cursor:default;"><span class="qa-step-num">2</span> Sorular</div>
+        <div class="qa-step-connector"></div>
+        <div class="qa-step qa-pill-soft" style="cursor:default;"><span class="qa-step-num">3</span> Yayınla</div>
+    </div>
 
+    <div class="qa-bg" style="padding: 26px;">
+        <div class="qa-blob" style="width:120px;height:120px;background:var(--qa-purple);top:-30px;right:6%;"></div>
+        <form method="POST" class="qa-fade-up" style="max-width: 560px;">
+            <div class="mb-3">
+                <label class="form-label fw-semibold">Yarışma Başlığı</label>
+                <input type="text" name="title" class="form-control form-control-lg" placeholder="Örn: Yurt Genel Kültür &amp; Tarih Quiz" required autofocus>
+            </div>
+            <div class="mb-4">
+                <label class="form-label fw-semibold">Açıklama <span class="text-muted fw-normal">(İsteğe Bağlı)</span></label>
+                <textarea name="description" class="form-control" rows="3" placeholder="Yarışma içeriği hakkında kısa bilgi..."></textarea>
+            </div>
+            <button type="submit" class="qa-btn qa-btn-lg qa-btn-block">
+                <i class="bi bi-arrow-right-circle"></i> Oluştur ve Soru Eklemeye Geç
+            </button>
+        </form>
+    </div>
+
+</div>
 {% endblock %}

@@ -1,98 +1,129 @@
 {% extends "base.html" %}
-{% block title %}Ana Sayfa — Yurt Sosyal{% endblock %}
+{% block title %}Bugün Yurtta — Yurt Sosyal{% endblock %}
+
+{% block extra_css %}
+<style>
+    .ty-head { display:flex; justify-content:space-between; align-items:flex-end; flex-wrap:wrap; gap:1rem; margin-bottom:1.25rem; }
+    .ty-date { font-size:.85rem; color:var(--text-muted); margin-bottom:.25rem; }
+    .ty-greet { font-family:var(--font-serif); font-size:2.1rem; line-height:1.1; margin:0; }
+    .ty-live { display:flex; align-items:center; gap:.5rem; font-size:.85rem; color:var(--text-muted); }
+    .ty-dot { width:9px; height:9px; border-radius:50%; background:var(--danger); flex:none; animation:ty-pulse 2s ease-in-out infinite; }
+    @keyframes ty-pulse { 0%,100% { box-shadow:0 0 0 0 rgba(214,69,69,.5); } 50% { box-shadow:0 0 0 6px rgba(214,69,69,0); } }
+    @media (prefers-reduced-motion: reduce) { .ty-dot { animation:none; } }
+
+    .ty-board { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:.75rem; margin-bottom:1rem; }
+    @media (max-width:640px) { .ty-board { grid-template-columns:1fr; } }
+    .ty-tile { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-md); padding:1rem 1.1rem; display:flex; gap:.9rem; align-items:flex-start; color:inherit; text-decoration:none; min-width:0; }
+    a.ty-tile:hover { border-color:var(--border-strong); background:var(--surface-2); }
+    .ty-emoji { font-size:1.5rem; line-height:1; flex:none; margin-top:.1rem; }
+    .ty-body { min-width:0; flex:1; }
+    .ty-label { font-size:.75rem; color:var(--text-muted); margin-bottom:.15rem; }
+    .ty-main { font-weight:600; font-size:1.02rem; overflow-wrap:anywhere; }
+    .ty-sub { font-size:.8rem; color:var(--text-muted); margin-top:.15rem; overflow-wrap:anywhere; }
+    .ty-wide { grid-column:1 / -1; }
+    .ty-num { font-family:var(--font-display); font-variant-numeric:tabular-nums; }
+    .ty-bump { animation:ty-bump .5s ease; }
+    @keyframes ty-bump { 0% { color:var(--gold); transform:scale(1.08); } 100% { transform:none; } }
+
+    .ty-poll-opt { position:relative; display:block; width:100%; text-align:left; background:var(--surface-2); border:1px solid var(--border); border-radius:var(--radius-sm); padding:.55rem .75rem; margin-top:.45rem; color:var(--text); overflow:hidden; cursor:pointer; font-size:.9rem; }
+    .ty-poll-opt:hover { border-color:var(--gold); }
+    .ty-poll-opt:focus-visible { outline:2px solid var(--gold); outline-offset:2px; }
+    .ty-poll-bar { position:absolute; inset:0 auto 0 0; background:var(--gold-subtle); transition:width .4s ease; }
+    .ty-poll-opt.mine { border-color:var(--gold); font-weight:600; }
+    .ty-poll-row { position:relative; display:flex; justify-content:space-between; gap:.75rem; }
+
+    .ty-quote { font-size:.88rem; padding:.5rem 0; border-top:1px solid var(--border); }
+    .ty-quote:first-child { border-top:0; padding-top:0; }
+    .ty-quote b { font-weight:600; }
+    .ty-stars { color:var(--gold); font-size:.78rem; letter-spacing:.05em; }
+</style>
+{% endblock %}
+
 {% block content %}
 
-<!-- Editorial Hero Greeting -->
-<div class="hero-card editorial mb-4">
-    <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
-        <div>
-            <span class="kicker">Öğrenci Portalı</span>
-            <h2 class="serif-heading mb-1" style="font-size: 2rem;">Günaydın, {{ current_user.full_name.split(' ')[0] if current_user and current_user.full_name else session.username }}.</h2>
-            <p class="text-muted mb-0">Bugün yurtta neler oluyor? Etkinlikleri ve yemek menüsünü takip et.</p>
+<div class="ty-head">
+    <div>
+        <div class="ty-date" id="ty-date"></div>
+        <h1 class="ty-greet"><span id="ty-greeting">{{ today.greeting }}</span>, {{ current_user.full_name.split(' ')[0] if current_user and current_user.full_name else session.username }}.</h1>
+    </div>
+    <div class="d-flex align-items-center gap-3">
+        <div class="ty-live"><span class="ty-dot" aria-hidden="true"></span><span>Canlı, <span id="ty-updated">şimdi güncellendi</span></span></div>
+        <a href="{{ url_for('leaderboard_page') }}" class="btn btn-secondary btn-sm"><i class="bi bi-trophy"></i> {{ current_xp or 0 }} XP</a>
+    </div>
+</div>
+
+<h2 class="h6 fw-bold mb-2">Bugün yurtta</h2>
+
+<div class="ty-board" id="ty-board" aria-live="polite">
+
+    <div class="ty-tile" id="tile-active">
+        <span class="ty-emoji" aria-hidden="true">🔴</span>
+        <div class="ty-body">
+            <div class="ty-label">Şu anda aktif</div>
+            <div class="ty-main"><span class="ty-num" id="v-active">{{ today.active_count }}</span> kişi</div>
         </div>
-        <div class="d-flex align-items-center gap-2">
-            <div class="text-end d-none d-sm-block">
-                <span class="small text-muted d-block">Mevcut Seviye</span>
-                <strong class="fw-bold" style="color: var(--gold);">{{ current_xp or 0 }} XP</strong>
-            </div>
-            <a href="{{ url_for('leaderboard_page') }}" class="btn btn-secondary btn-sm">
-                <i class="bi bi-trophy"></i> Sıralama
-            </a>
+    </div>
+
+    <a class="ty-tile" href="{{ url_for('laundry_page') }}">
+        <span class="ty-emoji" aria-hidden="true">🧺</span>
+        <div class="ty-body">
+            <div class="ty-label">Çamaşırhane</div>
+            <div class="ty-main" id="v-laundry"></div>
+            <div class="ty-sub" id="v-laundry-sub"></div>
+        </div>
+    </a>
+
+    <a class="ty-tile ty-wide" id="tile-event" href="{{ url_for('events') }}">
+        <span class="ty-emoji" aria-hidden="true">🎉</span>
+        <div class="ty-body">
+            <div class="ty-label" id="v-event-label">Sıradaki etkinlik</div>
+            <div class="ty-main" id="v-event"></div>
+            <div class="ty-sub" id="v-event-sub"></div>
+        </div>
+    </a>
+
+    <a class="ty-tile ty-wide" href="{{ url_for('menu_page') }}">
+        <span class="ty-emoji" aria-hidden="true">🍝</span>
+        <div class="ty-body">
+            <div class="ty-label" id="v-meal-label">Yemekhane</div>
+            <div class="ty-main" id="v-meal"></div>
+            <div class="ty-sub" id="v-meal-sub"></div>
+        </div>
+    </a>
+
+    <div class="ty-tile ty-wide">
+        <span class="ty-emoji" aria-hidden="true">🗳️</span>
+        <div class="ty-body">
+            <div class="ty-label">Yurdun anketi</div>
+            <div class="ty-main" id="v-poll-q"></div>
+            <div id="v-poll-opts"></div>
+            <div class="ty-sub" id="v-poll-sub"></div>
+        </div>
+    </div>
+
+    <a class="ty-tile ty-wide" href="{{ url_for('feed') }}">
+        <span class="ty-emoji" aria-hidden="true">🔥</span>
+        <div class="ty-body">
+            <div class="ty-label">Yurdun gündemi</div>
+            <div class="ty-main" id="v-buzz"></div>
+            <div class="ty-sub" id="v-buzz-sub"></div>
+        </div>
+    </a>
+
+    <div class="ty-tile ty-wide">
+        <span class="ty-emoji" aria-hidden="true">💬</span>
+        <div class="ty-body">
+            <div class="ty-label" id="v-comments-label">Öğrenciler yemek için ne diyor?</div>
+            <div id="v-comments"></div>
+            <a class="ty-sub d-inline-block mt-1 fw-semibold" href="{{ url_for('menu_page') }}#rating-container" id="v-comments-cta">Sen de puanla ve görüşünü yaz</a>
         </div>
     </div>
 </div>
 
-<!-- Bugünün Menüsü Vurgusu -->
-{% if today_menu %}
-<div class="card card-pad mb-4">
-    <div class="section-title">
-        <span class="d-flex align-items-center gap-2">
-            <i class="bi bi-cup-hot" style="color: var(--gold);"></i>
-            <span class="fw-bold">Günün Menüsü · {{ today_menu.menu_date|format_date_tr }}</span>
-            <span class="day-name-pill ms-1">{{ today_menu.menu_date|day_name_tr }}</span>
-        </span>
-        <a href="{{ url_for('menu_page') }}" class="small fw-semibold">Detay & Puanla →</a>
-    </div>
-
-    <div class="row g-3 mt-1">
-        {% if today_menu.breakfast %}
-        <div class="{% if today_menu.dinner %}col-md-6{% else %}col-12{% endif %}">
-            <div class="p-3 rounded h-100" style="background-color: var(--surface-2); border: 1px solid var(--border);">
-                <div class="d-flex align-items-center justify-content-between mb-2">
-                    <span class="small fw-bold text-uppercase text-gold" style="letter-spacing:0.06em;"><i class="bi bi-sun me-1"></i> Kahvaltı</span>
-                    <span class="text-muted" style="font-size: 0.72rem;">07:30 - 09:30</span>
-                </div>
-                <ul class="meal-mini-list mb-0">
-                    {% for item in today_menu.breakfast|split_courses %}
-                    <li>{{ item }}</li>
-                    {% else %}
-                    <li>{{ today_menu.breakfast }}</li>
-                    {% endfor %}
-                </ul>
-            </div>
-        </div>
-        {% endif %}
-
-        {% if today_menu.dinner %}
-        <div class="{% if today_menu.breakfast %}col-md-6{% else %}col-12{% endif %}">
-            <div class="p-3 rounded h-100" style="background-color: var(--surface-2); border: 1px solid var(--border);">
-                <div class="d-flex align-items-center justify-content-between mb-2">
-                    <span class="small fw-bold text-uppercase text-indigo" style="letter-spacing:0.06em;"><i class="bi bi-moon-stars me-1"></i> Akşam Yemeği</span>
-                    <span class="text-muted" style="font-size: 0.72rem;">17:30 - 20:00</span>
-                </div>
-                <ul class="meal-mini-list mb-0">
-                    {% for item in today_menu.dinner|split_courses %}
-                    <li><span class="course-num-dot">{{ loop.index }}</span> {{ item }}</li>
-                    {% else %}
-                    <li>{{ today_menu.dinner }}</li>
-                    {% endfor %}
-                </ul>
-            </div>
-        </div>
-        {% endif %}
-    </div>
-
-    <div class="d-flex align-items-center justify-content-between mt-3 pt-3 border-top flex-wrap gap-2" style="border-color: var(--border) !important; font-size: 0.82rem;">
-        <div class="d-flex align-items-center gap-2">
-            <span class="text-muted">Öğrenci Memnuniyeti:</span>
-            <span class="fw-bold" style="color: var(--gold);">★ {{ today_menu.avg_rating or '—' }}</span>
-            <span class="text-muted">({{ today_menu.rating_count or 0 }} oy)</span>
-        </div>
-        <a href="{{ url_for('menu_page') }}#rating-container" class="btn btn-outline-secondary btn-sm py-1 px-3">
-            <i class="bi bi-star me-1"></i> Bugünün Menüsünü Puanla
-        </a>
-    </div>
-</div>
-{% endif %}
-
-<!-- Aktif Yoklamalar (Eğer Varsa) -->
 {% if active_attendances %}
 <div class="card card-pad mb-4">
     <div class="section-title">
-        <span class="d-flex align-items-center gap-2">
-            <i class="bi bi-clipboard-check text-muted"></i>
-            <span>Aktif Yoklamalar</span>
-        </span>
+        <span class="d-flex align-items-center gap-2"><i class="bi bi-clipboard-check text-muted"></i><span>Aktif Yoklamalar</span></span>
         <a href="{{ url_for('attendance_list') }}">Tümünü Gör →</a>
     </div>
     <div class="d-flex flex-column gap-2">
@@ -120,14 +151,10 @@
 </div>
 {% endif %}
 
-<!-- Duyurular Bölümü -->
 {% if announcements %}
 <div class="card card-pad mb-4">
     <div class="section-title">
-        <span class="d-flex align-items-center gap-2">
-            <i class="bi bi-megaphone text-muted"></i>
-            <span>Yurt Duyuruları</span>
-        </span>
+        <span class="d-flex align-items-center gap-2"><i class="bi bi-megaphone text-muted"></i><span>Yurt Duyuruları</span></span>
         <a href="{{ url_for('announcements_page') }}">Tüm Duyurular →</a>
     </div>
     <div class="d-flex flex-column gap-2">
@@ -148,13 +175,9 @@
 </div>
 {% endif %}
 
-<!-- Son Paylaşımlar Grid -->
 <div class="card card-pad mb-4">
     <div class="section-title">
-        <span class="d-flex align-items-center gap-2">
-            <i class="bi bi-grid-3x3 text-muted"></i>
-            <span>Topluluk Paylaşımları</span>
-        </span>
+        <span class="d-flex align-items-center gap-2"><i class="bi bi-grid-3x3 text-muted"></i><span>Topluluk Paylaşımları</span></span>
         <a href="{{ url_for('feed') }}">Akışa Git →</a>
     </div>
     {% if recent_posts %}
@@ -181,37 +204,153 @@
     {% endif %}
 </div>
 
-<!-- Yaklaşan Etkinlikler -->
-<div class="card card-pad mb-4">
-    <div class="section-title">
-        <span class="d-flex align-items-center gap-2">
-            <i class="bi bi-calendar3 text-muted"></i>
-            <span>Yaklaşan Etkinlikler</span>
-        </span>
-        <a href="{{ url_for('events') }}">Tümü →</a>
-    </div>
-    {% if events %}
-    <div class="d-flex flex-column gap-2">
-        {% for e in events %}
-        <a href="{{ url_for('event_detail', event_id=e.id) }}" class="d-flex justify-content-between align-items-center p-3 rounded" style="background-color: var(--surface-2); border: 1px solid var(--border);">
-            <div>
-                <div class="fw-semibold small">{{ e.title }}</div>
-                <div class="text-muted" style="font-size:0.75rem;">
-                    <i class="bi bi-geo-alt me-1"></i>{{ e.location }} · {{ e.event_date }}
-                </div>
-            </div>
-            <div class="text-muted small">
-                <i class="bi bi-people me-1"></i>{{ e.participant_count }} katılımcı
-            </div>
-        </a>
-        {% endfor %}
-    </div>
-    {% else %}
-    <div class="empty-state py-3">
-        <i class="bi bi-calendar-x"></i>
-        <p class="mb-0 small">Planlanmış etkinlik bulunmuyor.</p>
-    </div>
-    {% endif %}
-</div>
+{% endblock %}
 
+{% block extra_js %}
+<script>
+(function () {
+    var INITIAL = {{ today|tojson }};
+    var IS_ADMIN = {{ 'true' if session.get('is_admin') else 'false' }};
+    var URLS = { admin: {{ url_for('admin_panel')|tojson }}, events: {{ url_for('events')|tojson }},
+                 createEvent: {{ url_for('create_event')|tojson }}, menu: {{ url_for('menu_page')|tojson }} };
+    var lastData = null, lastFetch = Date.now();
+
+    function $(id) { return document.getElementById(id); }
+    function setText(id, text) {
+        var el = $(id); if (!el) return;
+        var t = String(text == null ? '' : text);
+        if (el.textContent !== t) { el.textContent = t; el.classList.remove('ty-bump'); void el.offsetWidth; el.classList.add('ty-bump'); }
+    }
+    function setPlain(id, text) { var el = $(id); if (el) el.textContent = text == null ? '' : String(text); }
+    function stars(n) { n = Math.max(0, Math.min(5, n || 0)); return '★'.repeat(n) + '☆'.repeat(5 - n); }
+
+    function fmtDate() {
+        try {
+            $('ty-date').textContent = new Date().toLocaleDateString('tr-TR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Europe/Istanbul' });
+        } catch (e) {}
+    }
+
+    function render(d) {
+        lastData = d; lastFetch = Date.now();
+        setPlain('ty-greeting', d.greeting);
+        setText('v-active', d.active_count);
+
+        // Çamaşırhane
+        if (!d.laundry_total) { setPlain('v-laundry', 'Makine tanımlı değil'); setPlain('v-laundry-sub', ''); }
+        else if (d.laundry_free === 0) { setPlain('v-laundry', 'Şu an boş makine yok'); setPlain('v-laundry-sub', 'Sıraya girebilirsin'); }
+        else { setPlain('v-laundry', d.laundry_free + ' makine boş'); setPlain('v-laundry-sub', d.laundry_total + ' makineden'); }
+
+        // Etkinlik
+        var e = d.event;
+        if (e) {
+            setPlain('v-event-label', e.is_today ? 'Bugün' : 'Sıradaki etkinlik');
+            setPlain('v-event', (e.time ? e.time + ' — ' : '') + e.title);
+            setPlain('v-event-sub', (e.is_today ? '' : e.date + ' · ') + e.location + ' · ' + e.participant_count + ' katılımcı');
+            $('tile-event').href = '/event/' + e.id;
+        } else {
+            setPlain('v-event-label', 'Etkinlik');
+            setPlain('v-event', 'Yaklaşan etkinlik yok');
+            setPlain('v-event-sub', 'Bir etkinlik oluşturup yurdu harekete geçir');
+            $('tile-event').href = URLS.createEvent;
+        }
+
+        // Yemek
+        var f = d.meal_focus || {};
+        setPlain('v-meal-label', (f.label || 'Yemek') + ' · ' + (f.time || ''));
+        setPlain('v-meal', f.line ? f.line + (f.more ? ' +' + f.more + ' çeşit' : '') : 'Bu öğünün menüsü henüz girilmedi');
+        var rate = d.rating_count ? '★ ' + d.rating_avg + ' (' + d.rating_count + ' oy) · ' : '';
+        setPlain('v-meal-sub', rate + (d.meal_status ? d.meal_status.text : ''));
+
+        // Anket
+        renderPoll(d.poll);
+
+        // Gündem
+        if (d.new_posts || d.new_comments) {
+            setText('v-buzz', d.new_posts + ' yeni paylaşım');
+            setPlain('v-buzz-sub', 'Son 24 saatte ' + d.new_comments + ' yorum yapıldı');
+        } else {
+            setPlain('v-buzz', 'Bugün henüz sessiz');
+            setPlain('v-buzz-sub', 'İlk paylaşımı sen yap');
+        }
+
+        // Yemek görüşleri
+        var box = $('v-comments'); box.textContent = '';
+        if (d.comments && d.comments.length) {
+            d.comments.forEach(function (c) {
+                var row = document.createElement('div'); row.className = 'ty-quote';
+                var b = document.createElement('b'); b.textContent = c.name;
+                var st = document.createElement('span'); st.className = 'ty-stars'; st.textContent = ' ' + stars(c.stars);
+                var tx = document.createElement('div'); tx.textContent = c.text;
+                row.appendChild(b); row.appendChild(st); row.appendChild(tx); box.appendChild(row);
+            });
+            setPlain('v-comments-label', 'Öğrenciler yemek için ne diyor? (' + d.comment_total + ' görüş)');
+            setPlain('v-comments-cta', d.my_rating ? 'Puanını ya da görüşünü güncelle' : 'Sen de puanla ve görüşünü yaz');
+        } else {
+            var empty = document.createElement('div'); empty.className = 'ty-sub';
+            empty.textContent = 'Bugün henüz görüş yazılmadı.';
+            box.appendChild(empty);
+            setPlain('v-comments-label', 'Yemek görüşleri');
+            setPlain('v-comments-cta', 'İlk görüşü sen yaz');
+        }
+    }
+
+    function renderPoll(p) {
+        var q = $('v-poll-q'), opts = $('v-poll-opts'), sub = $('v-poll-sub');
+        opts.textContent = '';
+        if (!p) {
+            q.textContent = 'Şu an açık anket yok';
+            sub.textContent = '';
+            if (IS_ADMIN) {
+                var a = document.createElement('a'); a.href = URLS.admin; a.className = 'fw-semibold';
+                a.textContent = 'Yönetim panelinden anket aç'; sub.appendChild(a);
+            }
+            return;
+        }
+        q.textContent = p.question;
+        var voted = p.my_option != null;
+        p.options.forEach(function (o) {
+            var btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'ty-poll-opt' + (o.id === p.my_option ? ' mine' : '');
+            var bar = document.createElement('span'); bar.className = 'ty-poll-bar'; bar.style.width = voted ? o.pct + '%' : '0%';
+            var row = document.createElement('span'); row.className = 'ty-poll-row';
+            var l = document.createElement('span'); l.textContent = o.label;
+            var r = document.createElement('span'); r.textContent = voted ? '%' + o.pct + ' · ' + o.votes : '';
+            row.appendChild(l); row.appendChild(r);
+            btn.appendChild(bar); btn.appendChild(row);
+            btn.addEventListener('click', function () { vote(p.id, o.id); });
+            opts.appendChild(btn);
+        });
+        sub.textContent = p.total + ' oy' + (voted ? ' · oyunu değiştirmek için başka seçeneğe dokun' : ' · oy vermek için dokun');
+    }
+
+    function vote(pollId, optionId) {
+        fetch('/poll/' + pollId + '/vote', {
+            method: 'POST', credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            body: JSON.stringify({ option_id: optionId })
+        }).then(function (r) { return r.json(); }).then(function (j) {
+            if (j && j.ok && lastData) { lastData.poll = j.poll; renderPoll(j.poll); }
+        }).catch(function () {});
+    }
+
+    function refresh() {
+        if (document.hidden) return;
+        fetch('/api/today', { credentials: 'same-origin', cache: 'no-store' })
+            .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+            .then(render).catch(function () {});
+    }
+
+    function tickUpdated() {
+        var s = Math.round((Date.now() - lastFetch) / 1000);
+        setPlain('ty-updated', s < 10 ? 'şimdi güncellendi' : s < 60 ? s + ' sn önce güncellendi' : Math.floor(s / 60) + ' dk önce güncellendi');
+    }
+
+    fmtDate();
+    render(INITIAL);
+    setInterval(refresh, 20000);
+    setInterval(tickUpdated, 5000);
+    document.addEventListener('visibilitychange', function () { if (!document.hidden) refresh(); });
+})();
+</script>
 {% endblock %}

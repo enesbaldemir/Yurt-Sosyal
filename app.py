@@ -128,6 +128,7 @@ os.makedirs(UPLOAD_EVENTS, exist_ok=True)
 
 IMAGE_EXT = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
 VIDEO_EXT = {'mp4', 'mov', 'webm', 'm4v'}
+AUDIO_EXT = {'mp3', 'wav', 'ogg', 'm4a', 'aac', 'webm'}
 
 # Web Push / VAPID anahtarı ilk çalıştırmada otomatik oluşturulur.
 VAPID_PRIVATE_FILE = os.path.join(BASE_DIR, 'instance', 'vapid_private.pem')
@@ -305,211 +306,151 @@ def _migrate_posts_allow_text(conn):
 
 PROFILE_THEMES = {'default': 'Standart'}
 
-# ==================== ROL & YETKİ SİSTEMİ ====================
-# Roller artık veritabanında (roles tablosu) tutulur; admin panelinden yeni rol
-# eklenebilir, mevcut roller düzenlenebilir ve her role hangi yönetim
-# alanlarına erişebileceği/düzenleyebileceği (izinler) tek tek atanabilir.
-# Aşağıdaki liste sadece İLK KURULUMDA veritabanına yazılacak varsayılan
-# (sistem) rollerini tanımlar; kod içinde artık USER_ROLES DOĞRUDAN burada
-# değil, load_user_roles_from_db() ile veritabanından okunur.
-
-# Panelde seçilebilecek yetkiler. 'full_admin' diğer tüm yetkileri kapsayan
-# joker bir yetkidir (Tam Yönetici).
-PERMISSIONS = OrderedDict([
-    ('full_admin', {
-        'label': 'Tam Yönetici Yetkisi',
-        'desc': 'Yönetim panelinin tüm alanlarına ve tüm işlemlere erişim verir (aşağıdaki tüm yetkileri kapsar).',
+# Sistem Rolleri ve Yetkilendirme Haritası
+USER_ROLES = {
+    'yurt_muduru': {
+        'key': 'yurt_muduru',
+        'title': 'Yurt Müdürü',
+        'badge': 'Yurt Müdürü',
         'icon': 'bi-shield-shaded',
-    }),
-    ('manage_roles', {
-        'label': 'Rol Yönetimi',
-        'desc': 'Yeni rol oluşturma, mevcut rolleri düzenleme/silme ve rollere yetki atama.',
-        'icon': 'bi-person-gear',
-    }),
-    ('manage_users', {
-        'label': 'Kullanıcı Yönetimi',
-        'desc': 'Kullanıcılara rol atama, yurt durumunu değiştirme ve kullanıcı silme.',
-        'icon': 'bi-people',
-    }),
-    ('manage_events', {
-        'label': 'Etkinlik Yönetimi',
-        'desc': 'Etkinlikleri görüntüleme ve silme.',
-        'icon': 'bi-calendar3',
-    }),
-    ('manage_announcements', {
-        'label': 'Duyuru Yönetimi',
-        'desc': 'Duyuru oluşturma ve silme.',
-        'icon': 'bi-megaphone',
-    }),
-    ('manage_maintenance', {
-        'label': 'Arıza / Bakım Talepleri',
-        'desc': 'Arıza-bakım taleplerini görüntüleme ve yönetme.',
+        'class': 'role-badge-mudur',
+        'color': '#ef4444',
+        'is_admin': True,
+        'can_maintenance': True,
+        'can_attendance': True,
+        'desc': 'Yurt genel yöneticisi (Tam yetki)'
+    },
+    'yurt_mudur_yardimcisi': {
+        'key': 'yurt_mudur_yardimcisi',
+        'title': 'Yurt Müdür Yardımcısı',
+        'badge': 'Yurt Müdür Yrd.',
+        'icon': 'bi-shield-check',
+        'class': 'role-badge-mudur-yrd',
+        'color': '#f97316',
+        'is_admin': True,
+        'can_maintenance': True,
+        'can_attendance': True,
+        'desc': 'Yurt müdür yardımcısı (İdari yetki)'
+    },
+    'yurt_memuru': {
+        'key': 'yurt_memuru',
+        'title': 'Yurt Memuru',
+        'badge': 'Yurt Memuru',
+        'icon': 'bi-person-badge',
+        'class': 'role-badge-memur',
+        'color': '#3b82f6',
+        'is_admin': True,
+        'can_maintenance': True,
+        'can_attendance': True,
+        'desc': 'İdari işler ve kayıt sorumlusu'
+    },
+    'yurt_temsilcisi': {
+        'key': 'yurt_temsilcisi',
+        'title': 'Yurt Temsilcisi',
+        'badge': 'Yurt Temsilcisi',
+        'icon': 'bi-award',
+        'class': 'role-badge-temsilci',
+        'color': '#8b5cf6',
+        'is_admin': True,
+        'can_maintenance': True,
+        'can_attendance': True,
+        'desc': 'Öğrenci temsilcisi ve etkinlik koordinatörü'
+    },
+    'yurt_gorevlisi': {
+        'key': 'yurt_gorevlisi',
+        'title': 'Yurt Görevlisi',
+        'badge': 'Yurt Görevlisi',
         'icon': 'bi-tools',
-    }),
-    ('manage_attendance', {
-        'label': 'Yoklama Yönetimi',
-        'desc': 'Yoklama oluşturma, düzenleme ve otomatik yoklama ayarları.',
-        'icon': 'bi-clipboard-check',
-    }),
-    ('manage_menu', {
-        'label': 'Yemekhane Menüsü',
-        'desc': 'Menü ekleme, Excel ile aktarım ve menü silme.',
-        'icon': 'bi-cup-hot',
-    }),
-    ('manage_laundry', {
-        'label': 'Çamaşırhane Yönetimi',
-        'desc': 'Çamaşır makinesi ekleme ve aktif/pasif etme.',
-        'icon': 'bi-droplet',
-    }),
-    ('manage_messages', {
-        'label': 'Mesaj Moderasyonu',
-        'desc': 'Sohbet mesajlarını görüntüleme ve silme.',
-        'icon': 'bi-chat-dots',
-    }),
-    ('view_analytics', {
-        'label': 'Analitik & Raporlar',
-        'desc': 'İstatistikleri, liderlik tablosunu ve raporları görüntüleme.',
-        'icon': 'bi-bar-chart',
-    }),
-])
-
-# Yeni rol oluştururken seçilebilecek renk paleti (mevcut CSS sınıflarıyla uyumlu).
-ROLE_COLOR_PALETTE = [
-    {'class': 'role-badge-mudur', 'color': '#b8860b', 'label': 'Altın'},
-    {'class': 'role-badge-mudur-yrd', 'color': '#2b547e', 'label': 'İndigo'},
-    {'class': 'role-badge-memur', 'color': '#1a7a4f', 'label': 'Zümrüt'},
-    {'class': 'role-badge-temsilci', 'color': '#0d6efd', 'label': 'Mavi'},
-    {'class': 'role-badge-gorevli', 'color': '#d97706', 'label': 'Bakır'},
-    {'class': 'role-badge-kat', 'color': '#7c3aed', 'label': 'Mor'},
-    {'class': 'role-badge-rose', 'color': '#e11d48', 'label': 'Gül'},
-    {'class': 'role-badge-teal', 'color': '#0d9488', 'label': 'Teal'},
-    {'class': 'role-badge-slate', 'color': '#475569', 'label': 'Grafit'},
-    {'class': 'role-badge-lime', 'color': '#65a30d', 'label': 'Zeytin'},
-    {'class': 'role-badge-cyan', 'color': '#0891b2', 'label': 'Camgöbeği'},
-    {'class': 'role-badge-ogrenci', 'color': '#6b7280', 'label': 'Nötr Gri'},
-]
-ROLE_ICON_CHOICES = [
-    'bi-shield-shaded', 'bi-shield-check', 'bi-person-badge', 'bi-award',
-    'bi-tools', 'bi-building', 'bi-person', 'bi-star', 'bi-briefcase',
-    'bi-mortarboard', 'bi-people', 'bi-flag', 'bi-emoji-smile', 'bi-gem',
-    'bi-clipboard-check', 'bi-megaphone', 'bi-cup-hot', 'bi-droplet',
-]
-
-DEFAULT_ROLES_SEED = [
-    {'key': 'yurt_muduru', 'title': 'Yurt Müdürü', 'badge': 'Yurt Müdürü', 'icon': 'bi-shield-shaded',
-     'class': 'role-badge-mudur', 'color': '#b8860b', 'is_admin': True, 'sort_order': 1,
-     'desc': 'Yurt genel yöneticisi (Tam yetki)', 'permissions': {'full_admin': True}},
-    {'key': 'yurt_mudur_yardimcisi', 'title': 'Yurt Müdür Yardımcısı', 'badge': 'Yurt Müdür Yrd.', 'icon': 'bi-shield-check',
-     'class': 'role-badge-mudur-yrd', 'color': '#2b547e', 'is_admin': True, 'sort_order': 2,
-     'desc': 'Yurt müdür yardımcısı (İdari yetki)', 'permissions': {'full_admin': True}},
-    {'key': 'yurt_memuru', 'title': 'Yurt Memuru', 'badge': 'Yurt Memuru', 'icon': 'bi-person-badge',
-     'class': 'role-badge-memur', 'color': '#1a7a4f', 'is_admin': True, 'sort_order': 3,
-     'desc': 'İdari işler ve kayıt sorumlusu', 'permissions': {'full_admin': True}},
-    {'key': 'yurt_temsilcisi', 'title': 'Yurt Temsilcisi', 'badge': 'Yurt Temsilcisi', 'icon': 'bi-award',
-     'class': 'role-badge-temsilci', 'color': '#0d6efd', 'is_admin': True, 'sort_order': 4,
-     'desc': 'Öğrenci temsilcisi ve etkinlik koordinatörü', 'permissions': {'full_admin': True}},
-    {'key': 'yurt_gorevlisi', 'title': 'Yurt Görevlisi', 'badge': 'Yurt Görevlisi', 'icon': 'bi-tools',
-     'class': 'role-badge-gorevli', 'color': '#d97706', 'is_admin': False, 'sort_order': 5,
-     'desc': 'Arıza ve teknik taleplerden sorumlu', 'permissions': {'manage_maintenance': True}},
-    {'key': 'kat_1_sorumlusu', 'title': '1. Kat Sorumlusu', 'badge': '1. Kat Sorumlusu', 'icon': 'bi-building',
-     'class': 'role-badge-kat', 'color': '#7c3aed', 'is_admin': False, 'sort_order': 6,
-     'desc': '1. Kat düzeni ve yoklama sorumlusu', 'permissions': {'manage_attendance': True}},
-    {'key': 'kat_2_sorumlusu', 'title': '2. Kat Sorumlusu', 'badge': '2. Kat Sorumlusu', 'icon': 'bi-building',
-     'class': 'role-badge-kat', 'color': '#7c3aed', 'is_admin': False, 'sort_order': 7,
-     'desc': '2. Kat düzeni ve yoklama sorumlusu', 'permissions': {'manage_attendance': True}},
-    {'key': 'kat_3_sorumlusu', 'title': '3. Kat Sorumlusu', 'badge': '3. Kat Sorumlusu', 'icon': 'bi-building',
-     'class': 'role-badge-kat', 'color': '#7c3aed', 'is_admin': False, 'sort_order': 8,
-     'desc': '3. Kat düzeni ve yoklama sorumlusu', 'permissions': {'manage_attendance': True}},
-    {'key': 'kat_4_sorumlusu', 'title': '4. Kat Sorumlusu', 'badge': '4. Kat Sorumlusu', 'icon': 'bi-building',
-     'class': 'role-badge-kat', 'color': '#7c3aed', 'is_admin': False, 'sort_order': 9,
-     'desc': '4. Kat düzeni ve yoklama sorumlusu', 'permissions': {'manage_attendance': True}},
-    {'key': 'ogrenci', 'title': 'Öğrenci', 'badge': 'Öğrenci', 'icon': 'bi-person',
-     'class': 'role-badge-ogrenci', 'color': '#6b7280', 'is_admin': False, 'sort_order': 10,
-     'desc': 'Yurt sakini öğrenci (varsayılan rol)', 'permissions': {}},
-]
-
-# Çalışma zamanında veritabanından yüklenen roller. init_db() çağrısından sonra
-# reload_user_roles() ile doldurulur; roller admin panelinden değiştirildiğinde
-# tekrar çağrılır.
-USER_ROLES = {}
-
-
-def _row_to_role_dict(row):
-    d = dict(row)
-    try:
-        d['permissions'] = json.loads(d.get('permissions') or '{}')
-    except (ValueError, TypeError):
-        d['permissions'] = {}
-    d['is_admin'] = bool(d.get('is_admin'))
-    d['is_system'] = bool(d.get('is_system'))
-    return d
-
-
-def load_user_roles_from_db():
-    conn = get_db()
-    rows = conn.execute('SELECT * FROM roles ORDER BY sort_order ASC, title ASC').fetchall()
-    conn.close()
-    roles = OrderedDict()
-    for row in rows:
-        d = _row_to_role_dict(row)
-        roles[d['key']] = d
-    if not roles:
-        # Güvenlik ağı: tablo her nasılsa boşsa varsayılan rollerle devam et.
-        for seed in DEFAULT_ROLES_SEED:
-            d = dict(seed)
-            roles[d['key']] = d
-    return roles
-
-
-def reload_user_roles():
-    global USER_ROLES
-    USER_ROLES = load_user_roles_from_db()
-    return USER_ROLES
-
-
-def slugify_role_key(text):
-    text = normalize_tr_text(text or '').lower()
-    text = re.sub(r'[^a-z0-9]+', '_', text).strip('_')
-    return text or 'rol'
-
+        'class': 'role-badge-gorevli',
+        'color': '#eab308',
+        'is_admin': False,
+        'can_maintenance': True,
+        'can_attendance': False,
+        'desc': 'Arıza ve teknik taleplerden sorumlu'
+    },
+    'kat_1_sorumlusu': {
+        'key': 'kat_1_sorumlusu',
+        'title': '1. Kat Sorumlusu',
+        'badge': '1. Kat Sorumlusu',
+        'icon': 'bi-building',
+        'class': 'role-badge-kat',
+        'color': '#10b981',
+        'is_admin': False,
+        'can_maintenance': False,
+        'can_attendance': True,
+        'floor': 1,
+        'desc': '1. Kat düzeni ve yoklama sorumlusu'
+    },
+    'kat_2_sorumlusu': {
+        'key': 'kat_2_sorumlusu',
+        'title': '2. Kat Sorumlusu',
+        'badge': '2. Kat Sorumlusu',
+        'icon': 'bi-building',
+        'class': 'role-badge-kat',
+        'color': '#10b981',
+        'is_admin': False,
+        'can_maintenance': False,
+        'can_attendance': True,
+        'floor': 2,
+        'desc': '2. Kat düzeni ve yoklama sorumlusu'
+    },
+    'kat_3_sorumlusu': {
+        'key': 'kat_3_sorumlusu',
+        'title': '3. Kat Sorumlusu',
+        'badge': '3. Kat Sorumlusu',
+        'icon': 'bi-building',
+        'class': 'role-badge-kat',
+        'color': '#10b981',
+        'is_admin': False,
+        'can_maintenance': False,
+        'can_attendance': True,
+        'floor': 3,
+        'desc': '3. Kat düzeni ve yoklama sorumlusu'
+    },
+    'kat_4_sorumlusu': {
+        'key': 'kat_4_sorumlusu',
+        'title': '4. Kat Sorumlusu',
+        'badge': '4. Kat Sorumlusu',
+        'icon': 'bi-building',
+        'class': 'role-badge-kat',
+        'color': '#10b981',
+        'is_admin': False,
+        'can_maintenance': False,
+        'can_attendance': True,
+        'floor': 4,
+        'desc': '4. Kat düzeni ve yoklama sorumlusu'
+    },
+    'ogrenci': {
+        'key': 'ogrenci',
+        'title': 'Öğrenci',
+        'badge': 'Öğrenci',
+        'icon': 'bi-person',
+        'class': 'role-badge-ogrenci',
+        'color': '#6b7280',
+        'is_admin': False,
+        'can_maintenance': False,
+        'can_attendance': False,
+        'desc': 'Yurt sakini öğrenci'
+    }
+}
 
 def is_admin_role(role_key):
     info = USER_ROLES.get(role_key)
     return bool(info and info.get('is_admin'))
 
-
-def has_permission(user_dict, perm_key):
-    """Kullanıcının rolüne bağlı olarak belirli bir yönetim yetkisine sahip olup olmadığını döndürür."""
-    if not user_dict:
-        return False
-    role_key = user_dict.get('role') or ('yurt_muduru' if user_dict.get('is_admin') else 'ogrenci')
-    role_info = USER_ROLES.get(role_key)
-    if not role_info:
-        # Rol veritabanında bulunamadıysa eski is_admin bayrağına geri düş.
-        return bool(user_dict.get('is_admin'))
-    perms = role_info.get('permissions') or {}
-    if perms.get('full_admin'):
-        return True
-    return bool(perms.get(perm_key))
-
-
-def has_any_admin_permission(user_dict):
-    if not user_dict:
-        return False
-    role_key = user_dict.get('role') or ('yurt_muduru' if user_dict.get('is_admin') else 'ogrenci')
-    role_info = USER_ROLES.get(role_key)
-    if not role_info:
-        return bool(user_dict.get('is_admin'))
-    perms = role_info.get('permissions') or {}
-    return any(bool(v) for v in perms.values())
-
-
 def can_user_manage_maintenance(user_dict):
-    return has_permission(user_dict, 'manage_maintenance')
-
+    if not user_dict:
+        return False
+    if user_dict.get('is_admin') or user_dict.get('role') in ['yurt_muduru', 'yurt_mudur_yardimcisi', 'yurt_memuru', 'yurt_temsilcisi', 'yurt_gorevlisi']:
+        return True
+    return False
 
 def can_user_manage_attendance(user_dict):
-    return has_permission(user_dict, 'manage_attendance')
+    if not user_dict:
+        return False
+    if user_dict.get('is_admin') or user_dict.get('role') in ['yurt_muduru', 'yurt_mudur_yardimcisi', 'yurt_memuru', 'yurt_temsilcisi', 'kat_1_sorumlusu', 'kat_2_sorumlusu', 'kat_3_sorumlusu', 'kat_4_sorumlusu']:
+        return True
+    return False
 
 def normalize_tr_text(text):
     if not text:
@@ -985,8 +926,15 @@ def init_db():
     c.execute("""CREATE TABLE IF NOT EXISTS challenge_completions (id INTEGER PRIMARY KEY AUTOINCREMENT, challenge_id INTEGER NOT NULL, user_id INTEGER NOT NULL, progress INTEGER DEFAULT 0, completed INTEGER DEFAULT 0, completed_at TIMESTAMP, UNIQUE(challenge_id,user_id), FOREIGN KEY(challenge_id) REFERENCES daily_challenges(id), FOREIGN KEY(user_id) REFERENCES users(id))""")
     c.execute("INSERT OR IGNORE INTO badges(code,name,description,icon) VALUES ('legend','Yurt Efsanesi','500 XP ve üzeri','👑')")
 
+    # ANKETLER ("Bugün Yurtta" ekranı için)
+    c.execute("""CREATE TABLE IF NOT EXISTS polls (id INTEGER PRIMARY KEY AUTOINCREMENT, question TEXT NOT NULL, is_active INTEGER DEFAULT 1, expires_at TEXT, created_by INTEGER, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)""")
+    c.execute("""CREATE TABLE IF NOT EXISTS poll_options (id INTEGER PRIMARY KEY AUTOINCREMENT, poll_id INTEGER NOT NULL, label TEXT NOT NULL, FOREIGN KEY(poll_id) REFERENCES polls(id) ON DELETE CASCADE)""")
+    c.execute("""CREATE TABLE IF NOT EXISTS poll_votes (id INTEGER PRIMARY KEY AUTOINCREMENT, poll_id INTEGER NOT NULL, option_id INTEGER NOT NULL, user_id INTEGER NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE(poll_id,user_id), FOREIGN KEY(poll_id) REFERENCES polls(id) ON DELETE CASCADE, FOREIGN KEY(option_id) REFERENCES poll_options(id) ON DELETE CASCADE)""")
+    c.execute('CREATE INDEX IF NOT EXISTS idx_poll_votes_poll ON poll_votes(poll_id)')
+
     # Eski veritabanlarına yeni sütunları güvenle ekle
     _ensure_column(conn, 'users', 'profile_photo', "TEXT")
+    _ensure_column(conn, 'users', 'last_seen', "TEXT")
     _ensure_column(conn, 'users', 'bio', "TEXT")
     _ensure_column(conn, 'users', 'in_dorm', "INTEGER DEFAULT 1")
     _ensure_column(conn, 'users', 'profile_theme', "TEXT DEFAULT 'default'")
@@ -994,6 +942,11 @@ def init_db():
     _ensure_column(conn, 'post_comments', 'parent_id', "INTEGER")
     _ensure_column(conn, 'stories', 'text_overlays', "TEXT")
     _ensure_column(conn, 'quiz_questions', 'image_path', "TEXT")
+    _ensure_column(conn, 'quiz_questions', 'audio_path', "TEXT")
+    _ensure_column(conn, 'quiz_questions', 'option_a_image', "TEXT")
+    _ensure_column(conn, 'quiz_questions', 'option_b_image', "TEXT")
+    _ensure_column(conn, 'quiz_questions', 'option_c_image', "TEXT")
+    _ensure_column(conn, 'quiz_questions', 'option_d_image', "TEXT")
 
     # ------------------------------------------------------------------
     # YENİ MODÜLLER İÇİN GERİYE DÖNÜK UYUMLU MIGRATION
@@ -1199,42 +1152,6 @@ def init_db():
     # Admin rolünü güncelle
     c.execute("UPDATE users SET role = 'yurt_muduru', is_admin = 1 WHERE id = 1 AND (role IS NULL OR role = 'ogrenci' OR role = 'default')")
 
-    # Roller (dinamik rol & yetki sistemi) — admin panelinden düzenlenebilir/eklenebilir.
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS roles (
-            key TEXT PRIMARY KEY,
-            title TEXT NOT NULL,
-            badge TEXT NOT NULL,
-            icon TEXT NOT NULL DEFAULT 'bi-person',
-            class TEXT NOT NULL DEFAULT 'role-badge-ogrenci',
-            color TEXT NOT NULL DEFAULT '#6b7280',
-            is_admin INTEGER DEFAULT 0,
-            desc TEXT,
-            permissions TEXT NOT NULL DEFAULT '{}',
-            is_system INTEGER DEFAULT 0,
-            sort_order INTEGER DEFAULT 100,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-    existing_role_count = c.execute('SELECT COUNT(*) c FROM roles').fetchone()['c']
-    if existing_role_count == 0:
-        for seed in DEFAULT_ROLES_SEED:
-            c.execute('''
-                INSERT OR IGNORE INTO roles (key, title, badge, icon, class, color, is_admin, desc, permissions, is_system, sort_order)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
-            ''', (seed['key'], seed['title'], seed['badge'], seed['icon'], seed['class'], seed['color'],
-                  1 if seed['is_admin'] else 0, seed['desc'], json.dumps(seed['permissions']), seed['sort_order']))
-    else:
-        # Sonradan eklenmiş olabilecek sistem rollerini (örn. güncelleme sonrası
-        # yeni bir varsayılan rol eklendiyse) tamamlayıcı şekilde ekle; mevcut
-        # (admin tarafından düzenlenmiş) satırlara dokunma.
-        for seed in DEFAULT_ROLES_SEED:
-            c.execute('''
-                INSERT OR IGNORE INTO roles (key, title, badge, icon, class, color, is_admin, desc, permissions, is_system, sort_order)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
-            ''', (seed['key'], seed['title'], seed['badge'], seed['icon'], seed['class'], seed['color'],
-                  1 if seed['is_admin'] else 0, seed['desc'], json.dumps(seed['permissions']), seed['sort_order']))
-
     _laundry_cleanup_overlaps(conn)
 
     conn.commit()
@@ -1267,9 +1184,6 @@ def login_required(f):
 
 
 def admin_required(f):
-    """Yönetim paneline giriş için: kullanıcının en az bir yönetim yetkisi
-    (herhangi bir manage_* izni veya full_admin) olması yeterlidir. Panel
-    içindeki sekmeler/işlemler ayrıca kendi izinlerine göre gizlenir/korunur."""
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if 'user_id' not in session:
@@ -1278,30 +1192,11 @@ def admin_required(f):
         user = conn.execute('SELECT is_admin, role FROM users WHERE id = ?',
                              (session['user_id'],)).fetchone()
         conn.close()
-        if not user or not has_any_admin_permission(dict(user)):
+        if not user or (not user['is_admin'] and user['role'] not in ['yurt_muduru', 'yurt_mudur_yardimcisi', 'yurt_memuru', 'yurt_temsilcisi']):
             flash('Bu sayfaya erişim yetkiniz yok!', 'danger')
             return redirect(url_for('dashboard'))
         return f(*args, **kwargs)
     return decorated_function
-
-
-def permission_required(perm_key):
-    """Belirli bir yönetim yetkisi (ör. 'manage_users') gerektiren rotalar için."""
-    def wrapper(f):
-        @wraps(f)
-        def decorated_function(*args, **kwargs):
-            if 'user_id' not in session:
-                return redirect(url_for('login'))
-            conn = get_db()
-            user = conn.execute('SELECT is_admin, role FROM users WHERE id = ?',
-                                 (session['user_id'],)).fetchone()
-            conn.close()
-            if not user or not has_permission(dict(user), perm_key):
-                flash('Bu işlem için yetkiniz bulunmuyor!', 'danger')
-                return redirect(url_for('admin_panel') if has_any_admin_permission(dict(user) if user else {}) else url_for('dashboard'))
-            return f(*args, **kwargs)
-        return decorated_function
-    return wrapper
 
 
 def maintenance_manager_required(f):
@@ -1852,19 +1747,9 @@ def inject_globals():
             'user_roles': USER_ROLES,
             'can_manage_maintenance': can_user_manage_maintenance(me_dict),
             'can_manage_attendance': can_user_manage_attendance(me_dict),
-            'can_manage_users': has_permission(me_dict, 'manage_users'),
-            'can_manage_roles': has_permission(me_dict, 'manage_roles'),
-            'can_manage_events': has_permission(me_dict, 'manage_events'),
-            'can_manage_announcements': has_permission(me_dict, 'manage_announcements'),
-            'can_manage_menu': has_permission(me_dict, 'manage_menu'),
-            'can_manage_laundry': has_permission(me_dict, 'manage_laundry'),
-            'can_manage_messages': has_permission(me_dict, 'manage_messages'),
-            'can_view_analytics': has_permission(me_dict, 'view_analytics'),
-            'can_access_admin_panel': has_any_admin_permission(me_dict),
-            'has_perm': (lambda perm, _u=me_dict: has_permission(_u, perm)),
             'current_xp': get_user_xp(session['user_id']),
         }
-    return {'user_roles': USER_ROLES, 'has_perm': (lambda perm: False), 'can_access_admin_panel': False}
+    return {'user_roles': USER_ROLES}
 
 
 # ==================== ROTALAR ====================
@@ -1975,30 +1860,200 @@ def logout():
     return redirect(url_for('login'))
 
 
+ACTIVE_WINDOW_SECONDS = 300  # Son 5 dakikada işlem yapan kullanıcı "aktif" sayılır.
+
+
+@app.before_request
+def touch_last_seen():
+    """Giriş yapmış kullanıcının 'son görülme' zamanını (en fazla 60 sn'de bir) günceller."""
+    if 'user_id' not in session or request.endpoint in (None, 'static'):
+        return
+    now_ts = int(now_tr().timestamp())
+    if now_ts - int(session.get('_seen_ts', 0)) < 60:
+        return
+    session['_seen_ts'] = now_ts
+    try:
+        conn = get_db()
+        conn.execute('UPDATE users SET last_seen = ? WHERE id = ?',
+                     (now_tr().strftime('%Y-%m-%d %H:%M:%S'), session['user_id']))
+        conn.commit()
+        conn.close()
+    except Exception as exc:
+        print(f'[LAST SEEN] güncellenemedi: {exc}')
+
+
+def greeting_for(now):
+    h = now.hour
+    if h < 5:
+        return 'İyi geceler'
+    if h < 12:
+        return 'Günaydın'
+    if h < 18:
+        return 'İyi günler'
+    if h < 22:
+        return 'İyi akşamlar'
+    return 'İyi geceler'
+
+
+def get_meal_schedule(now=None):
+    """Yemekhane saatlerini admin ayarlarından okur (menü sayfasıyla aynı kaynak)."""
+    now = now or now_tr()
+    weekend = now.weekday() >= 5
+    return {
+        'is_weekend': weekend,
+        'breakfast_start': get_app_setting('meal_breakfast_weekend_start' if weekend else 'meal_breakfast_weekday_start', '09:00' if weekend else '07:00'),
+        'breakfast_end': get_app_setting('meal_breakfast_weekend_end' if weekend else 'meal_breakfast_weekday_end', '11:00' if weekend else '09:00'),
+        'dinner_start': get_app_setting('meal_dinner_start', '18:00'),
+        'dinner_end': get_app_setting('meal_dinner_end', '20:00'),
+    }
+
+
+def _hm_to_minutes(value):
+    try:
+        h, m = [int(x) for x in str(value).split(':', 1)]
+        return h * 60 + m
+    except (ValueError, TypeError):
+        return 0
+
+
+def meal_status(schedule, now):
+    """Şu an hangi öğün açık ya da sıradaki öğün hangisi?"""
+    cur = now.hour * 60 + now.minute
+    b0, b1 = _hm_to_minutes(schedule['breakfast_start']), _hm_to_minutes(schedule['breakfast_end'])
+    d0, d1 = _hm_to_minutes(schedule['dinner_start']), _hm_to_minutes(schedule['dinner_end'])
+    if b0 <= cur < b1:
+        return {'key': 'breakfast', 'state': 'open', 'text': f"Kahvaltı şu an açık, saat {schedule['breakfast_end']}'a kadar"}
+    if d0 <= cur < d1:
+        return {'key': 'dinner', 'state': 'open', 'text': f"Akşam yemeği şu an açık, saat {schedule['dinner_end']}'a kadar"}
+    if cur < b0:
+        return {'key': 'breakfast', 'state': 'next', 'text': f"Sıradaki öğün kahvaltı, saat {schedule['breakfast_start']}"}
+    if cur < d0:
+        return {'key': 'dinner', 'state': 'next', 'text': f"Sıradaki öğün akşam yemeği, saat {schedule['dinner_start']}"}
+    return {'key': 'dinner', 'state': 'done', 'text': 'Bugünün yemekleri bitti'}
+
+
+def _parse_event_dt(value):
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(str(value).replace(' ', 'T')).replace(tzinfo=ISTANBUL_TZ)
+    except Exception:
+        return None
+
+
+def _meal_focus(menu, schedule, status):
+    """Şu an en ilgili öğünü (açık olan ya da sıradaki) kısa bir satır olarak hazırlar."""
+    key = status['key']
+    label = 'Kahvaltı' if key == 'breakfast' else 'Akşam'
+    time_txt = (f"{schedule['breakfast_start']} – {schedule['breakfast_end']}" if key == 'breakfast'
+                else f"{schedule['dinner_start']} – {schedule['dinner_end']}")
+    raw = (menu[key] if menu and menu[key] else '') if menu else ''
+    courses = [c for c in split_menu_courses(raw)] if raw else []
+    return {'label': label, 'time': time_txt, 'line': ' + '.join(courses[:4]), 'more': max(len(courses) - 4, 0)}
+
+
+def get_today_stats(user_id):
+    """'Bugün Yurtta' ekranının tüm canlı sayıları. Hem sayfa hem /api/today bunu kullanır."""
+    now = now_tr()
+    today = now.date().isoformat()
+    now_str = now.strftime('%Y-%m-%d %H:%M:%S')
+    conn = get_db()
+
+    active_cut = (now - timedelta(seconds=ACTIVE_WINDOW_SECONDS)).strftime('%Y-%m-%d %H:%M:%S')
+    active_count = conn.execute('SELECT COUNT(*) c FROM users WHERE last_seen >= ?', (active_cut,)).fetchone()['c']
+    active_count = max(active_count, 1)  # sayfaya bakan kişi de aktif
+
+    # Sıradaki etkinlik: bugün ve henüz bitmemiş olanlar öncelikli, yoksa en yakın gelecek etkinlik.
+    ev_rows = conn.execute('''
+        SELECT e.id, e.title, e.location, e.event_date,
+               (SELECT COUNT(*) FROM event_participants WHERE event_id = e.id) participant_count
+        FROM events e WHERE substr(e.event_date,1,10) >= ? ORDER BY e.event_date ASC LIMIT 20
+    ''', (today,)).fetchall()
+    next_event = None
+    for e in ev_rows:
+        dt = _parse_event_dt(e['event_date'])
+        if dt is None or dt >= now - timedelta(hours=2):
+            next_event = dict(e)
+            next_event['is_today'] = e['event_date'][:10] == today
+            next_event['time'] = e['event_date'][11:16] if len(e['event_date']) >= 16 else ''
+            next_event['date'] = e['event_date'][:10]
+            break
+
+    # Çamaşırhane: şu an rezervasyonu süren makineler dolu sayılır.
+    laundry_total = conn.execute('SELECT COUNT(*) c FROM laundry_machines WHERE enabled=1').fetchone()['c']
+    busy = conn.execute('''SELECT COUNT(DISTINCT r.machine_id) c FROM laundry_reservations r
+                           JOIN laundry_machines m ON m.id = r.machine_id AND m.enabled = 1
+                           WHERE r.status='reserved' AND r.start_at <= ? AND r.end_at > ?''', (now_str, now_str)).fetchone()['c']
+    laundry_free = max(laundry_total - busy, 0)
+
+    # Menü + bugünkü görüşler
+    menu = conn.execute('SELECT * FROM meal_menus WHERE menu_date = ?', (today,)).fetchone()
+    rating = conn.execute('SELECT ROUND(AVG(overall_rating),1) avg_r, COUNT(id) cnt FROM menu_ratings WHERE menu_date = ?', (today,)).fetchone()
+    comments = conn.execute('''
+        SELECT r.comment, r.overall_rating, r.updated_at, u.full_name, u.username
+        FROM menu_ratings r JOIN users u ON u.id = r.user_id
+        WHERE r.menu_date = ? AND TRIM(COALESCE(r.comment,'')) <> ''
+        ORDER BY r.updated_at DESC LIMIT 4
+    ''', (today,)).fetchall()
+    comment_total = conn.execute("SELECT COUNT(*) c FROM menu_ratings WHERE menu_date = ? AND TRIM(COALESCE(comment,'')) <> ''", (today,)).fetchone()['c']
+    my_rating = conn.execute('SELECT overall_rating FROM menu_ratings WHERE menu_date = ? AND user_id = ?', (today, user_id)).fetchone()
+
+    # Gündem: son 24 saatteki paylaşım / yorum (SQLite CURRENT_TIMESTAMP UTC tutar)
+    since = (datetime.utcnow() - timedelta(hours=24)).strftime('%Y-%m-%d %H:%M:%S')
+    new_posts = conn.execute('SELECT COUNT(*) c FROM posts WHERE created_at >= ?', (since,)).fetchone()['c']
+    new_comments = conn.execute('SELECT COUNT(*) c FROM post_comments WHERE created_at >= ?', (since,)).fetchone()['c']
+
+    # Anket
+    poll = conn.execute('''SELECT * FROM polls WHERE is_active = 1 AND (expires_at IS NULL OR expires_at = '' OR expires_at >= ?)
+                           ORDER BY created_at DESC LIMIT 1''', (now_str,)).fetchone()
+    poll_data = None
+    if poll:
+        opts = conn.execute('''SELECT o.id, o.label, (SELECT COUNT(*) FROM poll_votes v WHERE v.option_id = o.id) votes
+                               FROM poll_options o WHERE o.poll_id = ? ORDER BY o.id''', (poll['id'],)).fetchall()
+        mine = conn.execute('SELECT option_id FROM poll_votes WHERE poll_id = ? AND user_id = ?', (poll['id'], user_id)).fetchone()
+        total = sum(o['votes'] for o in opts)
+        poll_data = {
+            'id': poll['id'], 'question': poll['question'], 'total': total,
+            'my_option': mine['option_id'] if mine else None,
+            'options': [{'id': o['id'], 'label': o['label'], 'votes': o['votes'],
+                         'pct': round(o['votes'] * 100 / total) if total else 0} for o in opts],
+        }
+    conn.close()
+
+    schedule = get_meal_schedule(now)
+    return {
+        'greeting': greeting_for(now),
+        'active_count': active_count,
+        'event': next_event,
+        'schedule': schedule,
+        'meal_status': meal_status(schedule, now),
+        'laundry_free': laundry_free,
+        'laundry_total': laundry_total,
+        'rating_avg': rating['avg_r'] if rating and rating['avg_r'] is not None else None,
+        'rating_count': rating['cnt'] if rating else 0,
+        'my_rating': my_rating['overall_rating'] if my_rating else None,
+        'comments': [{'text': c['comment'], 'stars': c['overall_rating'],
+                      'name': (c['full_name'] or c['username']).split(' ')[0]} for c in comments],
+        'comment_total': comment_total,
+        'new_posts': new_posts,
+        'new_comments': new_comments,
+        'poll': poll_data,
+        'meal_focus': _meal_focus(menu, schedule, meal_status(schedule, now)),
+    }
+
+
 @app.route('/dashboard')
 @login_required
 def dashboard():
     conn = get_db()
 
-    events = conn.execute('''
-        SELECT e.*, u.full_name as creator_name,
-               (SELECT COUNT(*) FROM event_participants WHERE event_id = e.id) as participant_count
-        FROM events e
-        JOIN users u ON e.created_by = u.id
-        ORDER BY e.event_date ASC
-        LIMIT 5
-    ''').fetchall()
-
     recent_posts = conn.execute('''
-        SELECT p.*, u.full_name, u.username, u.profile_photo,
-               (SELECT COUNT(*) FROM post_likes WHERE post_id = p.id) as like_count,
-               (SELECT COUNT(*) FROM post_comments WHERE post_id = p.id) as comment_count,
-               (SELECT COUNT(*) FROM post_likes WHERE post_id = p.id AND user_id = ?) as liked_by_me
+        SELECT p.*, u.full_name, u.username, u.profile_photo
         FROM posts p
         JOIN users u ON p.user_id = u.id
         ORDER BY p.created_at DESC
         LIMIT 4
-    ''', (session['user_id'],)).fetchall()
+    ''').fetchall()
 
     active_attendances = conn.execute('''
         SELECT a.*,
@@ -2010,20 +2065,77 @@ def dashboard():
     ''', (session['user_id'],)).fetchall()
 
     me = conn.execute('SELECT * FROM users WHERE id = ?', (session['user_id'],)).fetchone()
-    today_menu = conn.execute('''
-        SELECT m.*, ROUND(AVG(r.overall_rating),1) avg_rating, COUNT(r.id) rating_count,
-               (SELECT overall_rating FROM menu_ratings WHERE menu_date=m.menu_date AND user_id=?) my_rating
-        FROM meal_menus m LEFT JOIN menu_ratings r ON r.menu_date=m.menu_date
-        WHERE m.menu_date = ? GROUP BY m.id
-    ''', (session['user_id'], now_tr().date().isoformat())).fetchone()
     announcements = conn.execute("SELECT * FROM announcements WHERE (expires_at IS NULL OR expires_at >= ?) ORDER BY CASE priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 ELSE 2 END, created_at DESC LIMIT 3", (now_tr().date().isoformat(),)).fetchall()
     conn.close()
 
     pending_attendance = get_pending_mandatory_attendance(session['user_id'], me['in_dorm'])
+    today = get_today_stats(session['user_id'])
 
-    return render_template('dashboard.html', events=events, recent_posts=recent_posts,
+    return render_template('dashboard.html', recent_posts=recent_posts,
                             active_attendances=active_attendances, me=me,
-                            pending_attendance=pending_attendance, today_menu=today_menu, announcements=announcements)
+                            pending_attendance=pending_attendance,
+                            announcements=announcements, today=today)
+
+
+@app.route('/api/today')
+@login_required
+def api_today():
+    resp = jsonify(get_today_stats(session['user_id']))
+    resp.headers['Cache-Control'] = 'no-store'
+    return resp
+
+
+@app.route('/poll/<int:poll_id>/vote', methods=['POST'])
+@login_required
+def poll_vote(poll_id):
+    data = request.get_json(silent=True) or {}
+    try:
+        option_id = int(data.get('option_id') or request.form.get('option_id', 0))
+    except (ValueError, TypeError):
+        return jsonify({'ok': False, 'error': 'Geçersiz seçenek.'}), 400
+    conn = get_db()
+    poll = conn.execute('SELECT id FROM polls WHERE id = ? AND is_active = 1', (poll_id,)).fetchone()
+    opt = conn.execute('SELECT id FROM poll_options WHERE id = ? AND poll_id = ?', (option_id, poll_id)).fetchone()
+    if not poll or not opt:
+        conn.close()
+        return jsonify({'ok': False, 'error': 'Anket kapalı ya da seçenek bulunamadı.'}), 404
+    conn.execute('''INSERT INTO poll_votes(poll_id, option_id, user_id) VALUES(?,?,?)
+                    ON CONFLICT(poll_id,user_id) DO UPDATE SET option_id=excluded.option_id, created_at=CURRENT_TIMESTAMP''',
+                 (poll_id, option_id, session['user_id']))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True, 'poll': get_today_stats(session['user_id'])['poll']})
+
+
+@app.route('/admin/poll/create', methods=['POST'])
+@admin_required
+def create_poll():
+    question = request.form.get('question', '').strip()[:200]
+    options = [o.strip()[:80] for o in request.form.getlist('option') if o.strip()]
+    if not question or len(options) < 2:
+        flash('Anket için bir soru ve en az iki seçenek gerekli.', 'danger')
+        return redirect(url_for('admin_panel'))
+    conn = get_db()
+    # Aynı anda tek aktif anket: yenisi açılınca eskisi kapanır.
+    conn.execute('UPDATE polls SET is_active = 0 WHERE is_active = 1')
+    cur = conn.execute('INSERT INTO polls(question, created_by) VALUES(?,?)', (question, session['user_id']))
+    pid = cur.lastrowid
+    conn.executemany('INSERT INTO poll_options(poll_id, label) VALUES(?,?)', [(pid, o) for o in options[:6]])
+    conn.commit()
+    conn.close()
+    flash('Anket yayınlandı. Ana sayfada görünecek.', 'success')
+    return redirect(url_for('admin_panel'))
+
+
+@app.route('/admin/poll/<int:poll_id>/close', methods=['POST'])
+@admin_required
+def close_poll(poll_id):
+    conn = get_db()
+    conn.execute('UPDATE polls SET is_active = 0 WHERE id = ?', (poll_id,))
+    conn.commit()
+    conn.close()
+    flash('Anket kapatıldı.', 'success')
+    return redirect(url_for('admin_panel'))
 
 
 # ==================== BİLDİRİMLER ====================
@@ -3250,8 +3362,18 @@ def messages_search_users():
 @login_required
 def quiz_list():
     conn = get_db()
+    # Kart görünümü için ekstra (salt-okunur) özet sütunlar: soru sayısı, tahmini süre,
+    # kaç kez oynatıldığı, şu an canlı bir oturumu olup olmadığı ve toplam katılımcı.
+    # Şema değişmedi; sadece mevcut tablolardan agregasyon eklendi.
     my_quizzes = conn.execute('''
-        SELECT q.*, (SELECT COUNT(*) FROM quiz_questions WHERE quiz_id = q.id) as question_count
+        SELECT q.*,
+               (SELECT COUNT(*) FROM quiz_questions WHERE quiz_id = q.id) as question_count,
+               (SELECT COALESCE(SUM(time_limit), 0) FROM quiz_questions WHERE quiz_id = q.id) as total_seconds,
+               (SELECT COUNT(*) FROM quiz_sessions WHERE quiz_id = q.id) as session_count,
+               (SELECT COUNT(*) FROM quiz_sessions WHERE quiz_id = q.id AND status != 'finished') as live_count,
+               (SELECT COUNT(*) FROM quiz_sessions WHERE quiz_id = q.id AND status = 'finished') as finished_count,
+               (SELECT COUNT(*) FROM quiz_participants qp JOIN quiz_sessions s2 ON qp.session_id = s2.id
+                    WHERE s2.quiz_id = q.id) as total_participants
         FROM quizzes q WHERE q.created_by = ? ORDER BY q.created_at DESC
     ''', (session['user_id'],)).fetchall()
     active_sessions = conn.execute('''
@@ -3262,7 +3384,12 @@ def quiz_list():
         ORDER BY s.created_at DESC
     ''', (session['user_id'],)).fetchall()
     conn.close()
-    return render_template('quiz_list.html', my_quizzes=my_quizzes, active_sessions=active_sessions)
+    # Kart üstündeki "Canlı Yayına Git" butonu için quiz_id -> aktif oturum id eşlemesi.
+    live_session_by_quiz = {}
+    for s in active_sessions:
+        live_session_by_quiz.setdefault(s['quiz_id'], s['id'])
+    return render_template('quiz_list.html', my_quizzes=my_quizzes, active_sessions=active_sessions,
+                            live_session_by_quiz=live_session_by_quiz)
 
 
 @app.route('/quiz/create', methods=['GET', 'POST'])
@@ -3301,8 +3428,18 @@ def quiz_detail(quiz_id):
         return redirect(url_for('quiz_list'))
     questions = conn.execute('SELECT * FROM quiz_questions WHERE quiz_id = ? ORDER BY order_index ASC, id ASC',
                               (quiz_id,)).fetchall()
+    # Hero alanı için: devam eden canlı oturum var mı, geçmişte kaç kez oynatıldı, toplam katılımcı.
+    live_session = conn.execute('''SELECT * FROM quiz_sessions WHERE quiz_id = ? AND status != 'finished'
+                                   ORDER BY created_at DESC LIMIT 1''', (quiz_id,)).fetchone()
+    session_count = conn.execute('SELECT COUNT(*) c FROM quiz_sessions WHERE quiz_id = ?', (quiz_id,)).fetchone()['c']
+    total_participants = conn.execute('''SELECT COUNT(*) c FROM quiz_participants qp
+                                         JOIN quiz_sessions s2 ON qp.session_id = s2.id WHERE s2.quiz_id = ?''',
+                                       (quiz_id,)).fetchone()['c']
+    total_seconds = sum(q['time_limit'] or 0 for q in questions)
     conn.close()
-    return render_template('quiz_detail.html', quiz=quiz, questions=questions)
+    return render_template('quiz_detail.html', quiz=quiz, questions=questions, live_session=live_session,
+                            session_count=session_count, total_participants=total_participants,
+                            total_seconds=total_seconds)
 
 
 @app.route('/quiz/<int:quiz_id>/question/add', methods=['POST'])
@@ -3338,15 +3475,41 @@ def quiz_add_question(quiz_id):
             flash('Soru görseli için sadece resim dosyaları desteklenir.', 'danger')
             return redirect(url_for('quiz_detail', quiz_id=quiz_id))
 
+    # Sesli soru (opsiyonel): öğrenciler soruyu dinleyebilir, ör. dil/telaffuz soruları için.
+    audio_filename = None
+    audio_file = request.files.get('question_audio')
+    if audio_file and audio_file.filename:
+        if allowed_file(audio_file.filename, AUDIO_EXT):
+            audio_filename = save_media(audio_file, UPLOAD_QUIZ, AUDIO_EXT)
+        else:
+            conn.close()
+            flash('Soru sesi için sadece ses dosyaları (mp3, wav, ogg, m4a) desteklenir.', 'danger')
+            return redirect(url_for('quiz_detail', quiz_id=quiz_id))
+
+    # Her bir şık için opsiyonel görsel (ör. "hangisi bu bayrak?" tarzı sorular).
+    option_images = {}
+    for key in ('option_a', 'option_b', 'option_c', 'option_d'):
+        f = request.files.get(f'{key}_image')
+        if f and f.filename:
+            if allowed_file(f.filename, IMAGE_EXT):
+                option_images[key] = save_media(f, UPLOAD_QUIZ, IMAGE_EXT)
+            else:
+                conn.close()
+                flash('Şık görselleri için sadece resim dosyaları desteklenir.', 'danger')
+                return redirect(url_for('quiz_detail', quiz_id=quiz_id))
+
     max_order = conn.execute('SELECT COALESCE(MAX(order_index), -1) as m FROM quiz_questions WHERE quiz_id = ?',
                               (quiz_id,)).fetchone()['m']
 
     conn.execute('''
         INSERT INTO quiz_questions
-            (quiz_id, question_text, option_a, option_b, option_c, option_d, correct_option, time_limit, order_index, image_path)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (quiz_id, question_text, option_a, option_b, option_c, option_d, correct_option, time_limit,
+             order_index, image_path, audio_path, option_a_image, option_b_image, option_c_image, option_d_image)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''', (quiz_id, question_text, option_a, option_b, option_c or None, option_d or None,
-          correct_option, time_limit, max_order + 1, image_filename))
+          correct_option, time_limit, max_order + 1, image_filename, audio_filename,
+          option_images.get('option_a'), option_images.get('option_b'),
+          option_images.get('option_c'), option_images.get('option_d')))
     conn.commit()
     conn.close()
     flash('Soru eklendi!', 'success')
@@ -3362,11 +3525,12 @@ def quiz_delete_question(question_id):
         JOIN quizzes qz ON qq.quiz_id = qz.id WHERE qq.id = ?
     ''', (question_id,)).fetchone()
     if q and (q['created_by'] == session['user_id'] or session.get('is_admin')):
-        if q['image_path']:
-            try:
-                os.remove(os.path.join(UPLOAD_QUIZ, q['image_path']))
-            except OSError:
-                pass
+        for col in ('image_path', 'audio_path', 'option_a_image', 'option_b_image', 'option_c_image', 'option_d_image'):
+            if q[col]:
+                try:
+                    os.remove(os.path.join(UPLOAD_QUIZ, q[col]))
+                except OSError:
+                    pass
         conn.execute('DELETE FROM quiz_questions WHERE id = ?', (question_id,))
         conn.commit()
         quiz_id = q['quiz_id']
@@ -3385,13 +3549,16 @@ def quiz_delete(quiz_id):
     conn = get_db()
     quiz = conn.execute('SELECT * FROM quizzes WHERE id = ?', (quiz_id,)).fetchone()
     if quiz and (quiz['created_by'] == session['user_id'] or session.get('is_admin')):
-        images = conn.execute('SELECT image_path FROM quiz_questions WHERE quiz_id = ? AND image_path IS NOT NULL',
-                               (quiz_id,)).fetchall()
+        images = conn.execute('''SELECT image_path, audio_path, option_a_image, option_b_image,
+                                        option_c_image, option_d_image
+                                 FROM quiz_questions WHERE quiz_id = ?''', (quiz_id,)).fetchall()
         for row in images:
-            try:
-                os.remove(os.path.join(UPLOAD_QUIZ, row['image_path']))
-            except OSError:
-                pass
+            for col in ('image_path', 'audio_path', 'option_a_image', 'option_b_image', 'option_c_image', 'option_d_image'):
+                if row[col]:
+                    try:
+                        os.remove(os.path.join(UPLOAD_QUIZ, row[col]))
+                    except OSError:
+                        pass
         session_ids = [r['id'] for r in conn.execute(
             'SELECT id FROM quiz_sessions WHERE quiz_id = ?', (quiz_id,)).fetchall()]
         for sid in session_ids:
@@ -3501,12 +3668,18 @@ def quiz_play(session_id):
 
 def _quiz_question_public(q):
     """Katılımcıya gönderilecek soru verisi (doğru cevap gizli)."""
+    keys = q.keys()
     return {
         'id': q['id'], 'question_text': q['question_text'],
         'option_a': q['option_a'], 'option_b': q['option_b'],
         'option_c': q['option_c'], 'option_d': q['option_d'],
         'time_limit': q['time_limit'],
-        'image_path': q['image_path'] if 'image_path' in q.keys() else None
+        'image_path': q['image_path'] if 'image_path' in keys else None,
+        'audio_path': q['audio_path'] if 'audio_path' in keys else None,
+        'option_a_image': q['option_a_image'] if 'option_a_image' in keys else None,
+        'option_b_image': q['option_b_image'] if 'option_b_image' in keys else None,
+        'option_c_image': q['option_c_image'] if 'option_c_image' in keys else None,
+        'option_d_image': q['option_d_image'] if 'option_d_image' in keys else None,
     }
 
 
@@ -3646,11 +3819,19 @@ def handle_quiz_answer(data):
 
     answer_count = conn.execute('SELECT COUNT(*) as c FROM quiz_answers WHERE question_id = ?',
                                  (question_id,)).fetchone()['c']
+    # Host ekranındaki canlı dağılım çubukları için şık başına cevap sayısı.
+    dist_rows = conn.execute('''SELECT selected_option, COUNT(*) c FROM quiz_answers
+                                WHERE question_id = ? GROUP BY selected_option''', (question_id,)).fetchall()
+    distribution = {'a': 0, 'b': 0, 'c': 0, 'd': 0}
+    for row in dist_rows:
+        if row['selected_option'] in distribution:
+            distribution[row['selected_option']] = row['c']
     qs = conn.execute('SELECT host_id FROM quiz_sessions WHERE id = ?', (session_id,)).fetchone()
     conn.close()
 
     emit('quiz_answer_result', {'is_correct': bool(is_correct), 'points': points, 'correct_option': question['correct_option']})
-    socketio.emit('quiz_answer_count', {'answer_count': answer_count}, room=quiz_room_name(session_id))
+    socketio.emit('quiz_answer_count', {'answer_count': answer_count, 'distribution': distribution},
+                   room=quiz_room_name(session_id))
 
 
 # ==================== OYUNLAR (Mini oyunlar) ====================
@@ -5012,7 +5193,7 @@ def rate_menu():
     return redirect(url_for('menu_page'))
 
 @app.route('/admin/menu/schedule', methods=['POST'])
-@permission_required('manage_menu')
+@admin_required
 def update_meal_schedule():
     keys = [
         'meal_breakfast_weekday_start', 'meal_breakfast_weekday_end',
@@ -5041,7 +5222,7 @@ def update_meal_schedule():
 
 
 @app.route('/admin/menu/upload',methods=['POST'])
-@permission_required('manage_menu')
+@admin_required
 def upload_menu():
     f=request.files.get('menu_file')
     meal_type = request.form.get('meal_type', 'auto').strip().lower()
@@ -5097,7 +5278,7 @@ def upload_menu():
     return redirect(url_for('admin_panel'))
 
 @app.route('/admin/menu/save', methods=['POST'])
-@permission_required('manage_menu')
+@admin_required
 def save_menu_manual():
     is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json
     if request.is_json:
@@ -5145,7 +5326,7 @@ def save_menu_manual():
     return redirect(request.referrer or url_for('admin_panel'))
 
 @app.route('/admin/menu/delete-day/<int:menu_id>', methods=['POST'])
-@permission_required('manage_menu')
+@admin_required
 def delete_single_day_menu(menu_id):
     conn = get_db()
     conn.execute('DELETE FROM meal_menus WHERE id = ?', (menu_id,))
@@ -5155,7 +5336,7 @@ def delete_single_day_menu(menu_id):
     return redirect(request.referrer or url_for('admin_panel'))
 
 @app.route('/admin/menu/delete',methods=['POST'])
-@permission_required('manage_menu')
+@admin_required
 def delete_menu():
     conn=get_db(); conn.execute('DELETE FROM meal_menus'); conn.commit(); conn.close(); flash('Menü kayıtları temizlendi.','success'); return redirect(url_for('admin_panel'))
 
@@ -5165,14 +5346,14 @@ def delete_menu():
 def announcements_page():
     conn=get_db(); items=conn.execute('SELECT * FROM announcements ORDER BY CASE priority WHEN "urgent" THEN 0 WHEN "high" THEN 1 ELSE 2 END,created_at DESC').fetchall(); conn.close(); return render_template('announcements.html',announcements=items)
 @app.route('/admin/announcement/create',methods=['POST'])
-@permission_required('manage_announcements')
+@admin_required
 def create_announcement():
     title=request.form.get('title','').strip(); content=request.form.get('content','').strip(); priority=request.form.get('priority','normal'); expires=request.form.get('expires_at') or None
     if title and content:
         conn=get_db(); conn.execute('INSERT INTO announcements(title,content,priority,expires_at,created_by) VALUES (?,?,?,?,?)',(title,content,priority,expires,session['user_id'])); conn.commit(); conn.close(); flash('Duyuru yayınlandı.','success')
     return redirect(url_for('admin_panel'))
 @app.route('/admin/announcement/<int:announcement_id>/delete',methods=['POST'])
-@permission_required('manage_announcements')
+@admin_required
 def delete_announcement(announcement_id):
     conn=get_db(); conn.execute('DELETE FROM announcements WHERE id=?',(announcement_id,)); conn.commit(); conn.close(); return redirect(url_for('admin_panel'))
 
@@ -5525,7 +5706,7 @@ def process_laundry_notifications():
 # ==================== ADMIN PANELİ ====================
 
 @app.route('/admin/attendance-schedule', methods=['POST'])
-@permission_required('manage_attendance')
+@admin_required
 def update_attendance_schedule():
     enabled = '1' if request.form.get('auto_attendance_enabled') == '1' else '0'
     schedule_time = request.form.get('auto_attendance_time', '22:00').strip()
@@ -5579,12 +5760,10 @@ def admin_panel():
         ORDER BY m.menu_date DESC LIMIT 31
     ''').fetchall()
 
+    poll_rows = conn.execute('SELECT p.*, (SELECT COUNT(*) FROM poll_votes v WHERE v.poll_id=p.id) vote_count FROM polls p ORDER BY p.created_at DESC LIMIT 10').fetchall()
     all_menus = conn.execute('SELECT * FROM meal_menus ORDER BY menu_date DESC LIMIT 60').fetchall()
     laundry_machines = conn.execute('SELECT * FROM laundry_machines ORDER BY id').fetchall()
     laundry_reservations = conn.execute('''SELECT r.*,m.name machine_name,u.full_name user_name FROM laundry_reservations r JOIN laundry_machines m ON m.id=r.machine_id JOIN users u ON u.id=r.user_id WHERE r.status='reserved' AND r.end_at >= ? ORDER BY r.start_at''',(now_tr().strftime('%Y-%m-%d %H:%M:%S'),)).fetchall()
-
-    role_user_counts_rows = conn.execute('SELECT role, COUNT(*) c FROM users GROUP BY role').fetchall()
-    role_user_counts = {row['role']: row['c'] for row in role_user_counts_rows}
 
     conn.close()
 
@@ -5607,152 +5786,11 @@ def admin_panel():
         'dinner_start': get_app_setting('meal_dinner_start', '18:00'),
         'dinner_end': get_app_setting('meal_dinner_end', '20:00')
     }
-    return render_template('admin.html', users=users, events=events, messages=messages, attendances=attendances, stats=stats, announcement_list=announcement_list, maintenance=maintenance, marketplace=marketplace, top_players=top_players, recent_xp=recent_xp, menu_rating_summary=menu_rating_summary, all_menus=all_menus, attendance_auto_enabled=attendance_auto_enabled, attendance_auto_time=attendance_auto_time, meal_schedule_admin=meal_schedule_admin, laundry_machines=laundry_machines, laundry_reservations=laundry_reservations,
-                           roles=USER_ROLES, permissions_catalog=PERMISSIONS, role_color_palette=ROLE_COLOR_PALETTE, role_icon_choices=ROLE_ICON_CHOICES, role_user_counts=role_user_counts)
-
-
-# -------------------- ROL YÖNETİMİ --------------------
-
-@app.route('/admin/roles/create', methods=['POST'])
-@permission_required('manage_roles')
-def create_role():
-    _actor_conn = get_db()
-    actor = dict(_actor_conn.execute('SELECT is_admin, role FROM users WHERE id = ?', (session['user_id'],)).fetchone())
-    _actor_conn.close()
-    actor_is_full_admin = has_permission(actor, 'full_admin')
-
-    title = (request.form.get('title') or '').strip()
-    badge = (request.form.get('badge') or '').strip() or title
-    desc = (request.form.get('desc') or '').strip()
-    palette_idx = request.form.get('palette', '0')
-    icon = request.form.get('icon') or 'bi-person'
-    is_admin_flag = 1 if request.form.get('is_admin') == '1' else 0
-
-    if not title:
-        flash('Rol adı zorunludur.', 'danger')
-        return redirect(url_for('admin_panel') + '#tab-roles')
-
-    try:
-        palette = ROLE_COLOR_PALETTE[int(palette_idx)]
-    except (ValueError, IndexError):
-        palette = ROLE_COLOR_PALETTE[-1]
-    if icon not in ROLE_ICON_CHOICES:
-        icon = 'bi-person'
-
-    base_key = slugify_role_key(title)
-    key = base_key
-    conn = get_db()
-    suffix = 2
-    while conn.execute('SELECT 1 FROM roles WHERE key = ?', (key,)).fetchone():
-        key = f'{base_key}_{suffix}'
-        suffix += 1
-
-    permissions = {}
-    for perm_key in PERMISSIONS:
-        if request.form.get(f'perm_{perm_key}') == '1':
-            if perm_key in ('full_admin', 'manage_roles') and not actor_is_full_admin:
-                # Sadece Tam Yönetici yetkisine sahip kişiler bu iki kritik
-                # yetkiyi başka bir role devredebilir (yetki yükseltmeyi önler).
-                continue
-            permissions[perm_key] = True
-
-    conn.execute('''
-        INSERT INTO roles (key, title, badge, icon, class, color, is_admin, desc, permissions, is_system, sort_order)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 100)
-    ''', (key, title, badge, icon, palette['class'], palette['color'], is_admin_flag, desc, json.dumps(permissions)))
-    conn.commit()
-    conn.close()
-    reload_user_roles()
-    flash(f'"{title}" rolü oluşturuldu.', 'success')
-    return redirect(url_for('admin_panel') + '#tab-roles')
-
-
-@app.route('/admin/roles/<role_key>/update', methods=['POST'])
-@permission_required('manage_roles')
-def update_role(role_key):
-    _actor_conn = get_db()
-    actor = dict(_actor_conn.execute('SELECT is_admin, role FROM users WHERE id = ?', (session['user_id'],)).fetchone())
-    _actor_conn.close()
-    actor_is_full_admin = has_permission(actor, 'full_admin')
-
-    conn = get_db()
-    role_row = conn.execute('SELECT * FROM roles WHERE key = ?', (role_key,)).fetchone()
-    if not role_row:
-        conn.close()
-        flash('Rol bulunamadı.', 'danger')
-        return redirect(url_for('admin_panel') + '#tab-roles')
-    role = _row_to_role_dict(role_row)
-
-    title = (request.form.get('title') or '').strip() or role['title']
-    badge = (request.form.get('badge') or '').strip() or title
-    desc = (request.form.get('desc') or '').strip()
-    palette_idx = request.form.get('palette')
-    icon = request.form.get('icon') or role['icon']
-    is_admin_flag = 1 if request.form.get('is_admin') == '1' else 0
-
-    if palette_idx is not None:
-        try:
-            palette = ROLE_COLOR_PALETTE[int(palette_idx)]
-        except (ValueError, IndexError):
-            palette = {'class': role['class'], 'color': role['color']}
-    else:
-        palette = {'class': role['class'], 'color': role['color']}
-    if icon not in ROLE_ICON_CHOICES:
-        icon = role['icon']
-
-    permissions = {}
-    for perm_key in PERMISSIONS:
-        if request.form.get(f'perm_{perm_key}') == '1':
-            if perm_key in ('full_admin', 'manage_roles') and not actor_is_full_admin and not role['permissions'].get(perm_key):
-                # Bu yetkiyi zaten olmayan bir role, Tam Yönetici olmayan biri veremez.
-                continue
-            permissions[perm_key] = True
-
-    # Sistemin kilitlenmesini önlemek için: 'yurt_muduru' rolünün Tam Yönetici
-    # yetkisi hiçbir zaman kaldırılamaz.
-    if role_key == 'yurt_muduru':
-        permissions['full_admin'] = True
-        is_admin_flag = 1
-
-    conn.execute('''
-        UPDATE roles SET title=?, badge=?, icon=?, class=?, color=?, is_admin=?, desc=?, permissions=?
-        WHERE key=?
-    ''', (title, badge, icon, palette['class'], palette['color'], is_admin_flag, desc, json.dumps(permissions), role_key))
-    conn.commit()
-    conn.close()
-    reload_user_roles()
-    flash(f'"{title}" rolü güncellendi.', 'success')
-    return redirect(url_for('admin_panel') + '#tab-roles')
-
-
-@app.route('/admin/roles/<role_key>/delete', methods=['POST'])
-@permission_required('manage_roles')
-def delete_role(role_key):
-    conn = get_db()
-    role_row = conn.execute('SELECT * FROM roles WHERE key = ?', (role_key,)).fetchone()
-    if not role_row:
-        conn.close()
-        flash('Rol bulunamadı.', 'danger')
-        return redirect(url_for('admin_panel') + '#tab-roles')
-    if role_row['is_system']:
-        conn.close()
-        flash('Sistem rolleri silinemez; dilerseniz düzenleyebilirsiniz.', 'warning')
-        return redirect(url_for('admin_panel') + '#tab-roles')
-    in_use = conn.execute('SELECT COUNT(*) c FROM users WHERE role = ?', (role_key,)).fetchone()['c']
-    if in_use:
-        conn.close()
-        flash(f'Bu role sahip {in_use} kullanıcı var. Silmeden önce bu kullanıcılara başka bir rol atayın.', 'danger')
-        return redirect(url_for('admin_panel') + '#tab-roles')
-    conn.execute('DELETE FROM roles WHERE key = ?', (role_key,))
-    conn.commit()
-    conn.close()
-    reload_user_roles()
-    flash('Rol silindi.', 'success')
-    return redirect(url_for('admin_panel') + '#tab-roles')
+    return render_template('admin.html', users=users, events=events, messages=messages, attendances=attendances, stats=stats, announcement_list=announcement_list, maintenance=maintenance, marketplace=marketplace, top_players=top_players, recent_xp=recent_xp, menu_rating_summary=menu_rating_summary, all_menus=all_menus, attendance_auto_enabled=attendance_auto_enabled, attendance_auto_time=attendance_auto_time, meal_schedule_admin=meal_schedule_admin, laundry_machines=laundry_machines, laundry_reservations=laundry_reservations, poll_rows=poll_rows)
 
 
 @app.route('/admin/laundry/machine/add', methods=['POST'])
-@permission_required('manage_laundry')
+@admin_required
 def admin_laundry_machine_add():
     name=request.form.get('name','').strip()
     if not name:
@@ -5765,12 +5803,12 @@ def admin_laundry_machine_add():
     conn.close(); return redirect(url_for('admin_panel'))
 
 @app.route('/admin/laundry/machine/<int:machine_id>/toggle', methods=['POST'])
-@permission_required('manage_laundry')
+@admin_required
 def admin_laundry_machine_toggle(machine_id):
     conn=get_db(); conn.execute('UPDATE laundry_machines SET enabled=CASE WHEN enabled=1 THEN 0 ELSE 1 END WHERE id=?',(machine_id,)); conn.commit(); conn.close(); return redirect(url_for('admin_panel'))
 
 @app.route('/admin/user/<int:user_id>/delete')
-@permission_required('manage_users')
+@admin_required
 def delete_user(user_id):
     if user_id == session['user_id']:
         flash('Kendinizi silemezsiniz!', 'danger')
@@ -5814,7 +5852,7 @@ def delete_user(user_id):
 
 
 @app.route('/admin/user/<int:user_id>/toggle-dorm')
-@permission_required('manage_users')
+@admin_required
 def toggle_in_dorm(user_id):
     conn = get_db()
     user = conn.execute('SELECT in_dorm FROM users WHERE id = ?', (user_id,)).fetchone()
@@ -5828,7 +5866,7 @@ def toggle_in_dorm(user_id):
 
 
 @app.route('/admin/user/<int:user_id>/role', methods=['POST'])
-@permission_required('manage_users')
+@admin_required
 def set_user_role(user_id):
     is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json
     if request.is_json:
@@ -5874,7 +5912,7 @@ def set_user_role(user_id):
 
 
 @app.route('/admin/user/<int:user_id>/theme', methods=['POST'])
-@permission_required('manage_users')
+@admin_required
 def set_user_theme(user_id):
     is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json
     if request.is_json:
@@ -5902,7 +5940,7 @@ def set_user_theme(user_id):
 
 
 @app.route('/admin/event/<int:event_id>/delete')
-@permission_required('manage_events')
+@admin_required
 def delete_event(event_id):
     conn = get_db()
     event = conn.execute('SELECT image_path FROM events WHERE id = ?', (event_id,)).fetchone()
@@ -5919,7 +5957,7 @@ def delete_event(event_id):
 
 
 @app.route('/admin/message/<int:msg_id>/delete')
-@permission_required('manage_messages')
+@admin_required
 def delete_message(msg_id):
     conn = get_db()
     conn.execute('DELETE FROM messages WHERE id = ?', (msg_id,))
@@ -5932,7 +5970,6 @@ def delete_message(msg_id):
 # ==================== BAŞLATMA ====================
 
 init_db()
-reload_user_roles()
 normalize_existing_usernames()
 start_scheduler()
 
@@ -5954,5 +5991,4 @@ if __name__ == '__main__':
     # Werkzeug'un otomatik yeniden başlatma özelliği yüzünden iki kez başlamasını
     # engeller. Kod değişikliklerinde sunucuyu elle yeniden başlatın.
     socketio.run(app, host='0.0.0.0', port=int(os.environ.get('PORT', 5000)),
-                 allow_unsafe_werkzeug=True,
                  debug=debug_mode, use_reloader=False)

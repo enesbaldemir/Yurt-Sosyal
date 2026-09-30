@@ -1,36 +1,43 @@
 {% extends "base.html" %}
 {% block title %}Yarışmaya Katıl — Yurt Sosyal{% endblock %}
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/quiz-arcade.css') }}">
+{% endblock %}
 {% block content %}
+<div class="qa-scope">
 
-<div class="d-flex align-items-center justify-content-between mb-4">
-    <div class="d-flex align-items-center gap-2">
+    <div class="d-flex align-items-center gap-2 mb-3">
         <a href="{{ url_for('quiz_list') }}" class="icon-btn" title="Yarışmalara Dön">
             <i class="bi bi-arrow-left"></i>
         </a>
         <div>
-            <span class="kicker">Canlı Katılım</span>
+            <span class="qa-kicker"><i class="bi bi-lightning-charge"></i> Canlı Katılım</span>
             <h4 class="fw-bold mb-0">Yarışmaya Katıl</h4>
         </div>
     </div>
+
+    <div class="qa-bg text-center mx-auto qa-fade-up" style="max-width: 460px; padding: 34px 26px;">
+        <div class="qa-blob" style="width:120px;height:120px;background:var(--qa-purple);top:-30px;left:-20px;"></div>
+        <div class="qa-blob" style="width:90px;height:90px;background:var(--qa-orange);bottom:-20px;right:-10px;animation-delay:1s;"></div>
+
+        <div style="font-size:2.6rem; line-height:1;" class="mb-2">🎮</div>
+
+        <form method="POST">
+            <div class="mb-4">
+                <label class="form-label text-uppercase fw-bold small" style="letter-spacing:0.08em; color: var(--qa-ink-muted);">6 Haneli PIN / Kod</label>
+                <input type="text" name="code" class="qa-join-pin" inputmode="numeric" maxlength="6" pattern="[0-9]{6}" placeholder="000000" required autofocus>
+            </div>
+
+            <div class="mb-4 text-start">
+                <label class="form-label fw-semibold">Yarışmadaki Adın / Takma Ad</label>
+                <input type="text" name="nickname" class="form-control form-control-lg" placeholder="{{ session.username }}" value="{{ session.username }}">
+            </div>
+
+            <button type="submit" class="qa-btn qa-btn-lg qa-btn-block">
+                <i class="bi bi-play-circle"></i> Odaya Katıl
+            </button>
+        </form>
+    </div>
+
 </div>
-
-<div class="card card-pad text-center mx-auto" style="max-width: 440px;">
-    <form method="POST">
-        <div class="mb-4">
-            <label class="form-label text-uppercase text-muted" style="font-size:0.75rem; letter-spacing:0.08em;">6 Haneli PIN / Kod</label>
-            <input type="text" name="code" class="form-control text-center py-2" style="font-size:2rem; letter-spacing:8px; font-weight:800; font-family: var(--font-display);"
-                   maxlength="6" pattern="[0-9]{6}" placeholder="000000" required autofocus>
-        </div>
-
-        <div class="mb-4 text-start">
-            <label class="form-label">Yarışmadaki Adın / Takma Ad</label>
-            <input type="text" name="nickname" class="form-control" placeholder="{{ session.username }}" value="{{ session.username }}">
-        </div>
-
-        <button type="submit" class="btn btn-primary w-100 py-2">
-            <i class="bi bi-play-circle me-1"></i> Odaya Katıl
-        </button>
-    </form>
-</div>
-
 {% endblock %}
